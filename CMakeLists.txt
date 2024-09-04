@@ -35,6 +35,12 @@ set(SOURCE_FILES
 
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCE_FILES})
 
+if (MSVC)
+	set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
+		VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)/"
+	)
+endif()
+
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${GLFW_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
