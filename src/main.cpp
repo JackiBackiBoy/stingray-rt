@@ -108,9 +108,6 @@ int main() {
         }
 
         // Rendering
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
         g_GfxDevice->begin_render_pass();
         {
             g_GfxDevice->bind_pipeline(g_Pipeline);

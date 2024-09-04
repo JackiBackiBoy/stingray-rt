@@ -3,6 +3,7 @@
 
 #include <glad/gl.h>
 
+#include <cassert>
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
@@ -53,8 +54,11 @@ INTERNAL constexpr GLenum to_gl_shaderstage(ShaderStage stage) {
 // Pointer to implementation
 struct GFXDevice_GL::Impl {
     void initialize() {};
+
+    Pipeline_GL* currentPipeline = nullptr;
 };
 
+// GFXDevice_GL Interface
 GFXDevice_GL::GFXDevice_GL() {
     m_Impl = new Impl();
     m_Impl->initialize();
@@ -103,19 +107,6 @@ void GFXDevice_GL::create_pipeline(const PipelineInfo& info, Pipeline& pipeline)
     glGetProgramiv(internalState->linkedShaderID, GL_LINK_STATUS, &success);
     if(!success) {
         glGetProgramInfoLog(internalState->linkedShaderID, 512, NULL, infoLog);
-    }
-
-    // Input layout
-    // TODO: Make non-float types supported
-    uintptr_t offset = 0;
-    for (size_t i = 0; i < info.inputLayout.elements.size(); ++i) {
-        const InputLayout::Element& element = info.inputLayout.elements[i];
-        const int stride = get_format_stride(element.format);
-        const int numFloats = stride / sizeof(float);
-
-        glVertexAttribPointer(i, numFloats, GL_FLOAT, GL_FALSE, stride, (void*)offset);
-        glEnableVertexAttribArray(i);
-        offset += stride;
     }
 
     glBindVertexArray(0);
@@ -177,22 +168,40 @@ void GFXDevice_GL::bind_pipeline(const Pipeline& pipeline) {
 
     glUseProgram(internalPipeline->linkedShaderID);
     glBindVertexArray(internalPipeline->vaoID);
+    m_Impl->currentPipeline = internalPipeline;
 }
 
 void GFXDevice_GL::bind_vertex_buffer(const Buffer& vertexBuffer) {
+    assert(m_Impl->currentPipeline != nullptr);
+    const PipelineInfo& pipelineInfo = m_Impl->currentPipeline->info;
+
     auto internalVertexBuffer = to_internal(vertexBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, internalVertexBuffer->vboID);
+
+    // TRICK: Due to the fact that OpenGL does not have a PSO like
+    // Vulkan and DX12, we manually re-set the input layout from
+    // the currently bound "pipeline"
+    uintptr_t offset = 0; // TODO: Make non-float types supported
+    for (size_t i = 0; i < pipelineInfo.inputLayout.elements.size(); ++i) {
+        const InputLayout::Element& element = pipelineInfo.inputLayout.elements[i];
+        const int stride = get_format_stride(element.format);
+        const int numFloats = stride / sizeof(float);
+
+        glVertexAttribPointer(i, numFloats, GL_FLOAT, GL_FALSE, stride, (void*)offset);
+        glEnableVertexAttribArray(i);
+        offset += stride;
+    }
 }
 
 void GFXDevice_GL::begin_render_pass() {
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 }
 
 void GFXDevice_GL::end_render_pass() {
 }
 
 void GFXDevice_GL::draw(uint32_t vertexCount, uint32_t startVertex) {
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
     glDrawArrays(GL_TRIANGLES, startVertex, vertexCount);
 }
 

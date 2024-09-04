@@ -1,3 +1,7 @@
+# Build
+build
+.cache
+
 # Prerequisites
 *.d
 
@@ -30,3 +34,15 @@
 *.exe
 *.out
 *.app
+
+# CMake
+CMakeFiles
+CMakeCache.txt
+cmake_install.cmake
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+
+# MacOS
+.DS_Store

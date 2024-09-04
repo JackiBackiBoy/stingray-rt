@@ -1,1 +1,0 @@
---out-path /Users/jackhenrikson/code/computer-graphics/gl-testbench/build/gladsources/glad_gl_core_41 --api gl:core=4.1 --reproducible c --loader

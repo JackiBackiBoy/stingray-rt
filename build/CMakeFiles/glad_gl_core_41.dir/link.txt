@@ -1,2 +1,0 @@
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc libglad_gl_core_41.a CMakeFiles/glad_gl_core_41.dir/gladsources/glad_gl_core_41/src/gl.c.o
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib libglad_gl_core_41.a
