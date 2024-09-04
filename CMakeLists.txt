@@ -23,8 +23,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Source files
 set(SOURCE_DIR ${CMAKE_HOME_DIRECTORY}/src)
 set(SOURCE_FILES
+	${SOURCE_DIR}/enum_flags.h
     ${SOURCE_DIR}/main.cpp
     ${SOURCE_DIR}/platform.h
+
+	# Data
+	${SOURCE_DIR}/data/camera.cpp
+	${SOURCE_DIR}/data/camera.h
 
     # Graphics
     ${SOURCE_DIR}/graphics/gfx_device.h
@@ -40,6 +45,12 @@ if (MSVC)
 		VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)/"
 	)
 endif()
+
+# Preprocessor definitions
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+	GLM_FORCE_LEFT_HANDED
+	GLM_FORCE_RADIANS
+)
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${GLFW_INCLUDE_DIR}
