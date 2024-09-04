@@ -184,12 +184,12 @@ void GFXDevice_GL::bind_vertex_buffer(const Buffer& vertexBuffer) {
     uintptr_t offset = 0; // TODO: Make non-float types supported
     for (size_t i = 0; i < pipelineInfo.inputLayout.elements.size(); ++i) {
         const InputLayout::Element& element = pipelineInfo.inputLayout.elements[i];
-        const int stride = get_format_stride(element.format);
-        const int numFloats = stride / sizeof(float);
+        const int formatStride = get_format_stride(element.format);
+        const int numFloats = formatStride / sizeof(float);
 
-        glVertexAttribPointer(i, numFloats, GL_FLOAT, GL_FALSE, stride, (void*)offset);
+        glVertexAttribPointer(i, numFloats, GL_FLOAT, GL_FALSE, vertexBuffer.info.stride, (void*)offset);
         glEnableVertexAttribArray(i);
-        offset += stride;
+        offset += formatStride;
     }
 }
 

@@ -10,6 +10,7 @@
 
 struct Vertex {
     glm::vec3 position = {};
+    glm::vec3 color = {};
 };
 
 GLOBAL_VARIABLE constexpr int WIDTH = 1024;
@@ -22,9 +23,9 @@ GLOBAL_VARIABLE Pipeline g_Pipeline = {};
 
 GLOBAL_VARIABLE Buffer g_VertexBuffer = {};
 GLOBAL_VARIABLE Vertex vertices[] = {
-    Vertex { { -0.5f, -0.5f, 0.0f } },
-    Vertex { {  0.5f, -0.5f, 0.0f } },
-    Vertex { {  0.0f,  0.5f, 0.0f } },
+    Vertex { { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+    Vertex { {  0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+    Vertex { {  0.0f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
 };
 
 INTERNAL int init_glfw(GLFWwindow** window) {
@@ -75,12 +76,12 @@ INTERNAL void init_gfx() {
         .pixelShader = &g_PixelShader,
         .inputLayout = {
             .elements = {
-                { "POSITION", Format::R32G32B32_FLOAT }
+                { "POSITION", Format::R32G32B32_FLOAT },
+                { "COLOR", Format::R32G32B32_FLOAT },
             }
         },
     };
     g_GfxDevice->create_pipeline(pipelineInfo, g_Pipeline);
-
     const BufferInfo vertexBufferInfo = {
         .size = sizeof(vertices),
         .stride = sizeof(Vertex),

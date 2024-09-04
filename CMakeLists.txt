@@ -46,8 +46,10 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Post-build
-add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+add_custom_target(copy_shaders ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_HOME_DIRECTORY}/shaders
     $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/shaders
+    COMMENT "Copying shaders directory..."
 )
+
