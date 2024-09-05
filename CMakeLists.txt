@@ -31,6 +31,10 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/data/camera.cpp
 	${SOURCE_DIR}/data/camera.h
 
+	# Input
+	${SOURCE_DIR}/input/input.cpp
+	${SOURCE_DIR}/input/input.h
+
     # Graphics
     ${SOURCE_DIR}/graphics/gfx_device.h
     ${SOURCE_DIR}/graphics/gfx_types.h

@@ -56,6 +56,7 @@ struct GFXDevice_GL::Impl {
 	void initialize() {};
 
 	Pipeline_GL* currentPipeline = nullptr;
+	uint32_t numUBOBindings = 0;
 };
 
 // GFXDevice_GL Interface
@@ -129,6 +130,10 @@ void GFXDevice_GL::create_buffer(const BufferInfo& info, Buffer& buffer, const v
 	else if (has_flag(buffer.info.bindFlags, BindFlag::INDEX_BUFFER)) {
 		bindingTarget = GL_ELEMENT_ARRAY_BUFFER;
 	}
+	else if (has_flag(buffer.info.bindFlags, BindFlag::UNIFORM_BUFFER)) {
+		bindingTarget = GL_UNIFORM_BUFFER;
+		++m_Impl->numUBOBindings;
+	}
 
 	// TODO: Allow for other options than GL_STATIC_DRAW
 	glGenBuffers(1, &internalState->id);
@@ -179,6 +184,22 @@ void GFXDevice_GL::bind_pipeline(const Pipeline& pipeline) {
 	m_Impl->currentPipeline = internalPipeline;
 }
 
+void GFXDevice_GL::bind_uniform_buffer(const Buffer& uniformBuffer, uint32_t slot) {
+	assert(m_Impl->currentPipeline != nullptr);
+	const PipelineInfo& pipelineInfo = m_Impl->currentPipeline->info;
+
+	auto internalUniformBuffer = to_internal(uniformBuffer);
+	glBindBufferRange(GL_UNIFORM_BUFFER, slot, internalUniformBuffer->id, 0, uniformBuffer.info.size);
+
+	//int maxBindings = 0;
+	//glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxBindings);
+
+	GLuint blockIndex = glGetUniformBlockIndex(m_Impl->currentPipeline->linkedShaderID, "PerFrameData");
+	assert(blockIndex != GL_INVALID_INDEX);
+
+	glUniformBlockBinding(m_Impl->currentPipeline->linkedShaderID, blockIndex, slot);
+}
+
 void GFXDevice_GL::bind_vertex_buffer(const Buffer& vertexBuffer) {
 	assert(m_Impl->currentPipeline != nullptr);
 	const PipelineInfo& pipelineInfo = m_Impl->currentPipeline->info;
@@ -215,6 +236,21 @@ void GFXDevice_GL::begin_render_pass() {
 }
 
 void GFXDevice_GL::end_render_pass() {
+}
+
+void GFXDevice_GL::update_buffer(const Buffer& buffer, const void* data) {
+	assert(buffer.info.usage == Usage::UPLOAD); // TODO: not really a criteria
+
+	auto internalBuffer = to_internal(buffer);
+	GLenum bindingTarget = 0;
+
+	if (has_flag(buffer.info.bindFlags, BindFlag::UNIFORM_BUFFER)) {
+		bindingTarget = GL_UNIFORM_BUFFER;
+	}
+
+	glBindBuffer(bindingTarget, internalBuffer->id);
+	// TODO: Allow for offset and dynamic size in bytes
+	glBufferSubData(bindingTarget, 0, buffer.info.size, data);
 }
 
 void GFXDevice_GL::draw(uint32_t vertexCount, uint32_t startVertex) {
