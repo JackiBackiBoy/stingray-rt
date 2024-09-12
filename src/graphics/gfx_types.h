@@ -149,9 +149,9 @@ struct BufferInfo {
 	bool persistentMap = false; // NOTE: Only considered for Usage::UPLOAD
 };
 
-	struct Buffer : public Resource {
-		BufferInfo info = {};
-	};
+struct Buffer : public Resource {
+	BufferInfo info = {};
+};
 
 struct InputLayout {
 	struct Element {
@@ -178,6 +178,47 @@ struct PipelineInfo {
 struct Pipeline {
 	PipelineInfo info = {};
 	std::shared_ptr<void> internalState = nullptr;
+};
+
+struct TextureInfo {
+	uint32_t width = 1;
+	uint32_t height = 1;
+	uint32_t depth = 1;
+	uint32_t arraySize = 1;
+	uint32_t mipLevels = 1;
+	uint32_t sampleCount = 1;
+	Format format = Format::UNKNOWN;
+	BindFlag bindFlags = BindFlag::NONE;
+};
+
+struct Texture : public Resource {
+	TextureInfo info = {};
+};
+
+struct PassInfo {
+	const Texture* colors[8] = { nullptr };
+	const Texture* depth = nullptr;
+	uint32_t numColorAttachments = 0;
+};
+
+struct SwapChainInfo {
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint32_t bufferCount = 2; // NOTE: Not used for OpenGL
+	Format format = Format::R8G8B8A8_UNORM; // NOTE: Not used for OpenGL
+	bool fullscreen = false; // NOTE: Not used for OpenGL
+	bool vsync = true;
+};
+
+struct SwapChain {
+	SwapChainInfo info = {};
+	std::shared_ptr<void> internalState = nullptr;
+};
+
+struct SubresourceData {
+	const void* data = nullptr;
+	uint32_t rowPitch = 0;
+	uint32_t slicePitch = 0; // NOTE: Only used for 3D textures
 };
 
 constexpr uint32_t get_format_stride(Format format) {

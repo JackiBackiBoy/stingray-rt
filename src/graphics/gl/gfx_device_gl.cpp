@@ -10,15 +10,21 @@
 #include <vector>
 
 // GL graphics types
-struct Buffer_GL {
-	BufferInfo info = {};
+struct Resource_GL {
 	unsigned int id = 0;
+};
+
+struct Buffer_GL : public Resource_GL {
+	BufferInfo info = {};
 };
 
 struct Shader_GL {
 	unsigned int id = 0;
 	ShaderStage stage = {};
 	std::vector<char> data = {};
+};
+
+struct Texture_GL : public Resource_GL {
 };
 
 struct Pipeline_GL {
@@ -40,6 +46,10 @@ INTERNAL Pipeline_GL* to_internal(const Pipeline& pipeline) {
 	return (Pipeline_GL*)pipeline.internalState.get();
 }
 
+INTERNAL Resource_GL* to_internal(const Resource& resource) {
+	return (Resource_GL*)resource.internalState.get();
+}
+
 INTERNAL constexpr GLenum to_gl_shaderstage(ShaderStage stage) {
 	switch (stage) {
 	case ShaderStage::VERTEX:
@@ -48,6 +58,200 @@ INTERNAL constexpr GLenum to_gl_shaderstage(ShaderStage stage) {
 		return GL_FRAGMENT_SHADER;
 	}
 
+	return 0;
+}
+
+INTERNAL constexpr GLint to_gl_internal_format(Format value) {
+	switch (value) {
+	case Format::UNKNOWN:
+		return 0;
+	case Format::R32G32B32A32_FLOAT:
+		return GL_RGBA32F;
+	case Format::R32G32B32A32_UINT:
+		return GL_RGBA32UI;
+	case Format::R32G32B32A32_SINT:
+		return GL_RGBA32I;
+	case Format::R32G32B32_FLOAT:
+		return GL_RGB32F;
+	case Format::R32G32B32_UINT:
+		return GL_RGB32UI;
+	case Format::R32G32B32_SINT:
+		return GL_RGB32I;
+	case Format::R16G16B16A16_FLOAT:
+		return GL_RGBA16F;
+	case Format::R16G16B16A16_UNORM:
+		return GL_RGBA16;
+	case Format::R16G16B16A16_UINT:
+		return GL_RGBA16UI;
+	case Format::R16G16B16A16_SNORM:
+		return GL_RGBA16_SNORM;
+	case Format::R16G16B16A16_SINT:
+		return GL_RGBA16I;
+	case Format::R32G32_FLOAT:
+		return GL_RG32F;
+	case Format::R32G32_UINT:
+		return GL_RG32UI;
+	case Format::R32G32_SINT:
+		return GL_RG32I;
+	case Format::D32_FLOAT_S8X24_UINT:
+		return 0;
+	case Format::R10G10B10A2_UNORM:
+		return 0;
+	case Format::R10G10B10A2_UINT:
+		return 0;
+	case Format::R11G11B10_FLOAT:
+		return 0;
+	case Format::R8G8B8A8_UNORM:
+		return GL_RGBA8;
+	case Format::R8G8B8A8_UNORM_SRGB:
+		return 0;
+	case Format::R8G8B8A8_UINT:
+		return GL_RGBA8I;
+	case Format::R8G8B8A8_SNORM:
+		return GL_RGBA8_SNORM;
+	case Format::R8G8B8A8_SINT:
+		return GL_RGBA8I;
+	case Format::R16G16_FLOAT:
+		return GL_RG16F;
+	case Format::R16G16_UNORM:
+		return GL_RG16;
+	case Format::R16G16_UINT:
+		return GL_RG16UI;
+	case Format::R16G16_SNORM:
+		return GL_RG16_SNORM;
+	case Format::R16G16_SINT:
+		return GL_RG16I;
+	case Format::D32_FLOAT:
+		return GL_DEPTH_COMPONENT32F;
+	case Format::R32_FLOAT:
+		return GL_R32F;
+	case Format::R32_UINT:
+		return GL_R32UI;
+	case Format::R32_SINT:
+		return GL_R32I;
+	case Format::D24_UNORM_S8_UINT:
+		return GL_DEPTH24_STENCIL8;
+	case Format::R9G9B9E5_SHAREDEXP:
+		return 0;
+	case Format::R8G8_UNORM:
+		return GL_RG8;
+	case Format::R8G8_UINT:
+		return GL_RG8UI;
+	case Format::R8G8_SNORM:
+		return GL_RG8_SNORM;
+	case Format::R8G8_SINT:
+		return GL_RG8I;
+	case Format::R16_FLOAT:
+		return GL_R16F;
+	case Format::D16_UNORM:
+		return GL_DEPTH_COMPONENT16;
+	case Format::R16_UNORM:
+		return GL_R16;
+	case Format::R16_UINT:
+		return GL_R16UI;
+	case Format::R16_SNORM:
+		return GL_R16_SNORM;
+	case Format::R16_SINT:
+		return GL_R16I;
+	case Format::R8_UNORM:
+		return GL_R8;
+	case Format::R8_UINT:
+		return GL_R8UI;
+	case Format::R8_SNORM:
+		return GL_R8_SNORM;
+	case Format::R8_SINT:
+		return GL_R8I;
+	case Format::BC1_UNORM:
+		return GL_R8;
+	case Format::BC1_UNORM_SRGB:
+		return 0;
+	case Format::BC2_UNORM:
+		return 0;
+	case Format::BC2_UNORM_SRGB:
+		return 0;
+	case Format::BC3_UNORM:
+		return 0;
+	case Format::BC3_UNORM_SRGB:
+		return 0;
+	case Format::BC4_UNORM:
+		return 0;
+	case Format::BC4_SNORM:
+		return 0;
+	case Format::BC5_UNORM:
+		return 0;
+	case Format::BC5_SNORM:
+		return 0;
+	case Format::B8G8R8A8_UNORM:
+		return GL_BGRA; // TODO: Might be wrong
+	case Format::B8G8R8A8_UNORM_SRGB:
+		return 0;
+	case Format::BC6H_UF16:
+		return 0;
+	case Format::BC6H_SF16:
+		return 0;
+	case Format::BC7_UNORM:
+		return 0;
+	case Format::BC7_UNORM_SRGB:
+		return 0;
+	case Format::NV12:
+		return 0;
+	}
+	return 0;
+}
+
+INTERNAL constexpr GLint to_gl_format(Format value) {
+	switch (value) {
+	case Format::UNKNOWN:
+		return 0;
+	case Format::R32G32B32A32_FLOAT:
+	case Format::R32G32B32A32_UINT:
+	case Format::R32G32B32A32_SINT:
+	case Format::R16G16B16A16_FLOAT:
+	case Format::R16G16B16A16_UNORM:
+	case Format::R16G16B16A16_UINT:
+	case Format::R16G16B16A16_SNORM:
+	case Format::R16G16B16A16_SINT:
+	case Format::R8G8B8A8_UNORM:
+	case Format::R8G8B8A8_UNORM_SRGB:
+	case Format::R8G8B8A8_UINT:
+	case Format::R8G8B8A8_SNORM:
+	case Format::R8G8B8A8_SINT:
+		return GL_RGBA;
+	case Format::R32G32B32_FLOAT:
+	case Format::R32G32B32_UINT:
+	case Format::R32G32B32_SINT:
+		return GL_RGB;
+	case Format::R32G32_FLOAT:
+	case Format::R32G32_UINT:
+	case Format::R32G32_SINT:
+	case Format::R16G16_FLOAT:
+	case Format::R16G16_UNORM:
+	case Format::R16G16_UINT:
+	case Format::R16G16_SNORM:
+	case Format::R16G16_SINT:
+	case Format::R8G8_UNORM:
+	case Format::R8G8_UINT:
+	case Format::R8G8_SNORM:
+	case Format::R8G8_SINT:
+		return GL_RG;
+	case Format::R32_FLOAT:
+	case Format::R32_UINT:
+	case Format::R32_SINT:
+	case Format::R16_FLOAT:
+	case Format::R16_UNORM:
+	case Format::R16_UINT:
+	case Format::R16_SNORM:
+	case Format::R16_SINT:
+	case Format::R8_UNORM:
+	case Format::R8_UINT:
+	case Format::R8_SNORM:
+	case Format::R8_SINT:
+		return GL_RED;
+	case Format::D32_FLOAT:
+	case Format::D24_UNORM_S8_UINT:
+	case Format::D16_UNORM:
+		return GL_DEPTH;
+	}
 	return 0;
 }
 
@@ -67,6 +271,10 @@ GFXDevice_GL::GFXDevice_GL() {
 
 GFXDevice_GL::~GFXDevice_GL() {
 	delete m_Impl;
+}
+
+void GFXDevice_GL::create_swapchain(const SwapChainInfo& info, SwapChain& swapChain) {
+	swapChain.info = info;
 }
 
 void GFXDevice_GL::create_pipeline(const PipelineInfo& info, Pipeline& pipeline) {
@@ -120,6 +328,7 @@ void GFXDevice_GL::create_buffer(const BufferInfo& info, Buffer& buffer, const v
 	buffer.info = info;
 	buffer.mappedSize = 0;
 	buffer.mappedData = nullptr;
+	buffer.type = Resource::Type::BUFFER;
 	buffer.internalState = internalState;
 
 	GLenum bindingTarget = 0;
@@ -173,6 +382,39 @@ void GFXDevice_GL::create_shader(ShaderStage stage, const std::string& path, Sha
 	if (!success) {
 		glGetShaderInfoLog(internalState->id, 512, NULL, infoLog);
 		std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+	}
+}
+
+void GFXDevice_GL::create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) {
+	auto internalState = std::make_shared<Texture_GL>();
+
+	texture.info = info;
+	texture.mappedSize = 0;
+	texture.mappedData = nullptr;
+	texture.type = Resource::Type::TEXTURE;
+	texture.internalState = internalState;
+
+	glGenTextures(1, &internalState->id);
+	glBindTexture(GL_TEXTURE_2D, internalState->id);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	if (data != nullptr) {
+		glTexImage2D(
+			GL_TEXTURE_2D,
+			0,
+			to_gl_internal_format(info.format),
+			info.width,
+			info.height,
+			0,
+			to_gl_format(info.format),
+			GL_UNSIGNED_BYTE,
+			data->data
+		);
+		glGenerateMipmap(GL_TEXTURE_2D);
 	}
 }
 
@@ -230,9 +472,22 @@ void GFXDevice_GL::bind_index_buffer(const Buffer& indexBuffer) {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, internalIndexBuffer->id);
 }
 
-void GFXDevice_GL::begin_render_pass() {
+void GFXDevice_GL::bind_resource(const Resource& resource, uint32_t slot) {
+	auto internalResource = to_internal(resource);
+
+	if (resource.type == Resource::Type::TEXTURE) {
+		auto internalTexture = (Texture_GL*)internalResource;
+
+		glActiveTexture(GL_TEXTURE0 + slot);
+		glBindTexture(GL_TEXTURE_2D, internalResource->id);
+	}
+}
+
+void GFXDevice_GL::begin_render_pass(const PassInfo& passInfo) {
+	GLbitfield bitfield = GL_COLOR_BUFFER_BIT; // TODO: Perhaps not clear buffer in all cases
+
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void GFXDevice_GL::end_render_pass() {

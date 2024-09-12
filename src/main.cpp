@@ -3,8 +3,10 @@
 
 #include "platform.h"
 #include "data/camera.h"
+#include "ecs/ecs.h"
 #include "input/input.h"
 #include "graphics/gl/gfx_device_gl.h"
+#include "managers/asset_manager.h"
 
 #include <glm/glm.hpp>
 
@@ -12,6 +14,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 struct FrameInfo {
 	Camera* camera = nullptr;
@@ -28,8 +31,8 @@ struct Vertex {
 	glm::vec3 color = {};
 };
 
-GLOBAL_VARIABLE int g_FrameWidth = 1024;
-GLOBAL_VARIABLE int g_FrameHeight = 512;
+GLOBAL_VARIABLE int g_FrameWidth = 1920;
+GLOBAL_VARIABLE int g_FrameHeight = 1080;
 GLOBAL_VARIABLE GLFWwindow* g_Window = nullptr;
 GLOBAL_VARIABLE std::unique_ptr<GFXDevice> g_GfxDevice = {};
 GLOBAL_VARIABLE Shader g_VertexShader = {};
@@ -52,6 +55,10 @@ GLOBAL_VARIABLE uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
 
 GLOBAL_VARIABLE std::unique_ptr<Camera> g_Camera = {};
 GLOBAL_VARIABLE FrameInfo g_FrameInfo = {};
+GLOBAL_VARIABLE std::vector<entity_id> g_Entities = {};
+GLOBAL_VARIABLE Asset g_CubeModel = {};
+GLOBAL_VARIABLE Asset g_TestTexture = {};
+GLOBAL_VARIABLE entity_id entity = {};
 
 // Callbacks
 INTERNAL void resize_callback(GLFWwindow* window, int width, int height) {
@@ -138,7 +145,9 @@ INTERNAL void init_gfx() {
 		.inputLayout = {
 			.elements = {
 				{ "POSITION", Format::R32G32B32_FLOAT },
-				{ "COLOR", Format::R32G32B32_FLOAT },
+				{ "NORMAL", Format::R32G32B32_FLOAT },
+				{ "TANGENT", Format::R32G32B32_FLOAT },
+				{ "TEXCOORD", Format::R32G32_FLOAT },
 			}
 		},
 	};
@@ -168,6 +177,10 @@ INTERNAL void init_gfx() {
 }
 
 INTERNAL void init_objects() {
+	// Resources
+	assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf", *g_GfxDevice);
+	assetmanager::load_from_file(g_TestTexture, "resources/textures/test.png", *g_GfxDevice);
+
 	g_Camera = std::make_unique<Camera>(
 		glm::vec3(0.0f, 0.0f, -1.0f),
 		glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
@@ -176,6 +189,13 @@ INTERNAL void init_objects() {
 		0.1f,
 		100.0f
 	);
+
+	// Entities
+	ecs::initialize();
+
+	entity = ecs::create_entity();
+	ecs::add_component(entity, Renderable{ g_CubeModel.get_model() });
+	ecs::get_component_transform(entity)->position = { -0.1f, 0.5f, 0.0f };
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
@@ -249,6 +269,7 @@ int main() {
 	glfwSetCursorPosCallback(g_Window, mouse_position_callback);
 	glfwSetMouseButtonCallback(g_Window, mouse_button_callback);
 	glfwSetKeyCallback(g_Window, key_callback);
+	glfwSwapInterval(1);
 
 	init_gfx();
 	init_objects();
@@ -267,13 +288,25 @@ int main() {
 		on_update(g_FrameInfo);
 
 		// Rendering
-		g_GfxDevice->begin_render_pass();
+		PassInfo passInfo{
+			.numColorAttachments = 1
+		};
+
+		g_GfxDevice->begin_render_pass(passInfo);
 		{
 			g_GfxDevice->bind_pipeline(g_Pipeline);
+			glEnable(GL_DEPTH_TEST);
 			g_GfxDevice->bind_uniform_buffer(g_PerFrameDataBuffer, 0);
-			g_GfxDevice->bind_vertex_buffer(g_VertexBuffer);
-			g_GfxDevice->bind_index_buffer(g_IndexBuffer);
-			g_GfxDevice->draw_indexed(6, 0, 0);
+			g_GfxDevice->bind_resource(*g_TestTexture.get_texture(), 0);
+
+			Renderable* renderable = ecs::get_component_renderable(entity);
+			g_GfxDevice->bind_vertex_buffer(renderable->model->vertexBuffer);
+			g_GfxDevice->bind_index_buffer(renderable->model->indexBuffer);
+			g_GfxDevice->draw_indexed(
+				renderable->model->indices.size(),
+				0,
+				0
+			);
 		}
 		g_GfxDevice->end_render_pass();
 
@@ -282,6 +315,7 @@ int main() {
 	}
 
 	// Shutdown
+	ecs::destroy();
 	glfwTerminate();
 	return 0;
 }

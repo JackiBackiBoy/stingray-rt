@@ -9,15 +9,18 @@ public:
 	GFXDevice() {};
 	virtual ~GFXDevice() {};
 
+	virtual void create_swapchain(const SwapChainInfo& info, SwapChain& swapChain) = 0;
 	virtual void create_pipeline(const PipelineInfo& info, Pipeline& pipeline) = 0;
 	virtual void create_buffer(const BufferInfo& info, Buffer& buffer, const void* data) = 0;
 	virtual void create_shader(ShaderStage stage, const std::string& path, Shader& shader) = 0;
+	virtual void create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) = 0;
 
 	virtual void bind_pipeline(const Pipeline& pipeline) = 0;
 	virtual void bind_uniform_buffer(const Buffer& uniformBuffer, uint32_t slot) = 0;
 	virtual void bind_vertex_buffer(const Buffer& vertexBuffer) = 0;
 	virtual void bind_index_buffer(const Buffer& indexBuffer) = 0;
-	virtual void begin_render_pass() = 0;
+	virtual void bind_resource(const Resource& resource, uint32_t slot) = 0;
+	virtual void begin_render_pass(const PassInfo& passInfo) = 0;
 	virtual void end_render_pass() = 0;
 
 	virtual void update_buffer(const Buffer& buffer, const void* data) = 0;

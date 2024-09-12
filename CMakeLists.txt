@@ -3,15 +3,17 @@ cmake_minimum_required(VERSION 3.6.0)
 project(gl-testbench)
 
 # Dependencies
-# Set options for glad
 set(DEPENDENCY_DIR ${CMAKE_HOME_DIRECTORY}/dependencies)
 set(GLFW_INCLUDE_DIR ${DEPENDENCY_DIR}/glfw/include)
 set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/glm/)
+set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/tinygltf/)
 
+# GLAD Options
 add_subdirectory(dependencies/glad/cmake)
 glad_add_library(glad_gl_core_41 REPRODUCIBLE STATIC LOADER API gl:core=4.1)
 
 add_subdirectory(dependencies/glfw)
+add_subdirectory(dependencies/tinygltf)
 
 # Settings
 set(DCMAKE_GENERATOR_PLATFORM "x64")
@@ -30,6 +32,12 @@ set(SOURCE_FILES
 	# Data
 	${SOURCE_DIR}/data/camera.cpp
 	${SOURCE_DIR}/data/camera.h
+	${SOURCE_DIR}/data/model.h
+
+	# Entity Component System (ECS)
+	${SOURCE_DIR}/ecs/components.h
+	${SOURCE_DIR}/ecs/ecs.cpp
+	${SOURCE_DIR}/ecs/ecs.h
 
 	# Input
 	${SOURCE_DIR}/input/input.cpp
@@ -40,6 +48,10 @@ set(SOURCE_FILES
     ${SOURCE_DIR}/graphics/gfx_types.h
     ${SOURCE_DIR}/graphics/gl/gfx_device_gl.cpp
     ${SOURCE_DIR}/graphics/gl/gfx_device_gl.h
+
+	# Managers
+	${SOURCE_DIR}/managers/asset_manager.cpp
+	${SOURCE_DIR}/managers/asset_manager.h
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCE_FILES})
@@ -64,13 +76,21 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     glad_gl_core_41
     glfw
+	tinygltf
 )
 
 # Post-build
 add_custom_target(copy_shaders ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
     ${CMAKE_HOME_DIRECTORY}/shaders
     $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/shaders
     COMMENT "Copying shaders directory..."
+)
+
+add_custom_target(copy_resources ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+    ${CMAKE_HOME_DIRECTORY}/resources
+    $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/resources
+    COMMENT "Copying resources directory..."
 )
 
