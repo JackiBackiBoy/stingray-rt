@@ -264,7 +264,7 @@ struct GFXDevice_GL::Impl {
 };
 
 // GFXDevice_GL Interface
-GFXDevice_GL::GFXDevice_GL() {
+GFXDevice_GL::GFXDevice_GL(GLFWwindow* window) : GFXDevice(window) {
 	m_Impl = new Impl();
 	m_Impl->initialize();
 }
@@ -418,12 +418,16 @@ void GFXDevice_GL::create_texture(const TextureInfo& info, Texture& texture, con
 	}
 }
 
-void GFXDevice_GL::bind_pipeline(const Pipeline& pipeline) {
+void GFXDevice_GL::bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) {
 	auto internalPipeline = to_internal(pipeline);
 
 	glUseProgram(internalPipeline->linkedShaderID);
 	glBindVertexArray(internalPipeline->vaoID);
 	m_Impl->currentPipeline = internalPipeline;
+}
+
+void GFXDevice_GL::bind_viewport(const Viewport& viewport, const CommandList& cmdList) {
+
 }
 
 void GFXDevice_GL::bind_uniform_buffer(const Buffer& uniformBuffer, uint32_t slot) {
@@ -442,7 +446,7 @@ void GFXDevice_GL::bind_uniform_buffer(const Buffer& uniformBuffer, uint32_t slo
 	glUniformBlockBinding(m_Impl->currentPipeline->linkedShaderID, blockIndex, slot);
 }
 
-void GFXDevice_GL::bind_vertex_buffer(const Buffer& vertexBuffer) {
+void GFXDevice_GL::bind_vertex_buffer(const Buffer& vertexBuffer, const CommandList& cmdList) {
 	assert(m_Impl->currentPipeline != nullptr);
 	const PipelineInfo& pipelineInfo = m_Impl->currentPipeline->info;
 
@@ -464,7 +468,7 @@ void GFXDevice_GL::bind_vertex_buffer(const Buffer& vertexBuffer) {
 	}
 }
 
-void GFXDevice_GL::bind_index_buffer(const Buffer& indexBuffer) {
+void GFXDevice_GL::bind_index_buffer(const Buffer& indexBuffer, const CommandList& cmdList) {
 	assert(m_Impl->currentPipeline != nullptr);
 	const PipelineInfo& pipelineInfo = m_Impl->currentPipeline->info;
 
@@ -483,14 +487,26 @@ void GFXDevice_GL::bind_resource(const Resource& resource, uint32_t slot) {
 	}
 }
 
-void GFXDevice_GL::begin_render_pass(const PassInfo& passInfo) {
+void GFXDevice_GL::push_constants(const void* data, uint32_t size, const CommandList& cmdList) {
+
+}
+
+CommandList GFXDevice_GL::begin_command_list(QueueType queue) {
+	return {}; // do nothing
+}
+
+void GFXDevice_GL::begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList) {
 	GLbitfield bitfield = GL_COLOR_BUFFER_BIT; // TODO: Perhaps not clear buffer in all cases
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void GFXDevice_GL::end_render_pass() {
+void GFXDevice_GL::end_render_pass(const SwapChain& swapChain, const CommandList& cmdList) {
+}
+
+void GFXDevice_GL::submit_command_lists(const SwapChain& swapChain) {
+	// do nothing
 }
 
 void GFXDevice_GL::update_buffer(const Buffer& buffer, const void* data) {
@@ -508,13 +524,17 @@ void GFXDevice_GL::update_buffer(const Buffer& buffer, const void* data) {
 	glBufferSubData(bindingTarget, 0, buffer.info.size, data);
 }
 
-void GFXDevice_GL::draw(uint32_t vertexCount, uint32_t startVertex) {
+void GFXDevice_GL::draw(uint32_t vertexCount, uint32_t startVertex, const CommandList& cmdList) {
 	glDrawArrays(GL_TRIANGLES, startVertex, vertexCount);
 }
 
-void GFXDevice_GL::draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex) {
+void GFXDevice_GL::draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) {
 	// NOTE: uint32_t assumed for index-type
 	const uintptr_t byteOffset = (startIndex * sizeof(uint32_t));
 	glDrawElementsBaseVertex(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, (void*)byteOffset, baseVertex);
+}
+
+void GFXDevice_GL::wait_for_gpu() {
+	// do nothing
 }
 

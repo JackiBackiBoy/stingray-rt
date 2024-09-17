@@ -6,6 +6,19 @@
 #include <string>
 #include <vector>
 
+enum QueueType : uint8_t {
+	DIRECT,
+	COPY,
+	COMPUTE,
+
+	QUEUE_COUNT
+};
+
+enum class GraphicsAPI : uint8_t {
+	OPENGL,
+	VULKAN,
+};
+
 enum class BindFlag : uint8_t {
 	NONE = 0,
 	VERTEX_BUFFER = 1 << 0,
@@ -111,6 +124,18 @@ enum class InputClass : uint8_t {
 	PER_INSTANCE,
 };
 
+enum class ResourceState : uint8_t {
+	UNDEFINED = 0,
+	SHADER_RESOURCE = 1 << 0,
+	UNORDERED_ACCESS = 1 << 1,
+	RENDER_TARGET = 1 << 2,
+	DEPTH_WRITE = 1 << 3,
+	DEPTH_READ = 1 << 4,
+
+	COPY_SRC = 1 << 5, // copy from
+	COPY_DST = 1 << 6, // copy to
+};
+
 enum class ShaderStage : uint8_t {
 	VERTEX,
 	PIXEL
@@ -153,6 +178,10 @@ struct Buffer : public Resource {
 	BufferInfo info = {};
 };
 
+struct CommandList {
+	void* internalState = nullptr;
+};
+
 struct InputLayout {
 	struct Element {
 		std::string name = "";
@@ -173,6 +202,9 @@ struct PipelineInfo {
 	const Shader* vertexShader = nullptr;
 	const Shader* pixelShader = nullptr;
 	InputLayout inputLayout = {};
+	uint32_t numRenderTargets = 0;
+	Format renderTargetFormats[8] = { Format::UNKNOWN };
+	Format depthStencilFormat = Format::D32_FLOAT;
 };
 
 struct Pipeline {
@@ -193,6 +225,73 @@ struct TextureInfo {
 
 struct Texture : public Resource {
 	TextureInfo info = {};
+};
+
+struct GPUBarrier {
+	enum class Type {
+		UAV, // UAV accesses
+		IMAGE,
+		BUFFER,
+	} type = Type::IMAGE;
+
+	struct UAV {
+		const Resource* resource = nullptr;
+	};
+
+	struct Image {
+		const Texture* texture = nullptr;
+		ResourceState stateBefore = {};
+		ResourceState stateAfter = {};
+	};
+
+	struct Buffer {
+		const Buffer* buffer = nullptr;
+		ResourceState stateBefore = {};
+		ResourceState stateAfter = {};
+	};
+
+	union {
+		UAV uav;
+		Image image;
+		Buffer buffer;
+	};
+
+	static GPUBarrier UAV(const Resource* resource) {
+		const GPUBarrier barrier = {
+			.type = Type::UAV,
+			.uav = {
+				.resource = resource
+			}
+		};
+
+		return barrier;
+	}
+
+	static GPUBarrier imageBarrier(const Texture* texture, ResourceState before, ResourceState after) {
+		const GPUBarrier barrier = {
+			.type = Type::IMAGE,
+			.image = {
+				.texture = texture,
+				.stateBefore = before,
+				.stateAfter = after
+			}
+		};
+
+		return barrier;
+	}
+
+	static GPUBarrier bufferBarrier(const Buffer* buffer, ResourceState before, ResourceState after) {
+		const GPUBarrier barrier = {
+			.type = Type::BUFFER,
+			.buffer = {
+				.buffer = buffer,
+				.stateBefore = before,
+				.stateAfter = after
+			}
+		};
+
+		return barrier;
+	}
 };
 
 struct PassInfo {
@@ -219,6 +318,15 @@ struct SubresourceData {
 	const void* data = nullptr;
 	uint32_t rowPitch = 0;
 	uint32_t slicePitch = 0; // NOTE: Only used for 3D textures
+};
+
+struct Viewport {
+	float topLeftX = 0.0f;
+	float topLeftY = 0.0f;
+	float width = 0.0f;
+	float height = 0.0f;
+	float minDepth = 0.0f;
+	float maxDepth = 1.0f;
 };
 
 constexpr uint32_t get_format_stride(Format format) {

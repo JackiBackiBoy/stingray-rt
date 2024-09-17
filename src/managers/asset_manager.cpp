@@ -270,16 +270,18 @@ namespace assetmanager {
 			throw std::runtime_error("FILE ERROR: File format not supported!");
 		}
 
+		const std::string fullPath = ENGINE_BASE_DIR + path;
 		const DataType dataType = search->second;
+
 		switch (dataType) {
 		case DataType::MODEL:
 			{
-				load_model(outAsset, path, asset, gfxDevice);
+				load_model(outAsset, fullPath, asset, gfxDevice);
 			}
 			break;
 		case DataType::IMAGE:
 			{
-				load_texture(outAsset, path, asset, gfxDevice);
+				load_texture(outAsset, fullPath, asset, gfxDevice);
 			}
 			break;
 		}

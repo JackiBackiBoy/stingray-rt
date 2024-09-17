@@ -2,10 +2,10 @@
 
 #include "../gfx_device.h"
 
-class GFXDevice_GL final : public GFXDevice {
+class GFXDevice_Vulkan final : public GFXDevice {
 public:
-	GFXDevice_GL(GLFWwindow* window);
-	~GFXDevice_GL();
+	GFXDevice_Vulkan(GLFWwindow* window);
+	~GFXDevice_Vulkan();
 
 	void create_swapchain(const SwapChainInfo& info, SwapChain& swapChain) override;
 	void create_pipeline(const PipelineInfo& info, Pipeline& pipeline) override;
@@ -30,7 +30,6 @@ public:
 
 	void draw(uint32_t vertexCount, uint32_t startVertex, const CommandList& cmdList) override;
 	void draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) override;
-
 	void wait_for_gpu() override;
 
 private:
