@@ -1,12 +1,14 @@
-#include <glad/gl.h>
-
 #include <GLFW/glfw3.h>
 
 #include "platform.h"
+#include "frame_info.h"
 #include "data/camera.h"
 #include "ecs/ecs.h"
 #include "input/input.h"
-#include "graphics/gl/gfx_device_gl.h"
+#include "graphics/render_graph.h"
+#include "graphics/renderpasses/gbuffer_pass.h"
+#include "graphics/renderpasses/lighting_pass.h"
+
 #include "graphics/vulkan/gfx_device_vulkan.h"
 #include "managers/asset_manager.h"
 
@@ -17,11 +19,6 @@
 #include <iostream>
 #include <memory>
 #include <vector>
-
-struct FrameInfo {
-	Camera* camera = nullptr;
-	float dt;
-};
 
 struct PerFrameData {
 	glm::mat4 projectionMatrix = { 1.0f };
@@ -38,31 +35,21 @@ GLOBAL_VARIABLE int g_FrameWidth = 1920;
 GLOBAL_VARIABLE int g_FrameHeight = 1080;
 GLOBAL_VARIABLE GLFWwindow* g_Window = nullptr;
 GLOBAL_VARIABLE std::unique_ptr<GFXDevice> g_GfxDevice = {};
+GLOBAL_VARIABLE std::unique_ptr<GBufferPass> g_GBufferPass = {};
+GLOBAL_VARIABLE std::unique_ptr<LightingPass> g_LightingPass = {};
+GLOBAL_VARIABLE std::unique_ptr<RenderGraph> g_RenderGraph = {};
 GLOBAL_VARIABLE SwapChain g_SwapChain = {};
-GLOBAL_VARIABLE Shader g_VertexShader = {};
-GLOBAL_VARIABLE Shader g_PixelShader = {};
-GLOBAL_VARIABLE Pipeline g_Pipeline = {};
+GLOBAL_VARIABLE Sampler g_DefaultSampler = {};
 
 // TODO: For Vulkan and DX12, make frame-in-flight amount of these resources
 GLOBAL_VARIABLE Buffer g_PerFrameDataBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
 GLOBAL_VARIABLE PerFrameData g_PerFrameData = {};
-
-GLOBAL_VARIABLE Buffer g_VertexBuffer = {};
-GLOBAL_VARIABLE Buffer g_IndexBuffer = {};
-GLOBAL_VARIABLE Vertex vertices[] = {
-	Vertex { { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
-	Vertex { {  0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
-	Vertex { {  0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
-	Vertex { { -0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
-};
-GLOBAL_VARIABLE uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
 
 GLOBAL_VARIABLE std::unique_ptr<Camera> g_Camera = {};
 GLOBAL_VARIABLE FrameInfo g_FrameInfo = {};
 GLOBAL_VARIABLE std::vector<entity_id> g_Entities = {};
 GLOBAL_VARIABLE Asset g_CubeModel = {};
 GLOBAL_VARIABLE Asset g_TestTexture = {};
-GLOBAL_VARIABLE entity_id entity = {};
 
 // Callbacks
 INTERNAL void resize_callback(GLFWwindow* window, int width, int height) {
@@ -93,23 +80,10 @@ INTERNAL int init_glfw(GLFWwindow** window) {
 		std::cout << "Failed to initialize GLFW.\n";
 		return 0;
 	}
-
-	if (g_API == GraphicsAPI::OPENGL) {
-		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-		#ifdef __APPLE__
-			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-		#endif
-	}
-	else {
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	}
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 	const std::string apiString = [=]() {
 		switch (g_API) {
-		case GraphicsAPI::OPENGL:
-			return "(OpenGL)";
 		case GraphicsAPI::VULKAN:
 			return "(Vulkan)";
 		default:
@@ -151,17 +125,8 @@ INTERNAL int init_glfw(GLFWwindow** window) {
 	return 1;
 }
 
-INTERNAL int init_glad() {
-	return gladLoadGL((GLADloadfunc)glfwGetProcAddress);
-}
-
 INTERNAL void init_gfx() {
 	switch (g_API) {
-	case GraphicsAPI::OPENGL:
-		{
-			g_GfxDevice = std::make_unique<GFXDevice_GL>(g_Window);
-		}
-		break;
 	case GraphicsAPI::VULKAN:
 		{
 			g_GfxDevice = std::make_unique<GFXDevice_Vulkan>(g_Window);
@@ -178,21 +143,6 @@ INTERNAL void init_gfx() {
 	};
 	g_GfxDevice->create_swapchain(swapChainInfo, g_SwapChain);
 
-	g_GfxDevice->create_shader(ShaderStage::VERTEX, "shaders/vulkan/hello.vert.spv", g_VertexShader);
-	g_GfxDevice->create_shader(ShaderStage::PIXEL, "shaders/vulkan/hello.frag.spv", g_PixelShader);
-
-	const PipelineInfo pipelineInfo = {
-		.vertexShader = &g_VertexShader,
-		.pixelShader = &g_PixelShader,
-		.inputLayout = {
-			.elements = {
-				{ "POSITION", Format::R32G32B32_FLOAT },
-				{ "NORMAL", Format::R32G32B32_FLOAT },
-			}
-		},
-	};
-	g_GfxDevice->create_pipeline(pipelineInfo, g_Pipeline);
-
 	const BufferInfo perFrameDataBufferInfo = {
 		.size = sizeof(PerFrameData),
 		.stride = sizeof(PerFrameData),
@@ -205,27 +155,44 @@ INTERNAL void init_gfx() {
 		g_GfxDevice->create_buffer(perFrameDataBufferInfo, g_PerFrameDataBuffers[i], &g_PerFrameData);
 	}
 
-	const BufferInfo vertexBufferInfo = {
-		.size = sizeof(vertices),
-		.stride = sizeof(Vertex),
-		.usage = Usage::DEFAULT,
-		.bindFlags = BindFlag::VERTEX_BUFFER,
-	};
-	g_GfxDevice->create_buffer(vertexBufferInfo, g_VertexBuffer, vertices);
+	// Default samplers
+	const SamplerInfo defaultSamplerInfo = {
 
-	const BufferInfo indexBufferInfo = {
-		.size = sizeof(indices),
-		.stride = sizeof(uint32_t),
-		.usage = Usage::DEFAULT, // temp
-		.bindFlags = BindFlag::INDEX_BUFFER,
 	};
-	g_GfxDevice->create_buffer(indexBufferInfo, g_IndexBuffer, indices);
+	g_GfxDevice->create_sampler(defaultSamplerInfo, g_DefaultSampler);
+
+	assetmanager::load_from_file(g_TestTexture, "resources/textures/test.png", *g_GfxDevice);
+
+	// Temp: Lighting pass
+	const uint32_t uWidth = static_cast<uint32_t>(g_FrameWidth);
+	const uint32_t uHeight = static_cast<uint32_t>(g_FrameHeight);
+
+	g_GBufferPass = std::make_unique<GBufferPass>(*g_GfxDevice);
+	g_LightingPass = std::make_unique<LightingPass>(*g_GfxDevice);
+
+	g_RenderGraph = std::make_unique<RenderGraph>(*g_GfxDevice);
+	auto gBufferPass = g_RenderGraph->add_pass("GBufferPass");
+	gBufferPass->add_output_attachment("Position", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R32G32B32A32_FLOAT });
+	gBufferPass->add_output_attachment("Albedo", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R8G8B8A8_UNORM });
+	gBufferPass->add_output_attachment("Normal", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R16G16B16A16_FLOAT });
+	gBufferPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
+		g_GBufferPass->execute(executeInfo, g_Entities);
+		});
+
+	auto lightingPass = g_RenderGraph->add_pass("LightingPass");
+	lightingPass->add_input_attachment("Position");
+	lightingPass->add_input_attachment("Albedo");
+	lightingPass->add_input_attachment("Normal");
+	lightingPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
+		g_LightingPass->execute(executeInfo);
+	});
+
+	g_RenderGraph->build();
 }
 
 INTERNAL void init_objects() {
 	// Resources
-	//assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf", *g_GfxDevice);
-	//assetmanager::load_from_file(g_TestTexture, "resources/textures/test.png", *g_GfxDevice);
+	assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf", *g_GfxDevice);
 
 	g_Camera = std::make_unique<Camera>(
 		glm::vec3(0.0f, 0.0f, -1.0f),
@@ -239,9 +206,10 @@ INTERNAL void init_objects() {
 	// Entities
 	ecs::initialize();
 
-	entity = ecs::create_entity();
-	//ecs::add_component(entity, Renderable{ g_CubeModel.get_model() });
-	//ecs::get_component_transform(entity)->position = { -0.1f, 0.5f, 0.0f };
+	g_Entities.push_back(ecs::create_entity());
+	const entity_id entity = g_Entities.back();
+	ecs::add_component(entity, Renderable{ g_CubeModel.get_model() });
+	ecs::get_component_transform(entity)->position = { -0.1f, 0.5f, 0.0f };
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
@@ -310,11 +278,6 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 int main() {
 	if (!init_glfw(&g_Window)) { return -1; }
 
-	if (g_API == GraphicsAPI::OPENGL) {
-		if (!init_glad()) { return -1; }
-		glfwSwapInterval(1); // TODO: Move
-	}
-
 	// Callbacks
 	glfwSetFramebufferSizeCallback(g_Window, resize_callback);
 	glfwSetCursorPosCallback(g_Window, mouse_position_callback);
@@ -340,37 +303,10 @@ int main() {
 		// Rendering
 		CommandList cmdList = g_GfxDevice->begin_command_list(QueueType::DIRECT);
 		{
-			const PassInfo passInfo{
-				.numColorAttachments = 1
-			};
-
-			const Viewport viewport = {
-				.width = static_cast<float>(g_FrameWidth),
-				.height = static_cast<float>(g_FrameHeight)
-			};
-
-			g_GfxDevice->begin_render_pass(g_SwapChain, passInfo, cmdList);
-			{
-				g_GfxDevice->bind_pipeline(g_Pipeline, cmdList);
-				g_GfxDevice->bind_viewport(viewport, cmdList);
-				g_GfxDevice->bind_uniform_buffer(g_PerFrameDataBuffers[g_GfxDevice->get_frame_index()], 0);
-
-				const uint32_t frameIndex = g_GfxDevice->get_frame_index();
-				g_GfxDevice->push_constants(&frameIndex, sizeof(frameIndex), cmdList);
-
-				//Transform* transform = ecs::get_component_transform(entity);
-				//Renderable* renderable = ecs::get_component_renderable(entity);
-				g_GfxDevice->bind_vertex_buffer(g_VertexBuffer, cmdList);
-				g_GfxDevice->bind_index_buffer(g_IndexBuffer, cmdList);
-				g_GfxDevice->draw_indexed(6, 0, 0, cmdList);
-			}
-			g_GfxDevice->end_render_pass(g_SwapChain, cmdList);
+			g_RenderGraph->execute(g_SwapChain, cmdList, g_FrameInfo);
 		}
 		g_GfxDevice->submit_command_lists(g_SwapChain);
 
-		if (g_API == GraphicsAPI::OPENGL) {
-			glfwSwapBuffers(g_Window);
-		}
 		glfwPollEvents();
 	}
 

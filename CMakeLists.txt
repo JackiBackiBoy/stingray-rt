@@ -12,10 +12,6 @@ set(GLFW_INCLUDE_DIR ${DEPENDENCY_DIR}/glfw/include)
 set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/glm/)
 set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/tinygltf/)
 
-# GLAD Options
-add_subdirectory(dependencies/glad/cmake)
-glad_add_library(glad_gl_core_41 REPRODUCIBLE STATIC LOADER API gl:core=4.1)
-
 add_subdirectory(dependencies/glfw)
 add_subdirectory(dependencies/tinygltf)
 
@@ -32,6 +28,7 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/enum_flags.h
     ${SOURCE_DIR}/main.cpp
     ${SOURCE_DIR}/platform.h
+	${SOURCE_DIR}/frame_info.h
 
 	# Data
 	${SOURCE_DIR}/data/camera.cpp
@@ -50,10 +47,14 @@ set(SOURCE_FILES
     # Graphics
     ${SOURCE_DIR}/graphics/gfx_device.h
     ${SOURCE_DIR}/graphics/gfx_types.h
+	${SOURCE_DIR}/graphics/render_graph.cpp
+	${SOURCE_DIR}/graphics/render_graph.h
 
-	# OpenGL
-    ${SOURCE_DIR}/graphics/gl/gfx_device_gl.cpp
-    ${SOURCE_DIR}/graphics/gl/gfx_device_gl.h
+	# Renderpasses
+	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.cpp
+	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.h
+	${SOURCE_DIR}/graphics/renderpasses/lighting_pass.cpp
+	${SOURCE_DIR}/graphics/renderpasses/lighting_pass.h
 
 	# Vulkan
 	${SOURCE_DIR}/graphics/vulkan/gfx_device_vulkan.cpp
@@ -103,7 +104,6 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
-    glad_gl_core_41
     glfw
 	tinygltf
 	${Vulkan_LIBRARIES}

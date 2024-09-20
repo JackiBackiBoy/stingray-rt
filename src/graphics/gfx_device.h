@@ -20,6 +20,7 @@ public:
 	virtual void create_buffer(const BufferInfo& info, Buffer& buffer, const void* data) = 0;
 	virtual void create_shader(ShaderStage stage, const std::string& path, Shader& shader) = 0;
 	virtual void create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) = 0;
+	virtual void create_sampler(const SamplerInfo& info, Sampler& sampler) = 0;
 
 	virtual void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) = 0;
 	virtual void bind_viewport(const Viewport& viewport, const CommandList& cmdList) = 0;
@@ -28,10 +29,13 @@ public:
 	virtual void bind_index_buffer(const Buffer& indexBuffer, const CommandList& cmdList) = 0;
 	virtual void bind_resource(const Resource& resource, uint32_t slot) = 0;
 	virtual void push_constants(const void* data, uint32_t size, const CommandList& cmdList) = 0;
+	virtual void barrier(const GPUBarrier& barrier, const CommandList& cmdList) = 0;
 
 	virtual CommandList begin_command_list(QueueType queue) = 0;
 	virtual void begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList) = 0;
+	virtual void begin_render_pass(const PassInfo& passInfo, const CommandList& cmdList) = 0;
 	virtual void end_render_pass(const SwapChain& swapChain, const CommandList& cmdList) = 0;
+	virtual void end_render_pass(const CommandList& cmdList) = 0;
 	virtual void submit_command_lists(const SwapChain& swapChain) = 0;
 
 	virtual void update_buffer(const Buffer& buffer, const void* data) = 0;
@@ -44,6 +48,7 @@ public:
 	static constexpr uint32_t FRAMES_IN_FLIGHT = 3;
 	static constexpr uint32_t MAX_UBO_DESCRIPTORS = 32;
 	static constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 1024;
+	static constexpr uint32_t MAX_SAMPLER_DESCRIPTORS = 16;
 
 protected:
 	GLFWwindow* m_Window = nullptr;

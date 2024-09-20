@@ -205,7 +205,7 @@ namespace assetmanager {
 			.size = asset->model.vertices.size() * sizeof(ModelVertex),
 			.stride = sizeof(ModelVertex),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::VERTEX_BUFFER | BindFlag::SHADER_RESOURCE, // TODO: This is hardcoded here for Ray-Tracing shader, should probably be altered
+			.bindFlags = BindFlag::VERTEX_BUFFER, // TODO: This is hardcoded here for Ray-Tracing shader, should probably be altered
 			.miscFlags = MiscFlag::BUFFER_STRUCTURED
 		};
 
@@ -213,7 +213,7 @@ namespace assetmanager {
 			.size = asset->model.indices.size() * sizeof(uint32_t),
 			.stride = sizeof(uint32_t),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::INDEX_BUFFER | BindFlag::SHADER_RESOURCE, // TODO: This is hardcoded here for Ray-Tracing shader, should probably be altered
+			.bindFlags = BindFlag::INDEX_BUFFER, // TODO: This is hardcoded here for Ray-Tracing shader, should probably be altered
 			.miscFlags = MiscFlag::BUFFER_STRUCTURED
 		};
 

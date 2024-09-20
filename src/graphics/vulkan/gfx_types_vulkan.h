@@ -116,6 +116,16 @@ struct CommandList_Vulkan {
 	VkCommandBuffer commandBuffers[GFXDevice::FRAMES_IN_FLIGHT] = { nullptr };
 };
 
+struct Sampler_Vulkan {
+	~Sampler_Vulkan() {
+		const uint64_t frameCount = destructionHandler->frameCount;
+		destructionHandler->samplers.push_back({ sampler, frameCount });
+	}
+
+	DestructionHandler* destructionHandler = nullptr;
+	VkSampler sampler = nullptr;
+};
+
 struct SwapChain_Vulkan {
 	~SwapChain_Vulkan() {
 		const uint64_t frameCount = destructionHandler->frameCount;
@@ -176,6 +186,29 @@ SwapChain_Vulkan* to_internal(const SwapChain& swapChain) {
 
 Pipeline_Vulkan* to_internal(const Pipeline& pipeline) {
 	return (Pipeline_Vulkan*)pipeline.internalState.get();
+}
+
+constexpr VkCompareOp to_vk_comparison_func(ComparisonFunc value) {
+	switch (value) {
+	case ComparisonFunc::NEVER:
+		return VK_COMPARE_OP_NEVER;
+	case ComparisonFunc::LESS:
+		return VK_COMPARE_OP_LESS;
+	case ComparisonFunc::EQUAL:
+		return VK_COMPARE_OP_EQUAL;
+	case ComparisonFunc::LESS_EQUAL:
+		return VK_COMPARE_OP_LESS_OR_EQUAL;
+	case ComparisonFunc::GREATER:
+		return VK_COMPARE_OP_GREATER;
+	case ComparisonFunc::NOT_EQUAL:
+		return VK_COMPARE_OP_NOT_EQUAL;
+	case ComparisonFunc::GREATER_EQUAL:
+		return VK_COMPARE_OP_GREATER_OR_EQUAL;
+	case ComparisonFunc::ALWAYS:
+		return VK_COMPARE_OP_ALWAYS;
+	default:
+		return VK_COMPARE_OP_NEVER;
+	}
 }
 
 constexpr VkFormat to_vk_format(Format value) {
@@ -315,4 +348,108 @@ constexpr VkFormat to_vk_format(Format value) {
 	}
 
 	return VK_FORMAT_UNDEFINED;
+}
+
+constexpr VkPipelineStageFlags2 to_vk_pipeline_stage(ResourceState value) {
+	VkPipelineStageFlags2 flags = VK_PIPELINE_STAGE_2_NONE;
+
+	if (has_flag(value, ResourceState::SHADER_RESOURCE) ||
+		has_flag(value, ResourceState::UNORDERED_ACCESS)) {
+		flags |= VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+	}
+	if (has_flag(value, ResourceState::COPY_SRC) ||
+		has_flag(value, ResourceState::COPY_DST)) {
+		flags |= VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	}
+	if (has_flag(value, ResourceState::RENDER_TARGET)) {
+		flags |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	}
+	if (has_flag(value, ResourceState::DEPTH_READ) ||
+		has_flag(value, ResourceState::DEPTH_WRITE)) {
+		flags |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	}
+
+	return flags;
+}
+
+constexpr VkAccessFlags2 to_vk_resource_access(ResourceState value) {
+	VkAccessFlags2 flags = 0;
+
+	if (has_flag(value, ResourceState::SHADER_RESOURCE)) {
+		flags |= VK_ACCESS_2_SHADER_READ_BIT;
+	}
+	if (has_flag(value, ResourceState::UNORDERED_ACCESS)) {
+		flags |= VK_ACCESS_2_SHADER_READ_BIT;
+		flags |= VK_ACCESS_2_SHADER_WRITE_BIT;
+	}
+	if (has_flag(value, ResourceState::COPY_SRC)) {
+		flags |= VK_ACCESS_2_TRANSFER_READ_BIT;
+	}
+	if (has_flag(value, ResourceState::COPY_DST)) {
+		flags |= VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	}
+	if (has_flag(value, ResourceState::RENDER_TARGET)) {
+		flags |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+		flags |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	}
+	if (has_flag(value, ResourceState::DEPTH_READ)) {
+		flags |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+	}
+	if (has_flag(value, ResourceState::DEPTH_WRITE)) {
+		flags |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	}
+
+	return flags;
+}
+
+constexpr VkImageLayout to_vk_resource_state(ResourceState value) {
+	switch (value) {
+	case ResourceState::UNDEFINED:
+		return VK_IMAGE_LAYOUT_UNDEFINED;
+	case ResourceState::RENDER_TARGET:
+		return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	case ResourceState::DEPTH_WRITE: // TODO: Might be wrong
+		return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	case ResourceState::DEPTH_READ:
+		return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+	case ResourceState::SHADER_RESOURCE:
+		return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	case ResourceState::UNORDERED_ACCESS:
+		return VK_IMAGE_LAYOUT_GENERAL;
+	default:
+		return VK_IMAGE_LAYOUT_GENERAL;
+	}
+}
+
+constexpr VkBorderColor to_vk_sampler_border_color(BorderColor value) {
+	switch (value) {
+	case BorderColor::TRANSPARENT_BLACK:
+		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	case BorderColor::OPAQUE_BLACK:
+		return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+	case BorderColor::OPAQUE_WHITE:
+		return VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	default:
+		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	}
+}
+
+constexpr VkSamplerAddressMode to_vk_texture_address_mode(TextureAddressMode value) {
+	switch (value) {
+	case TextureAddressMode::WRAP:
+		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	case TextureAddressMode::MIRROR:
+		return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	case TextureAddressMode::CLAMP:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	case TextureAddressMode::BORDER:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		//case TextureAddressMode::MIRROR_ONCE:
+		//	if (features_1_2.samplerMirrorClampToEdge == VK_TRUE) {
+		//		return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+		//	}
+		//	return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	default:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	}
 }

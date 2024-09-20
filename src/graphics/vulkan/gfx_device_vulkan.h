@@ -12,6 +12,7 @@ public:
 	void create_buffer(const BufferInfo& info, Buffer& buffer, const void* data) override;
 	void create_shader(ShaderStage stage, const std::string& path, Shader& shader) override;
 	void create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) override;
+	void create_sampler(const SamplerInfo& info, Sampler& sampler) override;
 
 	void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) override;
 	void bind_viewport(const Viewport& viewport, const CommandList& cmdList) override;
@@ -20,10 +21,13 @@ public:
 	void bind_index_buffer(const Buffer& indexBuffer, const CommandList& cmdList) override;
 	void bind_resource(const Resource& resource, uint32_t slot) override;
 	void push_constants(const void* data, uint32_t size, const CommandList& cmdList) override;
+	void barrier(const GPUBarrier& barrier, const CommandList& cmdList) override;
 
 	CommandList begin_command_list(QueueType queue) override;
 	void begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList) override;
+	void begin_render_pass(const PassInfo& passInfo, const CommandList& cmdList) override;
 	void end_render_pass(const SwapChain& swapChain, const CommandList& cmdList) override;
+	void end_render_pass(const CommandList& cmdList) override;
 	void submit_command_lists(const SwapChain& swapChain) override;
 
 	void update_buffer(const Buffer& buffer, const void* data) override;

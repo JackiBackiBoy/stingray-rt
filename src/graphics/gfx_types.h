@@ -15,7 +15,6 @@ enum QueueType : uint8_t {
 };
 
 enum class GraphicsAPI : uint8_t {
-	OPENGL,
 	VULKAN,
 };
 
@@ -37,6 +36,45 @@ enum class MiscFlag : uint8_t {
 	INDIRECT_ARGS = 1 << 1,
 	BUFFER_RAW = 1 << 2,
 	BUFFER_STRUCTURED = 1 << 3,
+};
+
+enum class Filter : uint8_t {
+	MIN_MAG_MIP_POINT,
+	MIN_MAG_POINT_MIP_LINEAR,
+	MIN_POINT_MAG_LINEAR_MIP_POINT,
+	MIN_POINT_MAG_MIP_LINEAR,
+	MIN_LINEAR_MAG_MIP_POINT,
+	MIN_LINEAR_MAG_POINT_MIP_LINEAR,
+	MIN_MAG_LINEAR_MIP_POINT,
+	MIN_MAG_MIP_LINEAR,
+	ANISOTROPIC,
+	COMPARISON_MIN_MAG_MIP_POINT,
+	COMPARISON_MIN_MAG_POINT_MIP_LINEAR,
+	COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT,
+	COMPARISON_MIN_POINT_MAG_MIP_LINEAR,
+	COMPARISON_MIN_LINEAR_MAG_MIP_POINT,
+	COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
+	COMPARISON_MIN_MAG_LINEAR_MIP_POINT,
+	COMPARISON_MIN_MAG_MIP_LINEAR,
+	COMPARISON_ANISOTROPIC,
+	MINIMUM_MIN_MAG_MIP_POINT,
+	MINIMUM_MIN_MAG_POINT_MIP_LINEAR,
+	MINIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT,
+	MINIMUM_MIN_POINT_MAG_MIP_LINEAR,
+	MINIMUM_MIN_LINEAR_MAG_MIP_POINT,
+	MINIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
+	MINIMUM_MIN_MAG_LINEAR_MIP_POINT,
+	MINIMUM_MIN_MAG_MIP_LINEAR,
+	MINIMUM_ANISOTROPIC,
+	MAXIMUM_MIN_MAG_MIP_POINT,
+	MAXIMUM_MIN_MAG_POINT_MIP_LINEAR,
+	MAXIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT,
+	MAXIMUM_MIN_POINT_MAG_MIP_LINEAR,
+	MAXIMUM_MIN_LINEAR_MAG_MIP_POINT,
+	MAXIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
+	MAXIMUM_MIN_MAG_LINEAR_MIP_POINT,
+	MAXIMUM_MIN_MAG_MIP_LINEAR,
+	MAXIMUM_ANISOTROPIC,
 };
 
 enum class Format : uint8_t {
@@ -136,9 +174,34 @@ enum class ResourceState : uint8_t {
 	COPY_DST = 1 << 6, // copy to
 };
 
+enum class BorderColor : uint8_t {
+	TRANSPARENT_BLACK,
+	OPAQUE_BLACK,
+	OPAQUE_WHITE,
+};
+
+enum class TextureAddressMode : uint8_t {
+	WRAP,
+	MIRROR,
+	CLAMP,
+	BORDER,
+	MIRROR_ONCE,
+};
+
 enum class ShaderStage : uint8_t {
 	VERTEX,
 	PIXEL
+};
+
+enum class ComparisonFunc : uint8_t {
+	NEVER,
+	LESS,
+	EQUAL,
+	LESS_EQUAL,
+	GREATER,
+	NOT_EQUAL,
+	GREATER_EQUAL,
+	ALWAYS,
 };
 
 enum class Usage : uint8_t { // NOTE: Not used for OpenGL
@@ -151,13 +214,15 @@ template<>
 struct enable_bitmask_operators<BindFlag> { static constexpr bool enable = true; };
 template<>
 struct enable_bitmask_operators<MiscFlag> { static constexpr bool enable = true; };
+template<>
+struct enable_bitmask_operators<ResourceState> { static constexpr bool enable = true; };
 
 struct Resource {
 	enum class Type {
 		UNKNOWN,
 		BUFFER,
 		TEXTURE,
-		RAYTRACING_AS // NOTE: Not supported in OpenGL
+		RAYTRACING_AS
 	} type = Type::UNKNOWN;
 
 	void* mappedData = nullptr; // NOTE: Only valid for Usage::UPLOAD
@@ -168,7 +233,7 @@ struct Resource {
 struct BufferInfo {
 	uint64_t size = 0;
 	uint32_t stride = 0;
-	Usage usage = Usage::DEFAULT; // NOTE: Not used for OpenGL
+	Usage usage = Usage::DEFAULT;
 	BindFlag bindFlags = BindFlag::NONE;
 	MiscFlag miscFlags = MiscFlag::NONE;
 	bool persistentMap = false; // NOTE: Only considered for Usage::UPLOAD
@@ -220,6 +285,7 @@ struct TextureInfo {
 	uint32_t mipLevels = 1;
 	uint32_t sampleCount = 1;
 	Format format = Format::UNKNOWN;
+	Usage usage = Usage::DEFAULT;
 	BindFlag bindFlags = BindFlag::NONE;
 };
 
@@ -298,6 +364,24 @@ struct PassInfo {
 	const Texture* colors[8] = { nullptr };
 	const Texture* depth = nullptr;
 	uint32_t numColorAttachments = 0;
+};
+
+struct SamplerInfo {
+	Filter filter = Filter::MIN_MAG_MIP_LINEAR;
+	TextureAddressMode addressU = TextureAddressMode::WRAP;
+	TextureAddressMode addressV = TextureAddressMode::WRAP;
+	TextureAddressMode addressW = TextureAddressMode::WRAP;
+	float mipLODBias = 0;
+	uint32_t maxAnisotropy = 0;
+	ComparisonFunc comparisonFunc = ComparisonFunc::NEVER;
+	BorderColor borderColor = BorderColor::TRANSPARENT_BLACK;
+	float minLOD = 0;
+	float maxLOD = std::numeric_limits<float>::max();
+};
+
+struct Sampler {
+	SamplerInfo info = {};
+	std::shared_ptr<void> internalState = nullptr;
 };
 
 struct SwapChainInfo {
