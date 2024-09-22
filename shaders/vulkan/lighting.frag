@@ -1,13 +1,18 @@
 #version 450
-#extension GL_EXT_nonuniform_qualifier : require
+#include "bindless.glsl"
 
-layout (location = 0) in vec2 fragTexCoord;
+// Inputs
+layout (location = 0) in vec2 fsInTexCoord;
 
-layout(location = 0) out vec4 outColor;
+// Outputs
+layout(location = 0) out vec4 fsOutColor;
 
-layout (set = 0, binding = 1) uniform texture2D g_Textures[];
-layout (set = 0, binding = 2) uniform sampler g_Samplers[];
+layout (push_constant) uniform constants {
+    uint positionIndex;
+    uint albedoIndex;
+    uint normalIndex;
+} g_PushConstants;
 
 void main() {
-    outColor = vec4(texture(sampler2D(g_Textures[1], g_Samplers[0]), fragTexCoord).rgb, 1.0f);
+    fsOutColor = vec4(texture(sampler2D(g_Textures[g_PushConstants.normalIndex], g_Samplers[0]), fsInTexCoord).rgb, 1.0f);
 }

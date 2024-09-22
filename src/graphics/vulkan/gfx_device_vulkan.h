@@ -34,6 +34,8 @@ public:
 
 	void draw(uint32_t vertexCount, uint32_t startVertex, const CommandList& cmdList) override;
 	void draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) override;
+
+	uint32_t get_descriptor_index(const Resource& resource) override;
 	void wait_for_gpu() override;
 
 private:

@@ -14,54 +14,6 @@
 #include <set>
 #include <vector>
 
-// Vulkan helpers
-namespace vk_helpers {
-	struct ImageTransitionInfo {
-		VkImage image = nullptr;
-		VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		VkImageLayout newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		VkAccessFlags2 srcAccessMask = VK_ACCESS_2_NONE;
-		VkAccessFlags2 dstAccessMask = VK_ACCESS_2_NONE;
-		VkPipelineStageFlags2 srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-		VkPipelineStageFlags2 dstStageMask = VK_PIPELINE_STAGE_2_NONE;
-	};
-
-	void transition_image_layout(const ImageTransitionInfo& info, VkCommandBuffer commandBuffer) {
-		// TODO: Doesn't work for depth attachments
-		const VkImageSubresourceRange subresourceRange = {
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.baseMipLevel = 0,
-			.levelCount = 1,
-			.baseArrayLayer = 0,
-			.layerCount = 1
-		};
-
-		const VkImageMemoryBarrier2 imageBarrier = {
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-			.pNext = nullptr,
-			.srcStageMask = info.srcStageMask,
-			.srcAccessMask = info.srcAccessMask,
-			.dstStageMask = info.dstStageMask,
-			.dstAccessMask = info.dstAccessMask,
-			.oldLayout = info.oldLayout,
-			.newLayout = info.newLayout,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image = info.image,
-			.subresourceRange = subresourceRange
-		};
-
-		const VkDependencyInfo dependencyInfo = {
-			.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-			.pNext = nullptr,
-			.imageMemoryBarrierCount = 1,
-			.pImageMemoryBarriers = &imageBarrier
-		};
-
-		vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
-	}
-}
-
 // GFXDevice_Vulkan Implemenation
 struct GFXDevice_Vulkan::Impl {
 	Impl(GLFWwindow* window);
@@ -1103,9 +1055,6 @@ void GFXDevice_Vulkan::create_pipeline(const PipelineInfo& info, Pipeline& pipel
 	};
 
 	// Blending
-	
-
-	
 	std::vector<VkPipelineColorBlendAttachmentState> colorBlendStates = {};
 	for (uint32_t i = 0; i < info.numRenderTargets; ++i) {
 		// TODO: Make dynamic
@@ -1162,6 +1111,7 @@ void GFXDevice_Vulkan::create_pipeline(const PipelineInfo& info, Pipeline& pipel
 		colorAttachmentFormats.push_back(to_vk_format(info.renderTargetFormats[i]));
 	}
 
+	// TODO: Stencil format unspecified right now
 	const VkPipelineRenderingCreateInfo pipelineRenderingInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
 		.colorAttachmentCount = info.numRenderTargets,
@@ -1169,8 +1119,18 @@ void GFXDevice_Vulkan::create_pipeline(const PipelineInfo& info, Pipeline& pipel
 		.depthAttachmentFormat = to_vk_format(info.depthStencilFormat)
 	};
 
-	VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
-	depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	const VkPipelineDepthStencilStateCreateInfo depthStencilInfo = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.depthTestEnable = info.depthStencilState.depthEnable ? VK_TRUE : VK_FALSE,
+		.depthWriteEnable = info.depthStencilState.depthWriteMask == DepthWriteMask::ZERO ? VK_FALSE : VK_TRUE,
+		.depthCompareOp = to_vk_comparison_func(info.depthStencilState.depthFunction),
+		.depthBoundsTestEnable = VK_FALSE,
+		.stencilTestEnable = VK_FALSE,
+		.minDepthBounds = 0.0f,
+		.maxDepthBounds = 1.0f
+	};
 
 	// TODO: Enable depth
 	const VkGraphicsPipelineCreateInfo pipelineInfo = {
@@ -1362,6 +1322,7 @@ void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture,
 
 	texture.internalState = internalState;
 	texture.info = info;
+	texture.type = Resource::Type::TEXTURE;
 	texture.mappedData = nullptr;
 	texture.mappedSize = 0;
 
@@ -1430,24 +1391,22 @@ void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture,
 	vkBindImageMemory(m_Impl->m_Device, internalState->image, internalState->imageMemory, 0);
 
 	// TODO: Handle depth and other image aspects in a better manner
-	VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
-
-	// TODO: Add depth bit if need be
-	// TODO: Also add stencil check
-	//if (isDepthFormat(info.format)) {
-		//aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
-	//}
-
-	VkImageViewCreateInfo imageViewInfo{};
-	imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	imageViewInfo.image = internalState->image;
-	imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	imageViewInfo.format = imageInfo.format;
-	imageViewInfo.subresourceRange.aspectMask = aspectFlag;
-	imageViewInfo.subresourceRange.baseMipLevel = 0;
-	imageViewInfo.subresourceRange.levelCount = 1;
-	imageViewInfo.subresourceRange.baseArrayLayer = 0;
-	imageViewInfo.subresourceRange.layerCount = 1;
+	const VkImageAspectFlags aspectFlag = is_depth_format(info.format) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+	const VkImageViewCreateInfo imageViewInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.image = internalState->image,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = imageInfo.format,
+		.subresourceRange = {
+			.aspectMask = aspectFlag,
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1
+		}
+	};
 
 	if (vkCreateImageView(m_Impl->m_Device, &imageViewInfo, nullptr, &internalState->imageView) != VK_SUCCESS) {
 		throw std::runtime_error("VULKAN ERROR: Failed to create image view.");
@@ -1488,6 +1447,7 @@ void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture,
 			transitionInfo.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 			transitionInfo.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 			transitionInfo.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			transitionInfo.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 
 			vk_helpers::transition_image_layout(transitionInfo, tempCommandBuffer);
 
@@ -1559,6 +1519,7 @@ void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture,
 			transitionInfo.dstAccessMask = resourceState;
 			transitionInfo.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 			transitionInfo.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+			transitionInfo.aspectFlags = is_depth_format(info.format) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
 			vk_helpers::transition_image_layout(transitionInfo, tempCommandBuffer);
 		}
@@ -1576,8 +1537,9 @@ void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture,
 	}
 
 	// Create resource descriptor
-	// TODO: Only if shader resource
-	internalState->descriptor.init_texture(m_Impl, internalState->imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	if (has_flag(info.bindFlags, BindFlag::SHADER_RESOURCE)) {
+		internalState->descriptor.init_texture(m_Impl, internalState->imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
 }
 
 void GFXDevice_Vulkan::create_sampler(const SamplerInfo& info, Sampler& sampler) {
@@ -1896,6 +1858,9 @@ void GFXDevice_Vulkan::barrier(const GPUBarrier& barrier, const CommandList& cmd
 			const TextureInfo& textureInfo = barrier.image.texture->info;
 			auto internalTexture = m_Impl->to_internal(*barrier.image.texture);
 
+			const bool isDepth = is_depth_format(barrier.image.texture->info.format);
+			const VkImageAspectFlags aspectFlag = isDepth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
 			vk_helpers::ImageTransitionInfo transitionInfo = {
 				.image = internalTexture->image,
 				.oldLayout = to_vk_resource_state(barrier.image.stateBefore),
@@ -1903,7 +1868,8 @@ void GFXDevice_Vulkan::barrier(const GPUBarrier& barrier, const CommandList& cmd
 				.srcAccessMask = to_vk_resource_access(barrier.image.stateBefore),
 				.dstAccessMask = to_vk_resource_access(barrier.image.stateAfter),
 				.srcStageMask = to_vk_pipeline_stage(barrier.image.stateBefore),
-				.dstStageMask = to_vk_pipeline_stage(barrier.image.stateAfter)
+				.dstStageMask = to_vk_pipeline_stage(barrier.image.stateAfter),
+				.aspectFlags = aspectFlag
 			};
 
 			vk_helpers::transition_image_layout(transitionInfo, internalCmdList->commandBuffers[m_CurrentFrame]);
@@ -1984,11 +1950,14 @@ void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassI
 		.srcAccessMask = VK_ACCESS_2_NONE,
 		.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 		.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-		.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+		.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT
 	};
 	vk_helpers::transition_image_layout(transitionInfo, currVkCommandBuffer);
 
-	const VkClearValue clearColor = { { { 0.0f, 0.0f, 0.0f, 1.0f } } };
+	const VkClearValue clearColor = {
+		.color = { 0.0f, 0.0f, 0.0f, 1.0f }
+	};
 
 	const VkRenderingAttachmentInfo colorAttachmentInfo = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -2001,6 +1970,27 @@ void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassI
 
 	// TODO: Depth
 	// ...
+	VkRenderingAttachmentInfo depthAttachmentInfo = {};
+
+	// Depth attachment
+	if (passInfo.depth != nullptr) {
+		auto internalDepthTexture = m_Impl->to_internal(*passInfo.depth);
+
+		const VkClearValue depthClearValue = {
+			.depthStencil = {
+				.depth = 1.0f,
+				.stencil = 0
+			}
+		};
+
+		depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		depthAttachmentInfo.pNext = nullptr;
+		depthAttachmentInfo.imageView = internalDepthTexture->imageView;
+		depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachmentInfo.clearValue = depthClearValue;
+	}
 
 	const VkRect2D area = {
 		.offset = { 0, 0 },
@@ -2014,7 +2004,7 @@ void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassI
 		.viewMask = 0,
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &colorAttachmentInfo,
-		.pDepthAttachment = nullptr,
+		.pDepthAttachment = passInfo.depth != nullptr ? &depthAttachmentInfo : nullptr,
 		.pStencilAttachment = nullptr
 	};
 
@@ -2053,8 +2043,27 @@ void GFXDevice_Vulkan::begin_render_pass(const PassInfo& passInfo, const Command
 		attachment.clearValue = clearColor;
 	}
 
-	// TODO: Depth
-	// ...
+	// // Depth attachment
+	VkRenderingAttachmentInfo depthAttachmentInfo = {};
+	
+	if (passInfo.depth != nullptr) {
+		auto internalDepthTexture = m_Impl->to_internal(*passInfo.depth);
+
+		const VkClearValue depthClearValue = {
+			.depthStencil = {
+				.depth = 1.0f,
+				.stencil = 0
+			}
+		};
+
+		depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		depthAttachmentInfo.pNext = nullptr;
+		depthAttachmentInfo.imageView = internalDepthTexture->imageView;
+		depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachmentInfo.clearValue = depthClearValue;
+	}
 
 	const VkRenderingInfo renderInfo = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -2063,7 +2072,7 @@ void GFXDevice_Vulkan::begin_render_pass(const PassInfo& passInfo, const Command
 		.viewMask = 0,
 		.colorAttachmentCount = passInfo.numColorAttachments,
 		.pColorAttachments = colorAttachmentInfos.data(),
-		.pDepthAttachment = nullptr,
+		.pDepthAttachment = passInfo.depth != nullptr ? &depthAttachmentInfo : nullptr,
 		.pStencilAttachment = nullptr
 	};
 
@@ -2087,7 +2096,8 @@ void GFXDevice_Vulkan::end_render_pass(const SwapChain& swapChain, const Command
 		.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 		.dstAccessMask = VK_ACCESS_2_NONE,
 		.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-		.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT
+		.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+		.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT
 	};
 	vk_helpers::transition_image_layout(transitionInfo, currVkCommandBuffer);
 }
@@ -2177,6 +2187,15 @@ void GFXDevice_Vulkan::draw_indexed(uint32_t indexCount, uint32_t startIndex, ui
 		static_cast<int32_t>(baseVertex),
 		0
 	);
+}
+
+uint32_t GFXDevice_Vulkan::get_descriptor_index(const Resource& resource) {
+	if (resource.type == Resource::Type::TEXTURE) {
+		auto internalTexture = (Impl::Texture_Vulkan*)resource.internalState.get();
+
+		// TODO: Handle subresource types
+		return internalTexture->descriptor.index;
+	}
 }
 
 void GFXDevice_Vulkan::wait_for_gpu() {

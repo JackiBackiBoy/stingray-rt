@@ -34,6 +34,7 @@ GLOBAL_VARIABLE GraphicsAPI g_API = GraphicsAPI::VULKAN;
 GLOBAL_VARIABLE int g_FrameWidth = 1920;
 GLOBAL_VARIABLE int g_FrameHeight = 1080;
 GLOBAL_VARIABLE GLFWwindow* g_Window = nullptr;
+
 GLOBAL_VARIABLE std::unique_ptr<GFXDevice> g_GfxDevice = {};
 GLOBAL_VARIABLE std::unique_ptr<GBufferPass> g_GBufferPass = {};
 GLOBAL_VARIABLE std::unique_ptr<LightingPass> g_LightingPass = {};
@@ -41,13 +42,16 @@ GLOBAL_VARIABLE std::unique_ptr<RenderGraph> g_RenderGraph = {};
 GLOBAL_VARIABLE SwapChain g_SwapChain = {};
 GLOBAL_VARIABLE Sampler g_DefaultSampler = {};
 
-// TODO: For Vulkan and DX12, make frame-in-flight amount of these resources
 GLOBAL_VARIABLE Buffer g_PerFrameDataBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
 GLOBAL_VARIABLE PerFrameData g_PerFrameData = {};
 
 GLOBAL_VARIABLE std::unique_ptr<Camera> g_Camera = {};
 GLOBAL_VARIABLE FrameInfo g_FrameInfo = {};
 GLOBAL_VARIABLE std::vector<entity_id> g_Entities = {};
+
+// Resources
+GLOBAL_VARIABLE Texture g_DefaultAlbedoMap = {};
+GLOBAL_VARIABLE Texture g_DefaultNormalMap = {};
 GLOBAL_VARIABLE Asset g_CubeModel = {};
 GLOBAL_VARIABLE Asset g_TestTexture = {};
 
@@ -155,15 +159,29 @@ INTERNAL void init_gfx() {
 		g_GfxDevice->create_buffer(perFrameDataBufferInfo, g_PerFrameDataBuffers[i], &g_PerFrameData);
 	}
 
+	// Default textures
+	const TextureInfo textureInfo1x1 = {
+		.width = 1,
+		.height = 1,
+		.format = Format::R8G8B8A8_UNORM,
+		.bindFlags = BindFlag::SHADER_RESOURCE
+	};
+
+	const uint32_t defaultAlbedoMapData = 0xffffffff;
+	const uint32_t defaultNormalMapData = 0xffff8080; // tangent space default normal
+	const SubresourceData defaultAlbedoMapSubresource = { &defaultAlbedoMapData, sizeof(uint32_t) };
+	const SubresourceData defaultNormalMapSubresource = { &defaultNormalMapData, sizeof(uint32_t) };
+
+	g_GfxDevice->create_texture(textureInfo1x1, g_DefaultAlbedoMap, &defaultAlbedoMapSubresource);
+	g_GfxDevice->create_texture(textureInfo1x1, g_DefaultNormalMap, &defaultNormalMapSubresource);
+
 	// Default samplers
 	const SamplerInfo defaultSamplerInfo = {
 
 	};
 	g_GfxDevice->create_sampler(defaultSamplerInfo, g_DefaultSampler);
 
-	assetmanager::load_from_file(g_TestTexture, "resources/textures/test.png", *g_GfxDevice);
-
-	// Temp: Lighting pass
+	// Render graph
 	const uint32_t uWidth = static_cast<uint32_t>(g_FrameWidth);
 	const uint32_t uHeight = static_cast<uint32_t>(g_FrameHeight);
 
@@ -175,9 +193,10 @@ INTERNAL void init_gfx() {
 	gBufferPass->add_output_attachment("Position", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R32G32B32A32_FLOAT });
 	gBufferPass->add_output_attachment("Albedo", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R8G8B8A8_UNORM });
 	gBufferPass->add_output_attachment("Normal", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R16G16B16A16_FLOAT });
+	gBufferPass->add_output_attachment("Depth", AttachmentInfo{ uWidth, uHeight, AttachmentType::DEPTH_STENCIL, Format::D32_FLOAT });
 	gBufferPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
 		g_GBufferPass->execute(executeInfo, g_Entities);
-		});
+	});
 
 	auto lightingPass = g_RenderGraph->add_pass("LightingPass");
 	lightingPass->add_input_attachment("Position");
@@ -302,9 +321,7 @@ int main() {
 
 		// Rendering
 		CommandList cmdList = g_GfxDevice->begin_command_list(QueueType::DIRECT);
-		{
-			g_RenderGraph->execute(g_SwapChain, cmdList, g_FrameInfo);
-		}
+		g_RenderGraph->execute(g_SwapChain, cmdList, g_FrameInfo);
 		g_GfxDevice->submit_command_lists(g_SwapChain);
 
 		glfwPollEvents();

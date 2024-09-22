@@ -12,8 +12,13 @@ public:
 	void execute(PassExecuteInfo& executeInfo);
 
 private:
-	GFXDevice& m_GfxDevice;
+	struct PushConstant {
+		uint32_t positionIndex;
+		uint32_t albedoIndex;
+		uint32_t normalIndex;
+	} m_PushConstant = {};
 
+	GFXDevice& m_GfxDevice;
 	Shader m_VertexShader = {};
 	Shader m_PixelShader = {};
 	Pipeline m_Pipeline = {};

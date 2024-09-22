@@ -204,6 +204,22 @@ enum class ComparisonFunc : uint8_t {
 	ALWAYS,
 };
 
+enum class DepthWriteMask : uint8_t {
+	ZERO,	// Disables depth write
+	ALL,	// Enables depth write
+};
+
+enum class FillMode : uint8_t {
+	WIREFRAME,
+	SOLID
+};
+
+enum class CullMode : uint8_t {
+	NONE,
+	FRONT,
+	BACK,
+};
+
 enum class Usage : uint8_t { // NOTE: Not used for OpenGL
 	DEFAULT, // CPU no access, GPU read/write. TIP: Useful for resources that do not change that often or at all
 	UPLOAD, // CPU write, GPU read. TIP: Useful for resources that need to be updated frequently (e.g. uniform buffer). Also allows for persistent mapping
@@ -262,10 +278,30 @@ struct Shader {
 	std::shared_ptr<void> internalState = nullptr;
 };
 
+struct DepthStencilState {
+	bool depthEnable = false;
+	bool stencilEnable = false;
+	DepthWriteMask depthWriteMask = DepthWriteMask::ZERO;
+	ComparisonFunc depthFunction = ComparisonFunc::NEVER;
+};
+
+struct RasterizerState {
+	FillMode fillMode = FillMode::SOLID;
+	CullMode cullMode = CullMode::NONE;
+	bool frontCW = false;
+	int32_t depthBias = 0;
+	float depthBiasClamp = 0.0f;
+	float slopeScaledDepthBias = 0.0f;
+	bool depthClipEnable = false;
+	bool multisampleEnable = false;
+	bool antialisedLineEnable = false;
+};
 
 struct PipelineInfo {
 	const Shader* vertexShader = nullptr;
 	const Shader* pixelShader = nullptr;
+	RasterizerState rasterizerState = {};
+	DepthStencilState depthStencilState = {};
 	InputLayout inputLayout = {};
 	uint32_t numRenderTargets = 0;
 	Format renderTargetFormats[8] = { Format::UNKNOWN };
@@ -500,3 +536,14 @@ constexpr uint32_t get_format_stride(Format format) {
 	}
 }
 
+constexpr bool is_depth_format(Format format) {
+	switch (format) {
+	case Format::D16_UNORM:
+	case Format::D24_UNORM_S8_UINT:
+	case Format::D32_FLOAT:
+	case Format::D32_FLOAT_S8X24_UINT:
+		return true;
+	}
+
+	return false;
+}

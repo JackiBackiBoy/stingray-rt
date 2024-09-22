@@ -7,6 +7,12 @@ GBufferPass::GBufferPass(GFXDevice& gfxDevice) : m_GfxDevice(gfxDevice) {
 	const PipelineInfo pipelineInfo = {
 		.vertexShader = &m_VertexShader,
 		.pixelShader = &m_PixelShader,
+		.depthStencilState = {
+			.depthEnable = true,
+			.stencilEnable = false,
+			.depthWriteMask = DepthWriteMask::ALL,
+			.depthFunction = ComparisonFunc::LESS
+		},
 		.inputLayout = {
 			.elements = {
 				{ "POSITION", Format::R32G32B32_FLOAT },
@@ -21,6 +27,7 @@ GBufferPass::GBufferPass(GFXDevice& gfxDevice) : m_GfxDevice(gfxDevice) {
 			Format::R8G8B8A8_UNORM,
 			Format::R16G16B16A16_FLOAT
 		},
+		.depthStencilFormat = Format::D32_FLOAT
 	};
 
 	m_GfxDevice.create_pipeline(pipelineInfo, m_Pipeline);

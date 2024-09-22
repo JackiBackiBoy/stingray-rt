@@ -453,3 +453,51 @@ constexpr VkSamplerAddressMode to_vk_texture_address_mode(TextureAddressMode val
 		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	}
 }
+
+namespace vk_helpers {
+	struct ImageTransitionInfo {
+		VkImage image = nullptr;
+		VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		VkImageLayout newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		VkAccessFlags2 srcAccessMask = VK_ACCESS_2_NONE;
+		VkAccessFlags2 dstAccessMask = VK_ACCESS_2_NONE;
+		VkPipelineStageFlags2 srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		VkPipelineStageFlags2 dstStageMask = VK_PIPELINE_STAGE_2_NONE;
+		VkImageAspectFlags aspectFlags = 0;
+	};
+
+	void transition_image_layout(const ImageTransitionInfo& info, VkCommandBuffer commandBuffer) {
+		// TODO: Doesn't work for depth attachments
+		const VkImageSubresourceRange subresourceRange = {
+			.aspectMask = info.aspectFlags,
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1
+		};
+
+		const VkImageMemoryBarrier2 imageBarrier = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.pNext = nullptr,
+			.srcStageMask = info.srcStageMask,
+			.srcAccessMask = info.srcAccessMask,
+			.dstStageMask = info.dstStageMask,
+			.dstAccessMask = info.dstAccessMask,
+			.oldLayout = info.oldLayout,
+			.newLayout = info.newLayout,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = info.image,
+			.subresourceRange = subresourceRange
+		};
+
+		const VkDependencyInfo dependencyInfo = {
+			.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+			.pNext = nullptr,
+			.imageMemoryBarrierCount = 1,
+			.pImageMemoryBarriers = &imageBarrier
+		};
+
+		vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+	}
+}

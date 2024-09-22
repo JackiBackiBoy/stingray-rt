@@ -43,6 +43,7 @@ public:
 	virtual void draw(uint32_t vertexCount, uint32_t startVertex, const CommandList& cmdList) = 0;
 	virtual void draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) = 0;
 
+	virtual uint32_t get_descriptor_index(const Resource& resource) = 0;
 	virtual void wait_for_gpu() = 0;
 
 	static constexpr uint32_t FRAMES_IN_FLIGHT = 3;
