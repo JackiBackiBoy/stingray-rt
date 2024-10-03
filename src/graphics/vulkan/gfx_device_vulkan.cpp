@@ -1035,8 +1035,8 @@ void GFXDevice_Vulkan::create_pipeline(const PipelineInfo& info, Pipeline& pipel
 		.depthClampEnable = VK_FALSE,
 		.rasterizerDiscardEnable = VK_FALSE,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = VK_CULL_MODE_NONE,
-		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.cullMode = to_vk_cull_mode(info.rasterizerState.cullMode),
+		.frontFace = info.rasterizerState.frontCW ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE,
 		.depthBiasEnable = VK_FALSE,
 		.depthBiasConstantFactor = 0.0f,
 		.depthBiasClamp = 0.0f,
@@ -1968,11 +1968,9 @@ void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassI
 		.clearValue = clearColor
 	};
 
-	// TODO: Depth
-	// ...
+	// Depth attachment
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 
-	// Depth attachment
 	if (passInfo.depth != nullptr) {
 		auto internalDepthTexture = m_Impl->to_internal(*passInfo.depth);
 
@@ -2008,9 +2006,6 @@ void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassI
 		.pStencilAttachment = nullptr
 	};
 
-	// TODO: Depth attachment
-	// ...
-
 	vkCmdBeginRendering(currVkCommandBuffer, &renderInfo);
 }
 
@@ -2043,7 +2038,7 @@ void GFXDevice_Vulkan::begin_render_pass(const PassInfo& passInfo, const Command
 		attachment.clearValue = clearColor;
 	}
 
-	// // Depth attachment
+	// Depth attachment
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	
 	if (passInfo.depth != nullptr) {
@@ -2075,9 +2070,6 @@ void GFXDevice_Vulkan::begin_render_pass(const PassInfo& passInfo, const Command
 		.pDepthAttachment = passInfo.depth != nullptr ? &depthAttachmentInfo : nullptr,
 		.pStencilAttachment = nullptr
 	};
-
-	// TODO: Depth attachment
-	// ...
 
 	vkCmdBeginRendering(currVkCommandBuffer, &renderInfo);
 }

@@ -11,10 +11,15 @@ layout (location = 0) out vec4 fsOutPosition;
 layout (location = 1) out vec4 fsOutAlbedo;
 layout (location = 2) out vec4 fsOutNormal;
 
+layout (push_constant) uniform constants {
+    uint frameIndex;
+    uint albedoMapIndex;
+} g_PushConstants;
+
 void main() {
-    vec3 surfaceNormal = fsInNormal * 2.0f - 1.0f;
+    vec3 surfaceNormal = fsInNormal;
 
     fsOutPosition = vec4(fsInWorldSpacePos, 1.0f);
-    fsOutAlbedo = vec4(texture(sampler2D(g_Textures[0], g_Samplers[0]), fsInTexCoord).rgb, 1.0f);
+    fsOutAlbedo = vec4(texture(sampler2D(g_Textures[g_PushConstants.albedoMapIndex], g_Samplers[0]), fsInTexCoord).rgb, 1.0f);
     fsOutNormal = vec4(surfaceNormal, 1.0f);
 }

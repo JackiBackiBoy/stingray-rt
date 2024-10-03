@@ -14,6 +14,7 @@ layout (location = 2) out vec2 vsOutTexCoord;
 
 layout (push_constant) uniform constants {
     uint frameIndex;
+    uint albedoMapIndex;
 } g_PushConstants;
 
 void main() {

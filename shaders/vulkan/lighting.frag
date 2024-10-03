@@ -13,6 +13,16 @@ layout (push_constant) uniform constants {
     uint normalIndex;
 } g_PushConstants;
 
+const float CONSTANT_AMBIENT = 0.2f;
+
 void main() {
-    fsOutColor = vec4(texture(sampler2D(g_Textures[g_PushConstants.normalIndex], g_Samplers[0]), fsInTexCoord).rgb, 1.0f);
+    vec3 fragPos = texture(sampler2D(g_Textures[g_PushConstants.positionIndex], g_Samplers[0]), fsInTexCoord).rgb;
+    vec3 albedo = texture(sampler2D(g_Textures[g_PushConstants.albedoIndex], g_Samplers[0]), fsInTexCoord).rgb;
+    vec3 normal = normalize(texture(sampler2D(g_Textures[g_PushConstants.normalIndex], g_Samplers[0]), fsInTexCoord).rgb);    
+
+    // Diffuse lighting
+    vec3 dirToLight = normalize(vec3(0.5f, 1.0f, 0.6f));
+    float diffuse = max(dot(normal, dirToLight), 0.0f);
+
+    fsOutColor = vec4((diffuse + CONSTANT_AMBIENT) * albedo, 1.0f);
 }

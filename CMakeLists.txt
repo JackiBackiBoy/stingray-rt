@@ -49,6 +49,8 @@ set(SOURCE_FILES
     ${SOURCE_DIR}/graphics/gfx_types.h
 	${SOURCE_DIR}/graphics/render_graph.cpp
 	${SOURCE_DIR}/graphics/render_graph.h
+	${SOURCE_DIR}/graphics/renderer_3d.cpp
+	${SOURCE_DIR}/graphics/renderer_3d.h
 
 	# Renderpasses
 	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.cpp

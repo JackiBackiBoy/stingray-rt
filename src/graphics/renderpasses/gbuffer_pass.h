@@ -14,6 +14,7 @@ public:
 private:
 	struct PushConstant {
 		uint32_t frameIndex = 0;
+		uint32_t albedoMapIndex = 0;
 	};
 
 	GFXDevice& m_GfxDevice;

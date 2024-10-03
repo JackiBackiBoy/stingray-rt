@@ -5,8 +5,11 @@
 #include <stb_image.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/constants.hpp>
 
 #include <stdexcept>
+
+GFXDevice* g_GfxDevice = nullptr;
 
 struct AssetInternal {
 	Model model = {};
@@ -34,15 +37,161 @@ namespace assetmanager {
 		{ "ogg", DataType::SOUND },
 	};
 
-	void initialize() {
-
+	void initialize(GFXDevice& gfxDevice) {
+		g_GfxDevice = &gfxDevice;
 	}
 
 	void destroy() {
 
 	}
 
-	INTERNAL void load_model(Asset& outAsset, const std::string& path, std::shared_ptr<AssetInternal> asset, GFXDevice& device) {
+	std::unique_ptr<Model> create_plane(float width, float depth) {
+		assert(width != 0 && depth != 0);
+
+		const float halfWidth = width * 0.5f;
+		const float halfDepth = depth * 0.5f;
+
+		std::unique_ptr<Model> model = std::make_unique<Model>();
+		model->vertices = {
+			ModelVertex{ // top left
+				.position = { -halfWidth, 0.0f, halfDepth },
+				.normal = { 0.0f, 1.0f, 0.0f },
+				.tangent = { 1.0f, 0.0f, 0.0f },
+				.texCoord = { 0.0f, 1.0f }
+			},
+			ModelVertex{ // bottom left
+				.position = { -halfWidth, 0.0f, -halfDepth },
+				.normal = { 0.0f, 1.0f, 0.0f },
+				.tangent = { 1.0f, 0.0f, 0.0f },
+				.texCoord = { 0.0f, 0.0f }
+			},
+			ModelVertex{ // bottom right
+				.position = { halfWidth, 0.0f, -halfDepth },
+				.normal = { 0.0f, 1.0f, 0.0f },
+				.tangent = { 1.0f, 0.0f, 0.0f },
+				.texCoord = { 1.0f, 0.0f }
+			},
+			ModelVertex{ // top right
+				.position = { halfWidth, 0.0f, halfDepth },
+				.normal = { 0.0f, 1.0f, 0.0f },
+				.tangent = { 1.0f, 0.0f, 0.0f },
+				.texCoord = { 1.0f, 1.0f }
+			}
+		};
+		model->indices = { 0, 1, 2, 2, 3, 0 };
+
+		Mesh mesh = {};
+		mesh.numVertices = static_cast<uint32_t>(model->vertices.size());
+		mesh.numIndices = static_cast<uint32_t>(model->indices.size());
+		mesh.baseVertex = 0;
+		mesh.baseIndex = 0;
+		model->meshes.push_back(mesh);
+
+		const BufferInfo vertexBufferInfo = {
+			.size = sizeof(ModelVertex) * model->vertices.size(),
+			.stride = sizeof(ModelVertex),
+			.usage = Usage::DEFAULT,
+			.bindFlags = BindFlag::VERTEX_BUFFER
+		};
+
+		const BufferInfo indexBufferInfo = {
+			.size = sizeof(uint32_t) * model->indices.size(),
+			.stride = sizeof(uint32_t),
+			.usage = Usage::DEFAULT,
+			.bindFlags = BindFlag::INDEX_BUFFER
+		};
+
+		g_GfxDevice->create_buffer(vertexBufferInfo, model->vertexBuffer, model->vertices.data());
+		g_GfxDevice->create_buffer(indexBufferInfo, model->indexBuffer, model->indices.data());
+
+		return model;
+	}
+
+	std::unique_ptr<Model> create_sphere(float radius, int latitudes, int longitudes) {
+		std::unique_ptr<Model> model = std::make_unique<Model>();
+		model->vertices.reserve(static_cast<size_t>((latitudes + 1) * (longitudes + 1)));
+		model->indices.reserve(static_cast<size_t>(6 * (longitudes) * (latitudes - 1)));
+
+		const float latAngStep = glm::pi<float>() / latitudes;
+		const float lonAngStep = glm::two_pi<float>() / longitudes;
+		float latAng;
+		float lonAng;
+		float rCosLatAng;
+
+		// Vertices
+		for (int lon = 0; lon <= longitudes; ++lon) {
+			lonAng = lon * lonAngStep;
+
+			for (int lat = 0; lat <= latitudes; ++lat) {
+				latAng = glm::half_pi<float>() - lat * latAngStep;
+				rCosLatAng = radius * cosf(latAng);
+
+				ModelVertex vertex = {};
+				vertex.position.x = -rCosLatAng * sinf(lonAng);
+				vertex.position.y = radius * sinf(latAng);
+				vertex.position.z = rCosLatAng * cosf(lonAng);
+				vertex.normal = glm::normalize(vertex.position);
+				vertex.texCoord.x = (float)lon / longitudes;
+				vertex.texCoord.y = (float)lat / latitudes;
+
+				model->vertices.push_back(vertex);
+			}
+		}
+
+		// Indices
+		//   k1---k2
+		//    |  / |
+		//    | /  |
+		//    |/   |
+		// k1+1---k2+1
+		uint32_t k1, k2;
+		for (int lon = 0; lon < longitudes; ++lon) {
+			k1 = lon * (latitudes + 1);
+			k2 = k1 + latitudes + 1;
+
+			for (int lat = 0; lat < latitudes; ++lat, ++k1, ++k2) {
+				if (lat != 0) {
+					model->indices.push_back(k1);
+					model->indices.push_back(k1 + 1);
+					model->indices.push_back(k2);
+				}
+
+				if (lat != (latitudes - 1)) {
+					model->indices.push_back(k2);
+					model->indices.push_back(k1 + 1);
+					model->indices.push_back(k2 + 1);
+				}
+			}
+		}
+
+		Mesh mesh = {};
+		mesh.numVertices = static_cast<uint32_t>(model->vertices.size());
+		mesh.numIndices = static_cast<uint32_t>(model->indices.size());
+		mesh.baseVertex = 0;
+		mesh.baseIndex = 0;
+		model->meshes.push_back(mesh);
+
+		const BufferInfo vertexBufferInfo = {
+			.size = sizeof(ModelVertex) * model->vertices.size(),
+			.stride = sizeof(ModelVertex),
+			.usage = Usage::DEFAULT,
+			.bindFlags = BindFlag::VERTEX_BUFFER
+		};
+
+		const BufferInfo indexBufferInfo = {
+			.size = sizeof(uint32_t) * model->indices.size(),
+			.stride = sizeof(uint32_t),
+			.usage = Usage::DEFAULT,
+			.bindFlags = BindFlag::INDEX_BUFFER
+		};
+
+		g_GfxDevice->create_buffer(vertexBufferInfo, model->vertexBuffer, model->vertices.data());
+		g_GfxDevice->create_buffer(indexBufferInfo, model->indexBuffer, model->indices.data());
+
+		return model;
+	}
+
+	INTERNAL void load_model(Asset& outAsset, const std::string& path, std::shared_ptr<AssetInternal> asset) {
 		// TODO: Loading models is a big question mark in this engine, because at some point
 		// we will use our own model format. But that is at the time of writing not something
 		// that is of high importance. Just try to keep in mind that this will very likely change.
@@ -217,13 +366,13 @@ namespace assetmanager {
 			.miscFlags = MiscFlag::BUFFER_STRUCTURED
 		};
 
-		device.create_buffer(vertexBufferInfo, asset->model.vertexBuffer, asset->model.vertices.data());
-		device.create_buffer(indexBufferInfo, asset->model.indexBuffer, asset->model.indices.data());
+		g_GfxDevice->create_buffer(vertexBufferInfo, asset->model.vertexBuffer, asset->model.vertices.data());
+		g_GfxDevice->create_buffer(indexBufferInfo, asset->model.indexBuffer, asset->model.indices.data());
 
 		outAsset.internalState = asset;
 	}
 
-	INTERNAL void load_texture(Asset& outAsset, const std::string& path, std::shared_ptr<AssetInternal> asset, GFXDevice& device) {
+	INTERNAL void load_texture(Asset& outAsset, const std::string& path, std::shared_ptr<AssetInternal> asset) {
 		int width = 0;
 		int height = 0;
 		int channels = 0;
@@ -247,14 +396,14 @@ namespace assetmanager {
 		subresourceData.data = data;
 		subresourceData.rowPitch = static_cast<uint32_t>(width) * bytesPerPixel;
 
-		device.create_texture(textureInfo, asset->texture, &subresourceData);
+		g_GfxDevice->create_texture(textureInfo, asset->texture, &subresourceData);
 
 		stbi_image_free(data);
 
 		outAsset.internalState = asset;
 	}
 
-	void load_from_file(Asset& outAsset, const std::string& path, GFXDevice& gfxDevice) {
+	void load_from_file(Asset& outAsset, const std::string& path) {
 		std::weak_ptr<AssetInternal>& weakAsset = g_Assets[path];
 		std::shared_ptr<AssetInternal> asset = weakAsset.lock();
 
@@ -276,12 +425,12 @@ namespace assetmanager {
 		switch (dataType) {
 		case DataType::MODEL:
 			{
-				load_model(outAsset, fullPath, asset, gfxDevice);
+				load_model(outAsset, fullPath, asset);
 			}
 			break;
 		case DataType::IMAGE:
 			{
-				load_texture(outAsset, fullPath, asset, gfxDevice);
+				load_texture(outAsset, fullPath, asset);
 			}
 			break;
 		}

@@ -7,6 +7,10 @@ GBufferPass::GBufferPass(GFXDevice& gfxDevice) : m_GfxDevice(gfxDevice) {
 	const PipelineInfo pipelineInfo = {
 		.vertexShader = &m_VertexShader,
 		.pixelShader = &m_PixelShader,
+		.rasterizerState = {
+			.cullMode = CullMode::BACK,
+			.frontCW = true
+		},
 		.depthStencilState = {
 			.depthEnable = true,
 			.stencilEnable = false,
@@ -41,7 +45,6 @@ void GBufferPass::execute(PassExecuteInfo& executeInfo, const std::vector<entity
 
 	// Rendering
 	m_GfxDevice.bind_pipeline(m_Pipeline, cmdList);
-	m_GfxDevice.push_constants(&m_PushConstant, sizeof(m_PushConstant), cmdList);
 
 	for (const auto& entity : entities) {
 		Renderable* renderable = ecs::get_component_renderable(entity);
@@ -51,6 +54,17 @@ void GBufferPass::execute(PassExecuteInfo& executeInfo, const std::vector<entity
 		m_GfxDevice.bind_index_buffer(model->indexBuffer, cmdList);
 
 		for (const auto& mesh : model->meshes) {
+			if (mesh.albedoMapIndex == ~0) {
+				m_PushConstant.albedoMapIndex = 0;
+			}
+			else {
+				m_PushConstant.albedoMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[mesh.albedoMapIndex]);
+			}
+
+			m_PushConstant.albedoMapIndex = 5;
+
+			m_GfxDevice.push_constants(&m_PushConstant, sizeof(m_PushConstant), cmdList);
+
 			m_GfxDevice.draw_indexed(mesh.numIndices, mesh.baseIndex, mesh.baseVertex, cmdList);
 		}
 	}

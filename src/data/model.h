@@ -26,7 +26,7 @@ struct Model {
 	std::vector<Mesh> meshes = {};
 	std::vector<ModelVertex> vertices = {};
 	std::vector<uint32_t> indices = {};
-	//std::vector<Texture> materialTextures = {};
+	std::vector<Texture> materialTextures = {};
 
 	Buffer vertexBuffer = {};
 	Buffer indexBuffer = {};

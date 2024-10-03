@@ -54,6 +54,9 @@ GLOBAL_VARIABLE Texture g_DefaultAlbedoMap = {};
 GLOBAL_VARIABLE Texture g_DefaultNormalMap = {};
 GLOBAL_VARIABLE Asset g_CubeModel = {};
 GLOBAL_VARIABLE Asset g_TestTexture = {};
+GLOBAL_VARIABLE Asset g_EarthTexture = {};
+GLOBAL_VARIABLE std::unique_ptr<Model> g_Sphere = {};
+GLOBAL_VARIABLE std::unique_ptr<Model> g_Plane = {};
 
 // Callbacks
 INTERNAL void resize_callback(GLFWwindow* window, int width, int height) {
@@ -210,12 +213,17 @@ INTERNAL void init_gfx() {
 }
 
 INTERNAL void init_objects() {
-	// Resources
-	assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf", *g_GfxDevice);
+	assetmanager::initialize(*g_GfxDevice);
+	assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf");
+	assetmanager::load_from_file(g_EarthTexture, "resources/textures/earth.jpg");
+	uint32_t t = g_GfxDevice->get_descriptor_index(*g_EarthTexture.get_texture());
+
+	g_Sphere = assetmanager::create_sphere(1.0f, 32, 64);
+	g_Plane = assetmanager::create_plane(5.0f, 5.0f);
 
 	g_Camera = std::make_unique<Camera>(
-		glm::vec3(0.0f, 0.0f, -1.0f),
-		glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+		glm::vec3(0, 0, -4.0f),
+		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
 		glm::radians(60.0f),
 		(float)g_FrameWidth / g_FrameHeight,
 		0.1f,
@@ -225,10 +233,15 @@ INTERNAL void init_objects() {
 	// Entities
 	ecs::initialize();
 
-	g_Entities.push_back(ecs::create_entity());
-	const entity_id entity = g_Entities.back();
-	ecs::add_component(entity, Renderable{ g_CubeModel.get_model() });
+	const entity_id entity = ecs::create_entity();
+	ecs::add_component(entity, Renderable{ g_Sphere.get() });
 	ecs::get_component_transform(entity)->position = { -0.1f, 0.5f, 0.0f };
+
+	entity_id plane = ecs::create_entity();
+	ecs::add_component(plane, Renderable{ g_Plane.get() });
+
+	g_Entities.push_back(entity);
+	g_Entities.push_back(plane);
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {

@@ -288,7 +288,7 @@ struct DepthStencilState {
 struct RasterizerState {
 	FillMode fillMode = FillMode::SOLID;
 	CullMode cullMode = CullMode::NONE;
-	bool frontCW = false;
+	bool frontCW = true;
 	int32_t depthBias = 0;
 	float depthBiasClamp = 0.0f;
 	float slopeScaledDepthBias = 0.0f;

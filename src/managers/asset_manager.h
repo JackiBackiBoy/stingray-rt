@@ -15,8 +15,11 @@ struct Asset {
 };
 
 namespace assetmanager {
-	void initialize();
+	void initialize(GFXDevice& gfxDevice);
 	void destroy();
 
-	void load_from_file(Asset& outAsset, const std::string& path, GFXDevice& gfxDevice);
+	std::unique_ptr<Model> create_plane(float width, float depth);
+	std::unique_ptr<Model> create_sphere(float radius, int latitudeSplits, int longitudeSplits);
+
+	void load_from_file(Asset& outAsset, const std::string& path);
 }

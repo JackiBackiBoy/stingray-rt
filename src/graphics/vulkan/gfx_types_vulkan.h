@@ -211,6 +211,17 @@ constexpr VkCompareOp to_vk_comparison_func(ComparisonFunc value) {
 	}
 }
 
+constexpr VkCullModeFlags to_vk_cull_mode(CullMode value) {
+	switch (value) {
+	case CullMode::FRONT:
+		return VK_CULL_MODE_FRONT_BIT;
+	case CullMode::BACK:
+		return VK_CULL_MODE_BACK_BIT;
+	default:
+		return VK_CULL_MODE_NONE;
+	}
+}
+
 constexpr VkFormat to_vk_format(Format value) {
 	switch (value) {
 	case Format::UNKNOWN:
