@@ -8,6 +8,7 @@
 #include "graphics/render_graph.h"
 #include "graphics/renderpasses/gbuffer_pass.h"
 #include "graphics/renderpasses/lighting_pass.h"
+#include "graphics/renderpasses/ui_pass.h"
 
 #include "graphics/vulkan/gfx_device_vulkan.h"
 #include "managers/asset_manager.h"
@@ -38,6 +39,7 @@ GLOBAL_VARIABLE GLFWwindow* g_Window = nullptr;
 GLOBAL_VARIABLE std::unique_ptr<GFXDevice> g_GfxDevice = {};
 GLOBAL_VARIABLE std::unique_ptr<GBufferPass> g_GBufferPass = {};
 GLOBAL_VARIABLE std::unique_ptr<LightingPass> g_LightingPass = {};
+GLOBAL_VARIABLE std::unique_ptr<UIPass> g_UIPass = {};
 GLOBAL_VARIABLE std::unique_ptr<RenderGraph> g_RenderGraph = {};
 GLOBAL_VARIABLE SwapChain g_SwapChain = {};
 GLOBAL_VARIABLE Sampler g_DefaultSampler = {};
@@ -190,6 +192,7 @@ INTERNAL void init_gfx() {
 
 	g_GBufferPass = std::make_unique<GBufferPass>(*g_GfxDevice);
 	g_LightingPass = std::make_unique<LightingPass>(*g_GfxDevice);
+	g_UIPass = std::make_unique<UIPass>(*g_GfxDevice);
 
 	g_RenderGraph = std::make_unique<RenderGraph>(*g_GfxDevice);
 	auto gBufferPass = g_RenderGraph->add_pass("GBufferPass");
@@ -207,6 +210,11 @@ INTERNAL void init_gfx() {
 	lightingPass->add_input_attachment("Normal");
 	lightingPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
 		g_LightingPass->execute(executeInfo);
+	});
+
+	auto uiPass = g_RenderGraph->add_pass("UIPass");
+	uiPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
+		g_UIPass->execute(executeInfo);
 	});
 
 	g_RenderGraph->build();
@@ -330,6 +338,9 @@ int main() {
 		
 		// Update
 		g_FrameInfo.dt = deltaTime;
+		// TODO: Make dynamic
+		g_FrameInfo.width = g_FrameWidth;
+		g_FrameInfo.height = g_FrameHeight;
 		on_update(g_FrameInfo);
 
 		// Rendering

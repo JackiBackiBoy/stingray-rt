@@ -108,8 +108,6 @@ void RenderGraph::execute(const SwapChain& swapChain, const CommandList& cmdList
 			}
 
 			isRootPass = true;
-
-			//passInfo.colors[passInfo.numColorAttachments++] = &swapChain.backbuffer;
 		}
 
 		// Define outputs
@@ -157,7 +155,7 @@ void RenderGraph::execute(const SwapChain& swapChain, const CommandList& cmdList
 		}
 
 		if (isRootPass) {
-			m_GfxDevice.begin_render_pass(swapChain, passInfo, cmdList);
+			m_GfxDevice.begin_render_pass(swapChain, passInfo, cmdList, clearTargets);
 
 			const uint32_t width = swapChain.info.width;
 			const uint32_t height = swapChain.info.height;

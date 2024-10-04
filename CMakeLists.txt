@@ -29,6 +29,8 @@ set(SOURCE_FILES
     ${SOURCE_DIR}/main.cpp
     ${SOURCE_DIR}/platform.h
 	${SOURCE_DIR}/frame_info.h
+	${SOURCE_DIR}/editor.cpp
+	${SOURCE_DIR}/editor.h
 
 	# Data
 	${SOURCE_DIR}/data/camera.cpp
@@ -57,6 +59,8 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.h
 	${SOURCE_DIR}/graphics/renderpasses/lighting_pass.cpp
 	${SOURCE_DIR}/graphics/renderpasses/lighting_pass.h
+	${SOURCE_DIR}/graphics/renderpasses/ui_pass.cpp
+	${SOURCE_DIR}/graphics/renderpasses/ui_pass.h
 
 	# Vulkan
 	${SOURCE_DIR}/graphics/vulkan/gfx_device_vulkan.cpp

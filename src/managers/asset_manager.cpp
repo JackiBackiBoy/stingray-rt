@@ -354,16 +354,14 @@ namespace assetmanager {
 			.size = asset->model.vertices.size() * sizeof(ModelVertex),
 			.stride = sizeof(ModelVertex),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::VERTEX_BUFFER, // TODO: This is hardcoded here for Ray-Tracing shader, should probably be altered
-			.miscFlags = MiscFlag::BUFFER_STRUCTURED
+			.bindFlags = BindFlag::VERTEX_BUFFER
 		};
 
 		const BufferInfo indexBufferInfo = {
 			.size = asset->model.indices.size() * sizeof(uint32_t),
 			.stride = sizeof(uint32_t),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::INDEX_BUFFER, // TODO: This is hardcoded here for Ray-Tracing shader, should probably be altered
-			.miscFlags = MiscFlag::BUFFER_STRUCTURED
+			.bindFlags = BindFlag::INDEX_BUFFER
 		};
 
 		g_GfxDevice->create_buffer(vertexBufferInfo, asset->model.vertexBuffer, asset->model.vertices.data());

@@ -32,7 +32,7 @@ public:
 	virtual void barrier(const GPUBarrier& barrier, const CommandList& cmdList) = 0;
 
 	virtual CommandList begin_command_list(QueueType queue) = 0;
-	virtual void begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList) = 0;
+	virtual void begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList, bool clear = true) = 0;
 	virtual void begin_render_pass(const PassInfo& passInfo, const CommandList& cmdList) = 0;
 	virtual void end_render_pass(const SwapChain& swapChain, const CommandList& cmdList) = 0;
 	virtual void end_render_pass(const CommandList& cmdList) = 0;
@@ -42,6 +42,7 @@ public:
 
 	virtual void draw(uint32_t vertexCount, uint32_t startVertex, const CommandList& cmdList) = 0;
 	virtual void draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) = 0;
+	virtual void draw_instanced(uint32_t vertexCount, uint32_t instanceCount, uint32_t startVertex, uint32_t startInstance, const CommandList& cmdList) = 0;
 
 	virtual uint32_t get_descriptor_index(const Resource& resource) = 0;
 	virtual void wait_for_gpu() = 0;
@@ -50,6 +51,7 @@ public:
 	static constexpr uint32_t MAX_UBO_DESCRIPTORS = 32;
 	static constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 1024;
 	static constexpr uint32_t MAX_SAMPLER_DESCRIPTORS = 16;
+	static constexpr uint32_t MAX_STORAGE_BUFFERS = 32;
 
 protected:
 	GLFWwindow* m_Window = nullptr;

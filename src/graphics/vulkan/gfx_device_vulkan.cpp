@@ -24,6 +24,7 @@ struct GFXDevice_Vulkan::Impl {
 
 		void init_ubo(Impl* impl, VkBuffer buffer);
 		void init_texture(Impl* impl, VkImageView imageView, VkImageLayout layout);
+		void init_storage_buffer(Impl* impl, VkBuffer buffer);
 	};
 
 	// NOTE: In Vulkan, we do not need separate command pools
@@ -145,11 +146,17 @@ struct GFXDevice_Vulkan::Impl {
 	size_t m_CmdListCounter = 0;
 
 	// Descriptors
+	static constexpr uint32_t UBO_BINDING = 0;
+	static constexpr uint32_t TEXTURE_BINDING = 1;
+	static constexpr uint32_t SAMPLER_BINDING = 2;
+	static constexpr uint32_t STORAGE_BUFFER_BINDING = 3;
+
 	VkDescriptorPool m_DescriptorPool = nullptr;
 	VkDescriptorSet m_ResourceDescriptorSet = nullptr;
 	VkDescriptorSetLayout m_ResourceDescriptorSetLayout = nullptr;
-	DescriptorHeap m_BufferDescriptorHeap = DescriptorHeap(GFXDevice::MAX_UBO_DESCRIPTORS);
+	DescriptorHeap m_UBODescriptorHeap = DescriptorHeap(GFXDevice::MAX_UBO_DESCRIPTORS);
 	DescriptorHeap m_TextureDescriptorHeap = DescriptorHeap(GFXDevice::MAX_TEXTURE_DESCRIPTORS);
+	DescriptorHeap m_StorageBufferDescriptorHeap = DescriptorHeap(GFXDevice::MAX_STORAGE_BUFFERS);
 
 	// Synchronization
 	std::vector<VkSemaphore> m_ImageAvailableSemaphores = {};
@@ -183,13 +190,13 @@ void GFXDevice_Vulkan::Impl::Descriptor::init_ubo(Impl* impl, VkBuffer buffer) {
 	};
 
 	// TODO: Perhaps accumulate descriptor writes instead of one at a time?
-	index = impl->m_BufferDescriptorHeap.getCurrentDescriptorHandle();
-	impl->m_BufferDescriptorHeap.offsetCurrentDescriptorHandle(1);
+	index = impl->m_UBODescriptorHeap.getCurrentDescriptorHandle();
+	impl->m_UBODescriptorHeap.offsetCurrentDescriptorHandle(1);
 
 	const VkWriteDescriptorSet descriptorWrite = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 		.dstSet = impl->m_ResourceDescriptorSet,
-		.dstBinding = 0, // TODO: Remove hardcoded value
+		.dstBinding = Impl::UBO_BINDING, // TODO: Remove hardcoded value
 		.dstArrayElement = index,
 		.descriptorCount = 1,
 		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -212,11 +219,34 @@ void GFXDevice_Vulkan::Impl::Descriptor::init_texture(Impl* impl, VkImageView im
 	const VkWriteDescriptorSet descriptorWrite = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 		.dstSet = impl->m_ResourceDescriptorSet,
-		.dstBinding = 1,
+		.dstBinding = TEXTURE_BINDING,
 		.dstArrayElement = index,
 		.descriptorCount = 1,
 		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
 		.pImageInfo = &descriptorImageInfo
+	};
+
+	vkUpdateDescriptorSets(impl->m_Device, 1, &descriptorWrite, 0, nullptr);
+}
+
+void GFXDevice_Vulkan::Impl::Descriptor::init_storage_buffer(Impl* impl, VkBuffer buffer) {
+	const VkDescriptorBufferInfo descriptorBufferInfo = {
+		.buffer = buffer,
+		.offset = 0,
+		.range = VK_WHOLE_SIZE
+	};
+
+	index = impl->m_StorageBufferDescriptorHeap.getCurrentDescriptorHandle();
+	impl->m_StorageBufferDescriptorHeap.offsetCurrentDescriptorHandle(1);
+
+	const VkWriteDescriptorSet descriptorWrite = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = impl->m_ResourceDescriptorSet,
+		.dstBinding = Impl::STORAGE_BUFFER_BINDING,
+		.dstArrayElement = index,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		.pBufferInfo = &descriptorBufferInfo
 	};
 
 	vkUpdateDescriptorSets(impl->m_Device, 1, &descriptorWrite, 0, nullptr);
@@ -471,10 +501,11 @@ void GFXDevice_Vulkan::Impl::create_sync_objects() {
 
 void GFXDevice_Vulkan::Impl::create_descriptors() {
 	// Descriptor pool
-	const std::array<VkDescriptorPoolSize, 3> poolSizes = {
+	const std::array<VkDescriptorPoolSize, 4> poolSizes = {
 		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_UBO_DESCRIPTORS },
 		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MAX_TEXTURE_DESCRIPTORS },
-		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, MAX_SAMPLER_DESCRIPTORS }
+		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, MAX_SAMPLER_DESCRIPTORS },
+		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_STORAGE_BUFFERS }
 	};
 
 	const VkDescriptorPoolCreateInfo poolInfo = {
@@ -490,22 +521,25 @@ void GFXDevice_Vulkan::Impl::create_descriptors() {
 	}
 
 	// Bindless descriptor sets
-	const std::array<VkDescriptorBindingFlags, 3> descriptorBindingFlags = {
+	const std::array<VkDescriptorBindingFlags, 4> descriptorBindingFlags = {
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
 	};
-	const std::array<VkDescriptorType, 3> descriptorTypes = {
+	const std::array<VkDescriptorType, 4> descriptorTypes = {
 		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 		VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-		VK_DESCRIPTOR_TYPE_SAMPLER
+		VK_DESCRIPTOR_TYPE_SAMPLER,
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
 	};
-	const std::array<uint32_t, 3> descriptorCounts = {
+	const std::array<uint32_t, 4> descriptorCounts = {
 		MAX_UBO_DESCRIPTORS,
 		MAX_TEXTURE_DESCRIPTORS,
-		MAX_SAMPLER_DESCRIPTORS
+		MAX_SAMPLER_DESCRIPTORS,
+		MAX_STORAGE_BUFFERS
 	};
-	std::array<VkDescriptorSetLayoutBinding, 3> descriptorBindings = {};
+	std::array<VkDescriptorSetLayoutBinding, 4> descriptorBindings = {};
 
 	for (uint32_t i = 0; i < descriptorBindings.size(); ++i) {
 		descriptorBindings[i].binding = i;
@@ -1176,6 +1210,7 @@ void GFXDevice_Vulkan::create_buffer(const BufferInfo& info, Buffer& buffer, con
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 	};
 
+	// Bind flags
 	if (has_flag(info.bindFlags, BindFlag::VERTEX_BUFFER)) {
 		bufferInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 	}
@@ -1184,6 +1219,11 @@ void GFXDevice_Vulkan::create_buffer(const BufferInfo& info, Buffer& buffer, con
 	}
 	else if (has_flag(info.bindFlags, BindFlag::UNIFORM_BUFFER)) {
 		bufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	}
+
+	// Misc flags
+	if (has_flag(info.miscFlags, MiscFlag::BUFFER_STRUCTURED)) {
+		bufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	}
 
 	if (vkCreateBuffer(m_Impl->m_Device, &bufferInfo, nullptr, &internalState->buffer) != VK_SUCCESS) {
@@ -1290,6 +1330,9 @@ void GFXDevice_Vulkan::create_buffer(const BufferInfo& info, Buffer& buffer, con
 	// Descriptors
 	if (has_flag(info.bindFlags, BindFlag::UNIFORM_BUFFER)) {
 		internalState->descriptor.init_ubo(m_Impl, internalState->buffer);
+	}
+	else if (has_flag(info.miscFlags, MiscFlag::BUFFER_STRUCTURED)) {
+		internalState->descriptor.init_storage_buffer(m_Impl, internalState->buffer);
 	}
 }
 
@@ -1736,7 +1779,7 @@ void GFXDevice_Vulkan::create_sampler(const SamplerInfo& info, Sampler& sampler)
 	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	write.pNext = nullptr;
 	write.dstSet = m_Impl->m_ResourceDescriptorSet;
-	write.dstBinding = 2;
+	write.dstBinding = Impl::SAMPLER_BINDING;
 	write.dstArrayElement = 0;
 	write.descriptorCount = 1;
 	write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
@@ -1924,21 +1967,26 @@ CommandList GFXDevice_Vulkan::begin_command_list(QueueType queue) {
 	return cmdList;
 }
 
-void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList) {
+void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList, bool clear) {
 	auto internalSwapChain = to_internal(swapChain);
 	auto internalCmdList = to_internal(cmdList);
 
-	const VkResult res = vkAcquireNextImageKHR(
-		m_Impl->m_Device,
-		internalSwapChain->swapChain,
-		std::numeric_limits<uint64_t>::max(),
-		m_Impl->m_ImageAvailableSemaphores[m_CurrentFrame],
-		nullptr,
-		&m_CurrentImageIndex
-	);
+	// EXTREMELY HACKY SOLUTION (PLS FIX): Since the render graph will only
+	// allow clear on the FIRST root pass, we know that when clear is true,
+	// it is the first root pass and thus, we acquire a new image.
+	if (clear) {
+		const VkResult res = vkAcquireNextImageKHR(
+			m_Impl->m_Device,
+			internalSwapChain->swapChain,
+			std::numeric_limits<uint64_t>::max(),
+			m_Impl->m_ImageAvailableSemaphores[m_CurrentFrame],
+			nullptr,
+			&m_CurrentImageIndex
+		);
 
-	if (res != VK_SUCCESS) {
-		throw std::runtime_error("VULKAN ERROR: Failed to acquire next image!");
+		if (res != VK_SUCCESS) {
+			throw std::runtime_error("VULKAN ERROR: Failed to acquire next image!");
+		}
 	}
 
 	VkCommandBuffer currVkCommandBuffer = internalCmdList->commandBuffers[m_CurrentFrame];
@@ -1963,7 +2011,7 @@ void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassI
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
 		.imageView = internalSwapChain->imageViews[m_CurrentImageIndex],
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.loadOp = clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 		.clearValue = clearColor
 	};
@@ -2181,12 +2229,29 @@ void GFXDevice_Vulkan::draw_indexed(uint32_t indexCount, uint32_t startIndex, ui
 	);
 }
 
+void GFXDevice_Vulkan::draw_instanced(uint32_t vertexCount, uint32_t instanceCount, uint32_t startVertex, uint32_t startInstance, const CommandList& cmdList) {
+	auto internalCommandBuffer = to_internal(cmdList);
+
+	vkCmdDraw(
+		internalCommandBuffer->commandBuffers[m_CurrentFrame],
+		vertexCount,
+		instanceCount,
+		startVertex,
+		startInstance
+	);
+}
+
 uint32_t GFXDevice_Vulkan::get_descriptor_index(const Resource& resource) {
 	if (resource.type == Resource::Type::TEXTURE) {
 		auto internalTexture = (Impl::Texture_Vulkan*)resource.internalState.get();
 
 		// TODO: Handle subresource types
 		return internalTexture->descriptor.index;
+	}
+	else if (resource.type == Resource::Type::BUFFER) {
+		auto internalBuffer = (Impl::Buffer_Vulkan*)resource.internalState.get();
+
+		return internalBuffer->descriptor.index;
 	}
 }
 

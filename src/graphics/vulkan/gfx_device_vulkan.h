@@ -24,7 +24,7 @@ public:
 	void barrier(const GPUBarrier& barrier, const CommandList& cmdList) override;
 
 	CommandList begin_command_list(QueueType queue) override;
-	void begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList) override;
+	void begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList, bool clear) override;
 	void begin_render_pass(const PassInfo& passInfo, const CommandList& cmdList) override;
 	void end_render_pass(const SwapChain& swapChain, const CommandList& cmdList) override;
 	void end_render_pass(const CommandList& cmdList) override;
@@ -34,6 +34,7 @@ public:
 
 	void draw(uint32_t vertexCount, uint32_t startVertex, const CommandList& cmdList) override;
 	void draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) override;
+	void draw_instanced(uint32_t vertexCount, uint32_t instanceCount, uint32_t startVertex, uint32_t startInstance, const CommandList& cmdList) override;
 
 	uint32_t get_descriptor_index(const Resource& resource) override;
 	void wait_for_gpu() override;
