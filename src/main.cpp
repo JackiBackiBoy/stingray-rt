@@ -186,6 +186,9 @@ INTERNAL void init_gfx() {
 	};
 	g_GfxDevice->create_sampler(defaultSamplerInfo, g_DefaultSampler);
 
+	// TODO: Ugly solution in the sense that we do this before pass
+	assetmanager::initialize(*g_GfxDevice);
+
 	// Render graph
 	const uint32_t uWidth = static_cast<uint32_t>(g_FrameWidth);
 	const uint32_t uHeight = static_cast<uint32_t>(g_FrameHeight);
@@ -221,7 +224,6 @@ INTERNAL void init_gfx() {
 }
 
 INTERNAL void init_objects() {
-	assetmanager::initialize(*g_GfxDevice);
 	assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf");
 	assetmanager::load_from_file(g_EarthTexture, "resources/textures/earth.jpg");
 	uint32_t t = g_GfxDevice->get_descriptor_index(*g_EarthTexture.get_texture());
@@ -355,6 +357,7 @@ int main() {
 
 	// Shutdown
 	ecs::destroy();
+	assetmanager::destroy();
 	glfwDestroyWindow(g_Window);
 	glfwTerminate();
 	return 0;

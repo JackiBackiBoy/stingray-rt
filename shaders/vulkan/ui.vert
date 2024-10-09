@@ -3,6 +3,8 @@
 
 // Outputs
 layout (location = 0) out vec2 vsOutTexCoord;
+layout (location = 1) out uint vsOutTexIndex;
+layout (location = 2) out uint vsOutUIType;
 
 struct UIParams {
     vec4 color;
@@ -10,7 +12,7 @@ struct UIParams {
     vec2 size;
     vec2 texCoords[4];
     uint texIndex;
-    uint pad1;
+    uint uiType;
     uint pad2;
     uint pad3;
 };
@@ -39,6 +41,11 @@ void main() {
     UIParams params = g_UISSBO[g_PushConstants.uiParamsBufferIndex].params[gl_InstanceIndex];
     uint vertexIndex = g_Indices[gl_VertexIndex];
     vec2 vertex = g_Vertices[vertexIndex];
+
+    vsOutTexCoord = params.texCoords[vertexIndex];
+    vsOutTexIndex = params.texIndex;
+    vsOutUIType = params.uiType;
+
     gl_Position = g_PushConstants.projectionMatrix * vec4(
         vertex.x * params.size.x + params.position.x,
         vertex.y * params.size.y + params.position.y,

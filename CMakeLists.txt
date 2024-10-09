@@ -3,24 +3,25 @@ cmake_minimum_required(VERSION 3.6.0)
 project(gl-testbench)
 
 # Options
-option(BUILD_OPENGL "Build OpenGL" ON)
 option(BUILD_VULKAN "Build Vulkan" ON)
-
-# Dependencies
-set(DEPENDENCY_DIR ${CMAKE_HOME_DIRECTORY}/dependencies)
-set(GLFW_INCLUDE_DIR ${DEPENDENCY_DIR}/glfw/include)
-set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/glm/)
-set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/tinygltf/)
-
-add_subdirectory(dependencies/glfw)
-add_subdirectory(dependencies/tinygltf)
 
 # Settings
 set(DCMAKE_GENERATOR_PLATFORM "x64")
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Dependencies
+set(DEPENDENCY_DIR ${CMAKE_HOME_DIRECTORY}/dependencies)
+set(FREETYPE_INCLUDE_DIR ${DEPENDENCY_DIR}/freetype/include/)
+set(GLFW_INCLUDE_DIR ${DEPENDENCY_DIR}/glfw/include)
+set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/glm/)
+set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/tinygltf/)
+
+add_subdirectory(dependencies/freetype)
+add_subdirectory(dependencies/glfw)
+add_subdirectory(dependencies/tinygltf)
 
 # Source files
 set(SOURCE_DIR ${CMAKE_HOME_DIRECTORY}/src)
@@ -35,14 +36,16 @@ set(SOURCE_FILES
 	# Data
 	${SOURCE_DIR}/data/camera.cpp
 	${SOURCE_DIR}/data/camera.h
+	${SOURCE_DIR}/data/font.cpp
+	${SOURCE_DIR}/data/font.h
 	${SOURCE_DIR}/data/model.h
 
 	# Entity Component System (ECS)
 	${SOURCE_DIR}/ecs/components.h
 	${SOURCE_DIR}/ecs/ecs.cpp
 	${SOURCE_DIR}/ecs/ecs.h
-	# Input
 
+	# Input
 	${SOURCE_DIR}/input/input.cpp
 	${SOURCE_DIR}/input/input.h
 
@@ -104,12 +107,14 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+	${FREETYPE_INCLUDE_DIR}
     ${GLFW_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
 	${Vulkan_INCLUDE_DIRS}
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
+	freetype
     glfw
 	tinygltf
 	${Vulkan_LIBRARIES}

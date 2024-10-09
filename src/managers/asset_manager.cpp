@@ -1,6 +1,11 @@
 #include "asset_manager.h"
 
 #include "../platform.h"
+
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include <freetype/freetype.h>
+
 #include <tiny_gltf.h>
 #include <stb_image.h>
 #include <glm/glm.hpp>
@@ -14,6 +19,7 @@ GFXDevice* g_GfxDevice = nullptr;
 struct AssetInternal {
 	Model model = {};
 	Texture texture = {};
+	Font font = {};
 };
 
 namespace assetmanager {
@@ -25,6 +31,7 @@ namespace assetmanager {
 	};
 
 	GLOBAL_VARIABLE std::unordered_map<std::string, std::weak_ptr<AssetInternal>> g_Assets = {};
+	GLOBAL_VARIABLE std::unordered_map<std::string, Font*> g_Fonts = {};
 	GLOBAL_VARIABLE tinygltf::TinyGLTF g_GltfLoader = {};
 
 	static const std::unordered_map<std::string, DataType> g_Types = {
@@ -42,7 +49,12 @@ namespace assetmanager {
 	}
 
 	void destroy() {
+		for (auto& font : g_Fonts) {
+			delete font.second;
+			font.second = nullptr;
+		}
 
+		g_Fonts.clear();
 	}
 
 	std::unique_ptr<Model> create_plane(float width, float depth) {
@@ -401,6 +413,10 @@ namespace assetmanager {
 		outAsset.internalState = asset;
 	}
 
+	INTERNAL void load_font(Asset& outAsset, const std::string& path, std::shared_ptr<AssetInternal> asset) {
+
+	}
+
 	void load_from_file(Asset& outAsset, const std::string& path) {
 		std::weak_ptr<AssetInternal>& weakAsset = g_Assets[path];
 		std::shared_ptr<AssetInternal> asset = weakAsset.lock();
@@ -434,6 +450,144 @@ namespace assetmanager {
 		}
 	}
 
+	Font* load_font_from_file(const std::string& path, int ptSize) {
+		assert(g_GfxDevice != nullptr);
+		assert(ptSize > 0);
+		assert(g_Assets.find(path) == g_Assets.end());
+
+		Font* font = new Font();
+		g_Fonts.insert({ path, font });
+
+		FT_Library ft = {};
+		if (FT_Init_FreeType(&ft)) {
+			throw std::runtime_error("FREETYPE ERROR: Failed to initialize the FreeType library!");
+		}
+
+		const std::string fullPath = ENGINE_BASE_DIR + path;
+
+		FT_Face face = {};
+		if (FT_New_Face(ft, fullPath.c_str(), 0, &face)) {
+			throw std::runtime_error("FREETYPE ERROR: Failed to load font!");
+		}
+
+		FT_Set_Char_Size(face, 0, ptSize * 64, 0, 0);
+		font->lineSpacing = face->size->metrics.height >> 6;
+
+		const bool haskerning = FT_HAS_KERNING(face);
+		const unsigned int padding = 4;
+		const unsigned int numGlyphs = 126 - 32; // NOTE: Number of visible glyphs in atlas (does not include space character)
+		unsigned int atlasOffsetX = padding;
+		unsigned int atlasOffsetY = padding;
+
+		unsigned int atlasWidth = padding;
+		unsigned int atlasHeight = padding;
+
+		// Calculate atlas dimensions
+		for (unsigned char c = 33; c < 127; ++c) {
+			if (FT_Load_Char(face, c, FT_LOAD_RENDER)) {
+				throw std::runtime_error("FREETYPE ERROR: Failed to load glyph!");
+			}
+
+			FT_Bitmap* bmp = &face->glyph->bitmap;
+
+			atlasWidth += bmp->width + padding;
+			atlasHeight += bmp->rows + padding;
+		}
+
+		float f = ceilf(sqrtf((float)numGlyphs));
+		float t = ceilf(log2f((float)std::max(atlasWidth, atlasHeight) / ceilf(sqrtf((float)numGlyphs))));
+		unsigned int maxDim = 1 << (unsigned int)(1 + ceilf(log2f((float)std::max(atlasWidth, atlasHeight) / ceilf(sqrtf((float)numGlyphs)))));
+		atlasWidth = maxDim;
+		atlasHeight = maxDim;
+
+		uint8_t* atlasPixels = (uint8_t*)calloc(static_cast<size_t>(atlasWidth * atlasHeight), 1);
+		unsigned int tallestCharInRow = 0;
+		int maxNegativeBearing = 0;
+
+		// Fill out the atlas
+		for (unsigned char c = 32; c < 127; ++c) {
+			if (FT_Load_Char(face, c, FT_LOAD_RENDER)) {
+				throw std::runtime_error("FREETYPE ERROR: Failed to load glyph!");
+			}
+
+			FT_Bitmap* bmp = &face->glyph->bitmap;
+			GlyphData& glyph = font->glyphs[c];
+			glyph.width = bmp->width;
+			glyph.height = bmp->rows;
+			glyph.bearingX = face->glyph->bitmap_left;
+			glyph.bearingY = face->glyph->bitmap_top;
+			glyph.advanceX = face->glyph->advance.x >> 6;
+			glyph.advanceY = face->glyph->advance.y >> 6;
+
+			if (bmp->rows > tallestCharInRow) {
+				tallestCharInRow = bmp->rows;
+			}
+
+			// Max bearing
+			if (glyph.bearingY > font->maxBearingY) {
+				font->maxBearingY = glyph.bearingY;
+			}
+
+			// Max negative bearing (i.e. the amount the glyph goes beneath the baseline)
+			if ((int)glyph.height - glyph.bearingY > maxNegativeBearing) {
+				maxNegativeBearing = (int)glyph.height - glyph.bearingY;
+			}
+
+			if (c == ' ') { // we do not have to store 'white-space' in the atlas
+				continue;
+			}
+
+			if (atlasOffsetX + bmp->width >= atlasWidth - padding) {
+				atlasOffsetX = padding;
+				atlasOffsetY += tallestCharInRow + padding;
+				tallestCharInRow = 0u;
+			}
+
+			const float glyphCoordTop = (float)atlasOffsetY / atlasHeight;
+			const float glyphCoordLeft = (float)atlasOffsetX / atlasWidth;
+			const float glyphCoordBottom = (float)(atlasOffsetY + bmp->rows) / atlasHeight;
+			const float glyphCoordRight = (float)(atlasOffsetX + bmp->width) / atlasWidth;
+
+			glyph.texCoords[0] = { glyphCoordLeft, glyphCoordTop }; // top left
+			glyph.texCoords[1] = { glyphCoordRight, glyphCoordTop }; // top right
+			glyph.texCoords[2] = { glyphCoordRight, glyphCoordBottom }; // bottom right
+			glyph.texCoords[3] = { glyphCoordLeft, glyphCoordBottom }; // bottom left
+
+			for (unsigned int y = 0; y < bmp->rows; ++y) {
+				for (unsigned int x = 0; x < bmp->width; ++x) {
+					assert(atlasOffsetX + x < atlasWidth);
+					assert(atlasOffsetY + y < atlasHeight);
+
+					atlasPixels[(atlasOffsetX + x) + (atlasOffsetY + y) * atlasWidth] = bmp->buffer[x + y * bmp->pitch];
+				}
+			}
+
+			atlasOffsetX += bmp->width + padding;
+		}
+
+		font->boundingBoxHeight = maxNegativeBearing + font->maxBearingY;
+
+		FT_Done_FreeType(ft);
+
+		// Create font atlas in GPU memory
+		const TextureInfo fontAtlasInfo = {
+			.width = static_cast<uint32_t>(atlasWidth),
+			.height = static_cast<uint32_t>(atlasHeight),
+			.format = Format::R8_UNORM,
+			.bindFlags = BindFlag::SHADER_RESOURCE
+		};
+
+		const SubresourceData fontAtlasData = {
+			.data = atlasPixels,
+			.rowPitch = static_cast<uint32_t>(atlasWidth)
+		};
+
+		g_GfxDevice->create_texture(fontAtlasInfo, font->atlasTexture, &fontAtlasData);
+
+		free(atlasPixels);
+
+		return font;
+	}
 }
 
 const Model* Asset::get_model() const {
@@ -442,4 +596,9 @@ const Model* Asset::get_model() const {
 
 const Texture* Asset::get_texture() const {
 	return &((AssetInternal*)internalState.get())->texture;
+}
+
+const Font* Asset::get_font() const {
+	return &((AssetInternal*)internalState.get())->font;
+
 }

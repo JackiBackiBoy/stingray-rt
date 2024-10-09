@@ -61,7 +61,7 @@ void GBufferPass::execute(PassExecuteInfo& executeInfo, const std::vector<entity
 				m_PushConstant.albedoMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[mesh.albedoMapIndex]);
 			}
 
-			m_PushConstant.albedoMapIndex = 5;
+			//m_PushConstant.albedoMapIndex = 5;
 
 			m_GfxDevice.push_constants(&m_PushConstant, sizeof(m_PushConstant), cmdList);
 

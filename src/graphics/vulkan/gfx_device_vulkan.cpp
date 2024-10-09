@@ -1091,15 +1091,17 @@ void GFXDevice_Vulkan::create_pipeline(const PipelineInfo& info, Pipeline& pipel
 	// Blending
 	std::vector<VkPipelineColorBlendAttachmentState> colorBlendStates = {};
 	for (uint32_t i = 0; i < info.numRenderTargets; ++i) {
+		const BlendState::RenderTargetBlendState& blendState = info.blendState.renderTargetBlendStates[i];
+
 		// TODO: Make dynamic
 		const VkPipelineColorBlendAttachmentState colorBlendState = {
-			.blendEnable = VK_FALSE,
-			.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-			.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.colorBlendOp = VK_BLEND_OP_ADD,
-			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.alphaBlendOp = VK_BLEND_OP_ADD,
+			.blendEnable = blendState.blendEnable ? VK_TRUE : VK_FALSE,
+			.srcColorBlendFactor = to_vk_blend(blendState.srcBlend),
+			.dstColorBlendFactor = to_vk_blend(blendState.dstBlend),
+			.colorBlendOp = to_vk_blend_op(blendState.blendOp),
+			.srcAlphaBlendFactor = to_vk_blend(blendState.srcBlendAlpha),
+			.dstAlphaBlendFactor = to_vk_blend(blendState.dstBlendAlpha),
+			.alphaBlendOp = to_vk_blend_op(blendState.blendOpAlpha),
 			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
 		};
 

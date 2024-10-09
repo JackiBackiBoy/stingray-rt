@@ -193,6 +193,34 @@ enum class ShaderStage : uint8_t {
 	PIXEL
 };
 
+enum class Blend : uint8_t {
+	ZERO,
+	ONE,
+	SRC_COLOR,
+	INV_SRC_COLOR,
+	SRC_ALPHA,
+	INV_SRC_ALPHA,
+	DEST_ALPHA,
+	INV_DEST_ALPHA,
+	DEST_COLOR,
+	INV_DEST_COLOR,
+	SRC_ALPHA_SAT,
+	BLEND_FACTOR,
+	INV_BLEND_FACTOR,
+	SRC1_COLOR,
+	INV_SRC1_COLOR,
+	SRC1_ALPHA,
+	INV_SRC1_ALPHA,
+};
+
+enum class BlendOp : uint8_t {
+	ADD,
+	SUBTRACT,
+	REV_SUBTRACT,
+	MIN,
+	MAX,
+};
+
 enum class ComparisonFunc : uint8_t {
 	NEVER,
 	LESS,
@@ -278,6 +306,23 @@ struct Shader {
 	std::shared_ptr<void> internalState = nullptr;
 };
 
+struct BlendState {
+	bool alphaToCoverage = false;
+	bool independentBlend = false;
+
+	struct RenderTargetBlendState {
+		bool blendEnable = false;
+		Blend srcBlend = Blend::SRC_ALPHA;
+		Blend dstBlend = Blend::INV_SRC_ALPHA;
+		BlendOp blendOp = BlendOp::ADD;
+
+		Blend srcBlendAlpha = Blend::ONE;
+		Blend dstBlendAlpha = Blend::ONE;
+		BlendOp blendOpAlpha = BlendOp::ADD;
+	};
+	RenderTargetBlendState renderTargetBlendStates[8];
+};
+
 struct DepthStencilState {
 	bool depthEnable = false;
 	bool stencilEnable = false;
@@ -300,6 +345,7 @@ struct RasterizerState {
 struct PipelineInfo {
 	const Shader* vertexShader = nullptr;
 	const Shader* pixelShader = nullptr;
+	BlendState blendState = {};
 	RasterizerState rasterizerState = {};
 	DepthStencilState depthStencilState = {};
 	InputLayout inputLayout = {};

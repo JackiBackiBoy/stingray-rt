@@ -10,3 +10,6 @@
 [submodule "dependencies/tinygltf"]
 	path = dependencies/tinygltf
 	url = https://github.com/syoyo/tinygltf
+[submodule "dependencies/freetype"]
+	path = dependencies/freetype
+	url = https://github.com/freetype/freetype

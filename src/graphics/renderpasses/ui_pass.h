@@ -2,6 +2,7 @@
 
 #include "../gfx_device.h"
 #include "../render_graph.h"
+#include "../../data/font.h"
 
 #include <cstdint>
 #include <vector>
@@ -21,13 +22,18 @@ private:
 		uint32_t uiParamsBufferIndex;
 	} m_PushConstant = {};
 
+	enum UIType : uint8_t {
+		RECTANGLE = 0,
+		TEXT = 1 << 0
+	};
+
 	struct UIParams {
 		glm::vec4 color = {};
 		glm::vec2 position = {};
 		glm::vec2 size = {};
 		glm::vec2 texCoords[4] = {};
 		uint32_t texIndex = 0;
-		uint32_t pad1;
+		uint32_t uiType = 0;
 		uint32_t pad2;
 		uint32_t pad3;
 	};
@@ -37,5 +43,6 @@ private:
 	Shader m_PixelShader = {};
 	Pipeline m_Pipeline = {};
 	Buffer m_UIParamsBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
+	Font* m_DefaultFont = {};
 	std::vector<UIParams> m_UIParamsData = {};
 };

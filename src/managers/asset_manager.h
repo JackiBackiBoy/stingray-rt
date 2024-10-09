@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../data/font.h"
 #include "../data/model.h"
 #include "../graphics/gfx_device.h"
 
@@ -11,6 +12,7 @@ struct Asset {
 
 	const Model* get_model() const;
 	const Texture* get_texture() const;
+	const Font* get_font() const;
 	// ...
 };
 
@@ -22,4 +24,5 @@ namespace assetmanager {
 	std::unique_ptr<Model> create_sphere(float radius, int latitudeSplits, int longitudeSplits);
 
 	void load_from_file(Asset& outAsset, const std::string& path);
+	Font* load_font_from_file(const std::string& path, int ptSize);
 }

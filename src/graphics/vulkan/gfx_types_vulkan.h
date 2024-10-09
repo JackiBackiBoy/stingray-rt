@@ -188,6 +188,63 @@ Pipeline_Vulkan* to_internal(const Pipeline& pipeline) {
 	return (Pipeline_Vulkan*)pipeline.internalState.get();
 }
 
+constexpr VkBlendFactor to_vk_blend(Blend value) {
+	switch (value) {
+	case Blend::ZERO:
+		return VK_BLEND_FACTOR_ZERO;
+	case Blend::ONE:
+		return VK_BLEND_FACTOR_ONE;
+	case Blend::SRC_COLOR:
+		return VK_BLEND_FACTOR_SRC_COLOR;
+	case Blend::INV_SRC_COLOR:
+		return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+	case Blend::SRC_ALPHA:
+		return VK_BLEND_FACTOR_SRC_ALPHA;
+	case Blend::INV_SRC_ALPHA:
+		return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	case Blend::DEST_ALPHA:
+		return VK_BLEND_FACTOR_DST_ALPHA;
+	case Blend::INV_DEST_ALPHA:
+		return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+	case Blend::DEST_COLOR:
+		return VK_BLEND_FACTOR_DST_COLOR;
+	case Blend::INV_DEST_COLOR:
+		return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+	case Blend::SRC_ALPHA_SAT:
+		return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+	case Blend::BLEND_FACTOR:
+		return VK_BLEND_FACTOR_CONSTANT_COLOR;
+	case Blend::INV_BLEND_FACTOR:
+		return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+	case Blend::SRC1_COLOR:
+		return VK_BLEND_FACTOR_SRC1_COLOR;
+	case Blend::INV_SRC1_COLOR:
+		return VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
+	case Blend::SRC1_ALPHA:
+		return VK_BLEND_FACTOR_SRC1_ALPHA;
+	case Blend::INV_SRC1_ALPHA:
+		return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
+	default:
+		return VK_BLEND_FACTOR_ZERO;
+	}
+}
+constexpr VkBlendOp to_vk_blend_op(BlendOp value) {
+	switch (value) {
+	case BlendOp::ADD:
+		return VK_BLEND_OP_ADD;
+	case BlendOp::SUBTRACT:
+		return VK_BLEND_OP_SUBTRACT;
+	case BlendOp::REV_SUBTRACT:
+		return VK_BLEND_OP_REVERSE_SUBTRACT;
+	case BlendOp::MIN:
+		return VK_BLEND_OP_MIN;
+	case BlendOp::MAX:
+		return VK_BLEND_OP_MAX;
+	default:
+		return VK_BLEND_OP_ADD;
+	}
+}
+
 constexpr VkCompareOp to_vk_comparison_func(ComparisonFunc value) {
 	switch (value) {
 	case ComparisonFunc::NEVER:
