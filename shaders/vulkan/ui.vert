@@ -5,6 +5,7 @@
 layout (location = 0) out vec2 vsOutTexCoord;
 layout (location = 1) out uint vsOutTexIndex;
 layout (location = 2) out uint vsOutUIType;
+layout (location = 3) out vec4 vsOutColor;
 
 struct UIParams {
     vec4 color;
@@ -45,6 +46,7 @@ void main() {
     vsOutTexCoord = params.texCoords[vertexIndex];
     vsOutTexIndex = params.texIndex;
     vsOutUIType = params.uiType;
+    vsOutColor = params.color;
 
     gl_Position = g_PushConstants.projectionMatrix * vec4(
         vertex.x * params.size.x + params.position.x,

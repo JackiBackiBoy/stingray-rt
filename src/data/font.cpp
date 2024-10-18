@@ -1,6 +1,6 @@
 #include "font.h"
 
-int Font::calcTextWidth(const std::string& text) const {
+int Font::calc_text_width(const std::string& text) const {
 	// Edge case
 	if (text.length() == 1) {
 		return glyphs[text[0]].width;
@@ -11,7 +11,7 @@ int Font::calcTextWidth(const std::string& text) const {
 		const GlyphData& glyphData = glyphs[text[i]];
 
 		// For the last character we want its full width including bearing
-		if (i == text.length() - 1) {
+		if (text[i] != ' ' && i == text.length() - 1) {
 			result += glyphData.bearingX + glyphData.width;
 			continue;
 		}

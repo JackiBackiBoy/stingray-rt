@@ -26,15 +26,12 @@ struct PerFrameData {
 	glm::mat4 viewMatrix = { 1.0f };
 };
 
-struct Vertex {
-	glm::vec3 position = {};
-	glm::vec3 color = {};
-};
-
 GLOBAL_VARIABLE GraphicsAPI g_API = GraphicsAPI::VULKAN;
 GLOBAL_VARIABLE int g_FrameWidth = 1920;
 GLOBAL_VARIABLE int g_FrameHeight = 1080;
 GLOBAL_VARIABLE GLFWwindow* g_Window = nullptr;
+GLOBAL_VARIABLE UIEvent g_MouseEvent = UIEvent(UIEventType::None);
+GLOBAL_VARIABLE UIEvent g_KeyboardEvent = UIEvent(UIEventType::None);
 
 GLOBAL_VARIABLE std::unique_ptr<GFXDevice> g_GfxDevice = {};
 GLOBAL_VARIABLE std::unique_ptr<GBufferPass> g_GBufferPass = {};
@@ -64,15 +61,41 @@ GLOBAL_VARIABLE std::unique_ptr<Model> g_Plane = {};
 INTERNAL void resize_callback(GLFWwindow* window, int width, int height) {
 	g_FrameWidth = width;
 	g_FrameHeight = height;
-	//glViewport(0, 0, width, height);
 }
 
 INTERNAL void mouse_position_callback(GLFWwindow* window, double xpos, double ypos) {
 	input::process_mouse_position(xpos, ypos);
+
+	if (g_UIPass != nullptr) {
+		g_MouseEvent.set_type(UIEventType::MouseMove);
+
+		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
+		mouse.position.x = xpos;
+		mouse.position.y = ypos;
+
+		g_UIPass->process_event(g_MouseEvent);
+	}
 }
 
 INTERNAL void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
 	input::process_mouse_event(button, action, mods);
+
+	if (g_UIPass != nullptr) {
+		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
+		g_MouseEvent.set_type(action == GLFW_PRESS ? UIEventType::MouseDown : UIEventType::MouseUp);
+
+		if (button == GLFW_MOUSE_BUTTON_1) {
+			mouse.downButtons.left = action == GLFW_PRESS;
+		}
+		else if (button == GLFW_MOUSE_BUTTON_2) {
+			mouse.downButtons.right = action == GLFW_PRESS;
+		}
+		else if (button == GLFW_MOUSE_BUTTON_3) {
+			mouse.downButtons.middle = action == GLFW_PRESS;
+		}
+
+		g_UIPass->process_event(g_MouseEvent);
+	}
 }
 
 INTERNAL void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -81,6 +104,32 @@ INTERNAL void key_callback(GLFWwindow* window, int key, int scancode, int action
 	}
 
 	input::process_key_event(key, scancode, action, mods);
+	
+	if (g_UIPass != nullptr) {
+		if (action == GLFW_PRESS) {
+			g_KeyboardEvent.set_type(UIEventType::KeyboardDown);
+		}
+		else {
+			g_KeyboardEvent.set_type(UIEventType::KeyboardUp);
+		}
+
+		KeyboardEventData& keyboard = g_KeyboardEvent.get_keyboard_data();
+		keyboard.key = key;
+		keyboard.action = action;
+		keyboard.mods = mods;
+
+		g_UIPass->process_event(g_KeyboardEvent);
+	}
+}
+
+INTERNAL void key_char_callback(GLFWwindow* window, unsigned int codepoint) {
+	if (g_UIPass != nullptr) {
+		UIEvent keyCharEvent(UIEventType::KeyboardChar);
+		KeyboardCharData& keyCharData = keyCharEvent.get_keyboard_char_data();
+		keyCharData.codePoint = codepoint;
+
+		g_UIPass->process_event(keyCharEvent);
+	}
 }
 
 INTERNAL int init_glfw(GLFWwindow** window) {
@@ -195,7 +244,7 @@ INTERNAL void init_gfx() {
 
 	g_GBufferPass = std::make_unique<GBufferPass>(*g_GfxDevice);
 	g_LightingPass = std::make_unique<LightingPass>(*g_GfxDevice);
-	g_UIPass = std::make_unique<UIPass>(*g_GfxDevice);
+	g_UIPass = std::make_unique<UIPass>(*g_GfxDevice, g_Window);
 
 	g_RenderGraph = std::make_unique<RenderGraph>(*g_GfxDevice);
 	auto gBufferPass = g_RenderGraph->add_pass("GBufferPass");
@@ -325,6 +374,7 @@ int main() {
 	glfwSetCursorPosCallback(g_Window, mouse_position_callback);
 	glfwSetMouseButtonCallback(g_Window, mouse_button_callback);
 	glfwSetKeyCallback(g_Window, key_callback);
+	glfwSetCharCallback(g_Window, key_char_callback);
 
 	init_gfx();
 	init_objects();
@@ -334,6 +384,8 @@ int main() {
 	float lastFrame = 0.0f;
 
 	while (!glfwWindowShouldClose(g_Window)) {
+		glfwPollEvents();
+
 		const float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
@@ -349,8 +401,6 @@ int main() {
 		CommandList cmdList = g_GfxDevice->begin_command_list(QueueType::DIRECT);
 		g_RenderGraph->execute(g_SwapChain, cmdList, g_FrameInfo);
 		g_GfxDevice->submit_command_lists(g_SwapChain);
-
-		glfwPollEvents();
 	}
 
 	g_GfxDevice->wait_for_gpu();

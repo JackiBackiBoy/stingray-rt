@@ -23,5 +23,5 @@ struct Font {
 	GlyphData glyphs[128] = {}; // TODO: Only compatible with ASCII at the moment
 	Texture atlasTexture = {};
 
-	int calcTextWidth(const std::string& text) const;
+	int calc_text_width(const std::string& text) const;
 };

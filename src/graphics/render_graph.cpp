@@ -88,6 +88,7 @@ void RenderGraph::build() {
 void RenderGraph::execute(const SwapChain& swapChain, const CommandList& cmdList, const FrameInfo& frameInfo) {
 	bool clearTargets = true;
 	bool encounteredFirstRootPass = false;
+	bool begunSwapchainPass = false;
 
 	for (size_t p = 0; p < m_Passes.size(); ++p) {
 		bool isRootPass = false;
@@ -155,7 +156,11 @@ void RenderGraph::execute(const SwapChain& swapChain, const CommandList& cmdList
 		}
 
 		if (isRootPass) {
-			m_GfxDevice.begin_render_pass(swapChain, passInfo, cmdList, clearTargets);
+			// TODO: This could be problematic when it comes to pipeline barriers, but I don't know
+			if (!begunSwapchainPass) {
+				m_GfxDevice.begin_render_pass(swapChain, passInfo, cmdList, clearTargets);
+				begunSwapchainPass = true;
+			}
 
 			const uint32_t width = swapChain.info.width;
 			const uint32_t height = swapChain.info.height;
@@ -171,10 +176,14 @@ void RenderGraph::execute(const SwapChain& swapChain, const CommandList& cmdList
 			m_GfxDevice.bind_viewport(viewport, cmdList); // TODO: Might inadvertently flip the viewport all the time
 
 			pass.execute(m_GfxDevice, cmdList, frameInfo);
-			m_GfxDevice.end_render_pass(swapChain, cmdList);
+
+			if (p == m_Passes.size() - 1) {
+				m_GfxDevice.end_render_pass(swapChain, cmdList);
+			}
 		}
 		else {
 			m_GfxDevice.begin_render_pass(passInfo, cmdList);
+
 			const uint32_t width = outputAttachments[0]->info.width;
 			const uint32_t height = outputAttachments[0]->info.height;
 			const Viewport viewport = {
