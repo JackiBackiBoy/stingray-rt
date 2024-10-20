@@ -47,25 +47,42 @@ void GBufferPass::execute(PassExecuteInfo& executeInfo, const std::vector<entity
 	m_GfxDevice.bind_pipeline(m_Pipeline, cmdList);
 
 	for (const auto& entity : entities) {
-		Renderable* renderable = ecs::get_component_renderable(entity);
+		const Renderable* renderable = ecs::get_component_renderable(entity);
+		const Transform* transform = ecs::get_component_transform(entity);
 		const Model* model = renderable->model;
+
+		const glm::mat4 matScale = glm::scale(glm::mat4(1.0f), transform->scale);
+		const glm::mat4 matRotation = glm::mat4_cast(transform->orientation);
+		const glm::mat4 matTranslation = glm::translate(glm::mat4(1.0f), transform->position);
+
+		m_PushConstant.modelMatrix = matTranslation * matRotation * matScale;
 
 		m_GfxDevice.bind_vertex_buffer(model->vertexBuffer, cmdList);
 		m_GfxDevice.bind_index_buffer(model->indexBuffer, cmdList);
 
+		// TODO: It would likely be better to just have a material buffer
 		for (const auto& mesh : model->meshes) {
-			if (mesh.albedoMapIndex == ~0) {
-				m_PushConstant.albedoMapIndex = 0;
+			for (const auto& primitive : mesh.primitives) {
+				// Albedo map
+				if (primitive.albedoMapIndex == ~0) {
+					m_PushConstant.albedoMapIndex = 0;
+				}
+				else {
+					m_PushConstant.albedoMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[primitive.albedoMapIndex]);
+				}
+
+				// Normal map
+				if (primitive.normalMapIndex == ~0) {
+					m_PushConstant.normalMapIndex = 1;
+				}
+				else {
+					m_PushConstant.normalMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[primitive.normalMapIndex]);
+				}
+
+				m_GfxDevice.push_constants(&m_PushConstant, sizeof(m_PushConstant), cmdList);
+
+				m_GfxDevice.draw_indexed(primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);
 			}
-			else {
-				m_PushConstant.albedoMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[mesh.albedoMapIndex]);
-			}
-
-			//m_PushConstant.albedoMapIndex = 5;
-
-			m_GfxDevice.push_constants(&m_PushConstant, sizeof(m_PushConstant), cmdList);
-
-			m_GfxDevice.draw_indexed(mesh.numIndices, mesh.baseIndex, mesh.baseVertex, cmdList);
 		}
 	}
 }

@@ -6,13 +6,17 @@
 #include <cstdint>
 #include <vector>
 
-struct Mesh {
+struct MeshPrimitive {
 	uint32_t numVertices = 0;
 	uint32_t numIndices = 0;
 	uint32_t baseVertex = 0;
 	uint32_t baseIndex = 0;
 	uint32_t albedoMapIndex = ~0;
 	uint32_t normalMapIndex = ~0;
+};
+
+struct Mesh {
+	std::vector<MeshPrimitive> primitives = {};
 };
 
 struct ModelVertex {

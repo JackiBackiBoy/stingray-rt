@@ -92,11 +92,13 @@ namespace assetmanager {
 		};
 		model->indices = { 0, 1, 2, 2, 3, 0 };
 
-		Mesh mesh = {};
-		mesh.numVertices = static_cast<uint32_t>(model->vertices.size());
-		mesh.numIndices = static_cast<uint32_t>(model->indices.size());
-		mesh.baseVertex = 0;
-		mesh.baseIndex = 0;
+		MeshPrimitive primitive = {};
+		primitive.numVertices = static_cast<uint32_t>(model->vertices.size());
+		primitive.numIndices = static_cast<uint32_t>(model->indices.size());
+		primitive.baseVertex = 0;
+		primitive.baseIndex = 0;
+
+		Mesh mesh = { .primitives = { primitive } };
 		model->meshes.push_back(mesh);
 
 		const BufferInfo vertexBufferInfo = {
@@ -143,6 +145,7 @@ namespace assetmanager {
 				vertex.position.y = radius * sinf(latAng);
 				vertex.position.z = rCosLatAng * cosf(lonAng);
 				vertex.normal = glm::normalize(vertex.position);
+				vertex.tangent = glm::normalize(glm::cross(vertex.normal, glm::vec3(0.0f, 1.0f, 0.0f)));
 				vertex.texCoord.x = (float)lon / longitudes;
 				vertex.texCoord.y = (float)lat / latitudes;
 
@@ -176,11 +179,14 @@ namespace assetmanager {
 			}
 		}
 
-		Mesh mesh = {};
-		mesh.numVertices = static_cast<uint32_t>(model->vertices.size());
-		mesh.numIndices = static_cast<uint32_t>(model->indices.size());
-		mesh.baseVertex = 0;
-		mesh.baseIndex = 0;
+		MeshPrimitive primitive = {};
+		primitive.numVertices = static_cast<uint32_t>(model->vertices.size());
+		primitive.numIndices = static_cast<uint32_t>(model->indices.size());
+		primitive.baseVertex = 0;
+		primitive.baseIndex = 0;
+
+		Mesh mesh = { .primitives = { primitive } };
+		
 		model->meshes.push_back(mesh);
 
 		const BufferInfo vertexBufferInfo = {
@@ -218,26 +224,26 @@ namespace assetmanager {
 		}
 
 		asset->model.meshes.resize(gltfModel.meshes.size());
-		//asset->model.materialTextures.resize(gltfModel.images.size());
+		asset->model.materialTextures.resize(gltfModel.images.size());
 
 		// Load material textures
 		for (size_t i = 0; i < gltfModel.images.size(); ++i) {
 			const tinygltf::Image& gltfImage = gltfModel.images[i];
 
-			//const TextureInfo textureInfo = {
-			//	.width = static_cast<uint32_t>(gltfImage.width),
-			//	.height = static_cast<uint32_t>(gltfImage.height),
-			//	.format = Format::R8G8B8A8_UNORM,
-			//	.usage = Usage::DEFAULT,
-			//	.bindFlags = BindFlag::SHADER_RESOURCE
-			//};
+			const TextureInfo textureInfo = {
+				.width = static_cast<uint32_t>(gltfImage.width),
+				.height = static_cast<uint32_t>(gltfImage.height),
+				.format = Format::R8G8B8A8_UNORM,
+				.usage = Usage::DEFAULT,
+				.bindFlags = BindFlag::SHADER_RESOURCE
+			};
 
-			//const SubresourceData textureSubresource = {
-			//	.data = gltfImage.image.data(),
-			//	.rowPitch = 4U * static_cast<uint32_t>(gltfImage.width),
-			//};
+			const SubresourceData textureSubresource = {
+				.data = gltfImage.image.data(),
+				.rowPitch = 4U * static_cast<uint32_t>(gltfImage.width),
+			};
 
-			//device.createTexture(textureInfo, asset->model.materialTextures[i], &textureSubresource);
+			g_GfxDevice->create_texture(textureInfo, asset->model.materialTextures[i], &textureSubresource);
 		}
 
 		uint32_t baseVertex = 0;
@@ -247,8 +253,7 @@ namespace assetmanager {
 		for (size_t i = 0; i < gltfModel.meshes.size(); ++i) {
 			tinygltf::Mesh gltfMesh = gltfModel.meshes[i];
 			Mesh& mesh = asset->model.meshes[i];
-			mesh.baseVertex = baseVertex;
-			mesh.baseIndex = baseIndex;
+			mesh.primitives.resize(gltfMesh.primitives.size());
 
 			// Nodes (used for positioning multiple meshes)
 			glm::mat4 translation = glm::mat4(1.0f); // default identity matrix
@@ -261,6 +266,10 @@ namespace assetmanager {
 			// TODO: We should probably support meshes having more than 1 primitive,
 			// as of right now, we do not...
 			for (size_t j = 0; j < gltfMesh.primitives.size(); ++j) {
+				MeshPrimitive& primitive = mesh.primitives[j];
+				primitive.baseVertex = baseVertex;
+				primitive.baseIndex = baseIndex;
+
 				tinygltf::Primitive& gltfPrimitive = gltfMesh.primitives[j];
 
 				// Position
@@ -343,8 +352,10 @@ namespace assetmanager {
 					asset->model.indices.push_back(static_cast<uint32_t>(indices[k]));
 				}
 
-				mesh.numVertices = static_cast<uint32_t>(posAccessor.count);
-				mesh.numIndices = static_cast<uint32_t>(indicesAccessor.count);
+				primitive.numVertices = static_cast<uint32_t>(posAccessor.count);
+				primitive.numIndices = static_cast<uint32_t>(indicesAccessor.count);
+				baseVertex += static_cast<uint32_t>(posAccessor.count);
+				baseIndex += static_cast<uint32_t>(indicesAccessor.count);
 
 				// Materials
 				if (gltfPrimitive.material == -1) {
@@ -352,12 +363,18 @@ namespace assetmanager {
 				}
 
 				const tinygltf::Material& material = gltfModel.materials[gltfPrimitive.material];
-				mesh.albedoMapIndex = (uint32_t)material.pbrMetallicRoughness.baseColorTexture.index;
-				mesh.normalMapIndex = (uint32_t)material.normalTexture.index;
+
+				if (material.pbrMetallicRoughness.baseColorTexture.index != -1) {
+					primitive.albedoMapIndex = (uint32_t)gltfModel.textures[material.pbrMetallicRoughness.baseColorTexture.index].source;
+				}
+
+				if (material.normalTexture.index != -1) {
+					primitive.normalMapIndex = (uint32_t)gltfModel.textures[material.normalTexture.index].source;
+				}
 			}
 
-			baseVertex = static_cast<uint32_t>(asset->model.vertices.size());
-			baseIndex = static_cast<uint32_t>(asset->model.indices.size());
+			//baseVertex = static_cast<uint32_t>(asset->model.vertices.size());
+			//baseIndex = static_cast<uint32_t>(asset->model.indices.size());
 
 		}
 

@@ -1689,6 +1689,7 @@ void GFXDevice_Vulkan::create_sampler(const SamplerInfo& info, Sampler& sampler)
 		samplerInfo.magFilter = VK_FILTER_LINEAR;
 		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerInfo.anisotropyEnable = VK_TRUE;
+		samplerInfo.maxAnisotropy = std::min(16.0f, std::max(1.0f, static_cast<float>(info.maxAnisotropy)));
 		samplerInfo.compareEnable = VK_FALSE;
 		break;
 	case Filter::COMPARISON_MIN_MAG_MIP_POINT:

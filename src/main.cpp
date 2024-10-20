@@ -53,9 +53,8 @@ GLOBAL_VARIABLE Texture g_DefaultAlbedoMap = {};
 GLOBAL_VARIABLE Texture g_DefaultNormalMap = {};
 GLOBAL_VARIABLE Asset g_CubeModel = {};
 GLOBAL_VARIABLE Asset g_TestTexture = {};
-GLOBAL_VARIABLE Asset g_EarthTexture = {};
+GLOBAL_VARIABLE Asset g_SponzaModel = {};
 GLOBAL_VARIABLE std::unique_ptr<Model> g_Sphere = {};
-GLOBAL_VARIABLE std::unique_ptr<Model> g_Plane = {};
 
 // Callbacks
 INTERNAL void resize_callback(GLFWwindow* window, int width, int height) {
@@ -231,7 +230,8 @@ INTERNAL void init_gfx() {
 
 	// Default samplers
 	const SamplerInfo defaultSamplerInfo = {
-
+		.filter = Filter::ANISOTROPIC,
+		.maxAnisotropy = 16
 	};
 	g_GfxDevice->create_sampler(defaultSamplerInfo, g_DefaultSampler);
 
@@ -274,11 +274,9 @@ INTERNAL void init_gfx() {
 
 INTERNAL void init_objects() {
 	assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf");
-	assetmanager::load_from_file(g_EarthTexture, "resources/textures/earth.jpg");
-	uint32_t t = g_GfxDevice->get_descriptor_index(*g_EarthTexture.get_texture());
+	assetmanager::load_from_file(g_SponzaModel, "resources/models/sponza/Sponza.gltf");
 
 	g_Sphere = assetmanager::create_sphere(1.0f, 32, 64);
-	g_Plane = assetmanager::create_plane(5.0f, 5.0f);
 
 	g_Camera = std::make_unique<Camera>(
 		glm::vec3(0, 0, -4.0f),
@@ -296,11 +294,13 @@ INTERNAL void init_objects() {
 	ecs::add_component(entity, Renderable{ g_Sphere.get() });
 	ecs::get_component_transform(entity)->position = { -0.1f, 0.5f, 0.0f };
 
-	entity_id plane = ecs::create_entity();
-	ecs::add_component(plane, Renderable{ g_Plane.get() });
+	entity_id sponza = ecs::create_entity();
+	ecs::add_component(sponza, Renderable{ g_SponzaModel.get_model() });
+	ecs::get_component_transform(sponza)->position = { 0.0f, 0.0f, 0.0f };
+	ecs::get_component_transform(sponza)->scale = glm::vec3(0.01f);
 
 	g_Entities.push_back(entity);
-	g_Entities.push_back(plane);
+	g_Entities.push_back(sponza);
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {

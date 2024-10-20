@@ -25,4 +25,5 @@ void main() {
     float diffuse = max(dot(normal, dirToLight), 0.0f);
 
     fsOutColor = vec4((diffuse + CONSTANT_AMBIENT) * albedo, 1.0f);
+    //fsOutColor = vec4(normal, 1.0f);
 }

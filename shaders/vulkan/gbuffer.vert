@@ -11,18 +11,29 @@ layout (location = 3) in vec2 vsInTexCoord;
 layout (location = 0) out vec3 vsOutWorldSpacePos;
 layout (location = 1) out vec3 vsOutNormal;
 layout (location = 2) out vec2 vsOutTexCoord;
+layout (location = 3) out mat3 vsOutTBN;
 
 layout (push_constant) uniform constants {
+    mat4 modelMatrix;
     uint frameIndex;
     uint albedoMapIndex;
+    uint normalMapIndex;
 } g_PushConstants;
 
 void main() {
     uint frameIndex = g_PushConstants.frameIndex;
-    vec4 worldSpacePos = vec4(vsInPosition, 1.0); // TODO: Add model matrix
+    vec4 worldSpacePos = g_PushConstants.modelMatrix * vec4(vsInPosition, 1.0); // TODO: Add model matrix
+
+    // TBN
+    vec3 normTangent = normalize(vsInTangent);
+    vec3 T = normalize(vec3(g_PushConstants.modelMatrix * vec4(vsInTangent, 0.0f)));
+    vec3 N = normalize(vec3(g_PushConstants.modelMatrix * vec4(vsInNormal, 0.0f)));
+    vec3 B = cross(N, T);
 
     vsOutWorldSpacePos = worldSpacePos.xyz;
     vsOutNormal = vsInNormal; // TODO: TBN
     vsOutTexCoord = vsInTexCoord;
+    vsOutTBN = mat3(T, B, N); // TODO: might not have to transpose
+
     gl_Position = g_PerFrameData[frameIndex].projectionMatrix * g_PerFrameData[frameIndex].viewMatrix * worldSpacePos;
 }
