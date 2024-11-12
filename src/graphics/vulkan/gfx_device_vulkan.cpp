@@ -279,6 +279,10 @@ GFXDevice_Vulkan::Impl::~Impl() {
 		m_DestructionHandler.semaphores.push_back({ m_RenderFinishedSemaphores[i], frameCount });
 		m_DestructionHandler.fences.push_back({ m_InFlightFences[i], frameCount });
 	}
+
+	// Destroy descriptor structures
+	m_DestructionHandler.descriptorSetLayouts.push_back({ m_ResourceDescriptorSetLayout, frameCount });
+	m_DestructionHandler.descriptorPools.push_back({ m_DescriptorPool, frameCount });
 }
 
 void GFXDevice_Vulkan::Impl::create_instance() {

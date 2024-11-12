@@ -94,11 +94,11 @@ UIPass::UIPass(GFXDevice& gfxDevice, GLFWwindow* window) :
 }
 
 UIPass::~UIPass() {
-	delete m_DefaultCursor;
-	m_DefaultCursor = nullptr;
+	//delete m_DefaultCursor;
+	//m_DefaultCursor = nullptr;
 
-	delete m_TextCursor;
-	m_TextCursor = nullptr;
+	//delete m_TextCursor;
+	//m_TextCursor = nullptr;
 }
 
 void UIPass::execute(PassExecuteInfo& executeInfo) {
