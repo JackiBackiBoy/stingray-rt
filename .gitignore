@@ -48,4 +48,4 @@ CPackSourceConfig.cmake
 .DS_Store
 
 # Vulkan
-.spv
+*.spv
