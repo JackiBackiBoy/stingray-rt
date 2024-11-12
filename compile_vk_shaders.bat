@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 REM Change to the source folder
-cd shaders\vulkan
+cd resources\shaders\vulkan
 
 REM Loop through all .vert and .frag files in the folder
 for %%f in (*.vert *.frag) do (
@@ -17,7 +17,6 @@ for %%f in (*.vert *.frag) do (
     )
 )
 
-cd ../../..
+cd ../../../
 
-echo All shaders compiled successfully!
-pause
+echo All shaders compiled successfully^^!

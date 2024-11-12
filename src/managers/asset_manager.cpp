@@ -450,7 +450,7 @@ namespace assetmanager {
 			throw std::runtime_error("FILE ERROR: File format not supported!");
 		}
 
-		const std::string fullPath = ENGINE_BASE_DIR + path;
+		const std::string fullPath = ENGINE_RES_DIR + path;
 		const DataType dataType = search->second;
 
 		switch (dataType) {
@@ -480,7 +480,7 @@ namespace assetmanager {
 			throw std::runtime_error("FREETYPE ERROR: Failed to initialize the FreeType library!");
 		}
 
-		const std::string fullPath = ENGINE_BASE_DIR + path;
+		const std::string fullPath = ENGINE_RES_DIR + path;
 
 		FT_Face face = {};
 		if (FT_New_Face(ft, fullPath.c_str(), 0, &face)) {

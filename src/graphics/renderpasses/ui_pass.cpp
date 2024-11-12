@@ -86,7 +86,7 @@ UIPass::UIPass(GFXDevice& gfxDevice, GLFWwindow* window) :
 	};
 
 	// Load font
-	m_DefaultFont = assetmanager::load_font_from_file("resources/fonts/consola.ttf", 16);
+	m_DefaultFont = assetmanager::load_font_from_file("fonts/consola.ttf", 16);
 
 	for (size_t i = 0; i < GFXDevice::FRAMES_IN_FLIGHT; ++i) {
 		m_GfxDevice.create_buffer(uiParamsBufferInfo, m_UIParamsBuffers[i], m_UIParamsData.data());

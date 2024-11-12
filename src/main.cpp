@@ -55,6 +55,7 @@ GLOBAL_VARIABLE Texture g_DefaultNormalMap = {};
 GLOBAL_VARIABLE Asset g_CubeModel = {};
 GLOBAL_VARIABLE Asset g_TestTexture = {};
 GLOBAL_VARIABLE Asset g_SponzaModel = {};
+GLOBAL_VARIABLE std::unique_ptr<Model> g_PlaneModel = {};
 GLOBAL_VARIABLE std::unique_ptr<Model> g_Sphere = {};
 
 // Callbacks
@@ -277,9 +278,8 @@ INTERNAL void init_gfx() {
 INTERNAL void init_objects() {
 	g_Scene = std::make_unique<Scene>(*g_GfxDevice);
 
-	assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf");
-	assetmanager::load_from_file(g_SponzaModel, "resources/models/sponza/Sponza.gltf");
-
+	assetmanager::load_from_file(g_CubeModel, "models/cube/cube.gltf");
+	g_PlaneModel = assetmanager::create_plane(10.0f, 10.0f);
 	g_Sphere = assetmanager::create_sphere(1.0f, 32, 64);
 
 	g_Camera = std::make_unique<Camera>(
@@ -294,17 +294,28 @@ INTERNAL void init_objects() {
 	// Entities
 	ecs::initialize();
 
-	const entity_id entity = ecs::create_entity();
-	ecs::add_component(entity, Renderable{ g_Sphere.get() });
-	ecs::get_component_transform(entity)->position = { -0.1f, 0.5f, 0.0f };
+	const entity_id sphere = ecs::create_entity();
+	ecs::add_component(sphere, Renderable{ g_Sphere.get() });
+	ecs::get_component_transform(sphere)->position = { -0.1f, 1.5f, 0.0f };
 
-	entity_id sponza = ecs::create_entity();
-	ecs::add_component(sponza, Renderable{ g_SponzaModel.get_model() });
-	ecs::get_component_transform(sponza)->position = { 0.0f, 0.0f, 0.0f };
-	ecs::get_component_transform(sponza)->scale = glm::vec3(0.01f);
+	entity_id plane = ecs::create_entity();
+	ecs::add_component(plane, Renderable{ g_PlaneModel.get() });
+	ecs::get_component_transform(plane)->position = { 0.0f, 0.0f, 0.0f };
 
-	g_Entities.push_back(entity);
-	g_Entities.push_back(sponza);
+	entity_id backWall = ecs::create_entity();
+	ecs::add_component(backWall, Renderable{ g_PlaneModel.get() });
+	ecs::get_component_transform(backWall)->position = { 0.0f, 5.0f, 5.0f };
+	ecs::get_component_transform(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+
+	entity_id leftWall = ecs::create_entity();
+	ecs::add_component(leftWall, Renderable{ g_PlaneModel.get() });
+	ecs::get_component_transform(leftWall)->position = { -5.0f, 5.0f, 0.0f };
+	ecs::get_component_transform(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
+
+	g_Entities.push_back(sphere);
+	g_Entities.push_back(plane);
+	g_Entities.push_back(backWall);
+	g_Entities.push_back(leftWall);
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {

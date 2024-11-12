@@ -3,9 +3,8 @@
 
 // FS Inputs
 layout (location = 0) in vec3 fsInWorldSpacePos;
-layout (location = 1) in vec3 fsInNormal;
-layout (location = 2) in vec2 fsInTexCoord;
-layout (location = 3) in mat3 fsInTBN;
+layout (location = 1) in vec2 fsInTexCoord;
+layout (location = 2) in mat3 fsInTBN;
 
 // FS Outputs
 layout (location = 0) out vec4 fsOutPosition;

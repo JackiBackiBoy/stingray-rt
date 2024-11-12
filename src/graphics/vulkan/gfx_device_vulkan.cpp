@@ -27,12 +27,12 @@ struct GFXDevice_Vulkan::Impl {
 		void init_storage_buffer(Impl* impl, VkBuffer buffer);
 	};
 
-	// NOTE: In Vulkan, we do not need separate command pools
+	// NOTE: In Vulkan, we do not need separate descriptor pools
 	// like in DX12 where we need different descriptor heap types.
 	// However, we use a "DescriptorHeap" structure here to allow
 	// for simpler descriptor indexing lookup based on descriptor
 	// type. I.e. some resource might use different "DescriptorHeap"
-	// but they will all be allocated from the same VkCommandPool
+	// but they will all be allocated from the same VkDescriptorPool
 	class DescriptorHeap {
 	public:
 		DescriptorHeap(uint32_t capacity) : m_Capacity(capacity) {}
@@ -110,6 +110,7 @@ struct GFXDevice_Vulkan::Impl {
 
 	bool check_validation_layers();
 	bool is_device_suitable(VkPhysicalDevice device);
+
 	std::vector<const char*> get_required_extensions();
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -145,6 +146,11 @@ struct GFXDevice_Vulkan::Impl {
 	std::vector<std::unique_ptr<CommandList_Vulkan>> m_CmdLists = {};
 	size_t m_CmdListCounter = 0;
 
+	// Ray Tracing
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_RTProperties = {
+		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR
+	};
+
 	// Descriptors
 	static constexpr uint32_t UBO_BINDING = 0;
 	static constexpr uint32_t TEXTURE_BINDING = 1;
@@ -173,6 +179,11 @@ struct GFXDevice_Vulkan::Impl {
 	const std::vector<const char*> m_DeviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+
+		// Ray Tracing
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 	};
 
 	#ifdef NDEBUG
@@ -280,7 +291,7 @@ GFXDevice_Vulkan::Impl::~Impl() {
 		m_DestructionHandler.fences.push_back({ m_InFlightFences[i], frameCount });
 	}
 
-	// Destroy descriptor structures
+	// Destroy descriptor objects
 	m_DestructionHandler.descriptorSetLayouts.push_back({ m_ResourceDescriptorSetLayout, frameCount });
 	m_DestructionHandler.descriptorPools.push_back({ m_DescriptorPool, frameCount });
 }
@@ -398,11 +409,21 @@ void GFXDevice_Vulkan::Impl::create_device() {
 		queueCreateInfos.push_back(queueCreateInfo);
 	}
 
-	// ------ Device features ------
+	// ---------------------------- Device features ----------------------------
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationFeatures = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+		.pNext = nullptr
+	};
+
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeatures = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+		.pNext = &accelerationFeatures,
+	};
+
 	VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-		.pNext = nullptr
-	};;
+		.pNext = &rtPipelineFeatures
+	};
 
 	VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
@@ -424,7 +445,10 @@ void GFXDevice_Vulkan::Impl::create_device() {
 
 	vkGetPhysicalDeviceFeatures2(m_PhysicalDevice, &deviceFeatures);
 
-	// Assert that certain descriptor indexing features are supported
+	// Assert that device features are supported
+	assert(accelerationFeatures.accelerationStructure);
+	assert(rtPipelineFeatures.rayTracingPipeline);
+
 	assert(descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing);
 	assert(descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind);
 	assert(descriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
@@ -609,9 +633,15 @@ bool GFXDevice_Vulkan::Impl::check_validation_layers() {
 }
 
 bool GFXDevice_Vulkan::Impl::is_device_suitable(VkPhysicalDevice device) {
-	VkPhysicalDeviceProperties deviceProperties;
+	// Ray Tracing properties
+	VkPhysicalDeviceProperties2 deviceProperties2 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+		.pNext = &m_RTProperties
+	};
+	
+	vkGetPhysicalDeviceProperties2(device, &deviceProperties2);
+
 	VkPhysicalDeviceFeatures deviceFeatures;
-	vkGetPhysicalDeviceProperties(device, &deviceProperties);
 	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
 	QueueFamilyIndices indices = find_queue_families(device);
@@ -1348,7 +1378,7 @@ void GFXDevice_Vulkan::create_shader(ShaderStage stage, const std::string& path,
 
 	shader.internalState = internalState;
 
-	const std::string fullPath = ENGINE_BASE_DIR + path;
+	const std::string fullPath = ENGINE_RES_DIR + path;
 	std::ifstream file(fullPath, std::ios::ate | std::ios::binary);
 
 	if (!file.is_open()) {

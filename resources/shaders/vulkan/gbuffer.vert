@@ -9,9 +9,8 @@ layout (location = 3) in vec2 vsInTexCoord;
 
 // VS Outputs
 layout (location = 0) out vec3 vsOutWorldSpacePos;
-layout (location = 1) out vec3 vsOutNormal;
-layout (location = 2) out vec2 vsOutTexCoord;
-layout (location = 3) out mat3 vsOutTBN;
+layout (location = 1) out vec2 vsOutTexCoord;
+layout (location = 2) out mat3 vsOutTBN;
 
 layout (push_constant) uniform constants {
     mat4 modelMatrix;
@@ -27,11 +26,10 @@ void main() {
     // TBN
     vec3 normTangent = normalize(vsInTangent);
     vec3 T = normalize(vec3(g_PushConstants.modelMatrix * vec4(vsInTangent, 0.0f)));
-    vec3 N = normalize(vec3(g_PushConstants.modelMatrix * vec4(vsInNormal, 0.0f)));
+    vec3 N = normalize(vec3(g_PushConstants.modelMatrix * vec4(normalize(vsInNormal), 0.0f)));
     vec3 B = cross(N, T);
 
     vsOutWorldSpacePos = worldSpacePos.xyz;
-    vsOutNormal = vsInNormal; // TODO: TBN
     vsOutTexCoord = vsInTexCoord;
     vsOutTBN = mat3(T, B, N); // TODO: might not have to transpose
 
