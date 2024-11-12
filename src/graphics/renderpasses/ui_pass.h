@@ -119,10 +119,16 @@ public:
 	~UIPass();
 
 	void execute(PassExecuteInfo& executeInfo);
+
+	// Widgets
 	void widget_text(const std::string& text);
 	bool widget_button(const std::string& text);
 	bool widget_slider_float(const std::string& text, float* value, float min, float max);
 	void widget_text_input(const std::string& label, std::string& buffer);
+	void widget_image(const Texture& texture, int width, int height);
+
+	// Widget behavior
+	void widget_same_line();
 
 	void process_event(const UIEvent& event);
 
@@ -148,7 +154,8 @@ private:
 	enum class WidgetType : uint32_t {
 		BUTTON = 0,
 		SLIDER_FLOAT = 1 << 0,
-		INPUT_TEXT = 1 << 1,
+		IMAGE = 1 << 1,
+		INPUT_TEXT = 1 << 2,
 	};
 
 	struct UIWidgetState { // NOTE: Only used for certain widgets
@@ -183,7 +190,8 @@ private:
 	};
 
 	void draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags = UIPosFlag::NONE);
-	void draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags = UIPosFlag::NONE);
+	void draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags = UIPosFlag::NONE, const Texture* texture = nullptr);
+	void calc_cursor_origin();
 	inline uint64_t widget_hash_combine(uint64_t hash1, uint64_t hash2) {
 		return hash1 ^ (hash2 + 0x9e3779b97f4a7c15ULL + (hash1 << 6) + (hash1 >> 2));
 	}
@@ -198,6 +206,13 @@ private:
 	std::vector<UIParams> m_UIParamsData = {};
 	glm::vec2 m_DefaultCursorOrigin = { UI_PADDING, UI_PADDING };
 	glm::vec2 m_CursorOrigin = m_DefaultCursorOrigin;
+	glm::vec2 m_LastCursorOriginDelta = { 0.0f, 0.0f };
+
+	glm::vec2 m_SameLineCursorOrigin = m_DefaultCursorOrigin;
+
+	bool m_SameLineIsActive = false;
+	bool m_SameLineWasActive = false;
+
 	UIEvent m_LastMouseEvent = UIEvent(UIEventType::None);
 	UIEvent m_CurrentMouseEvent = UIEvent(UIEventType::None);
 	UIEvent m_CurrentKeyboardEvent = UIEvent(UIEventType::None);

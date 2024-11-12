@@ -39,6 +39,8 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/data/font.cpp
 	${SOURCE_DIR}/data/font.h
 	${SOURCE_DIR}/data/model.h
+	${SOURCE_DIR}/data/scene.cpp
+	${SOURCE_DIR}/data/scene.h
 
 	# Entity Component System (ECS)
 	${SOURCE_DIR}/ecs/components.h

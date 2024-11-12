@@ -46,3 +46,6 @@ CPackSourceConfig.cmake
 
 # MacOS
 .DS_Store
+
+# Vulkan
+.spv

@@ -120,12 +120,6 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 		m_CaretTimer = 0.0f;
 	}
 
-	if (widget_button("Hello!")) { std::cout << "Hello!\n"; }
-	if (widget_button("OK!")) { std::cout << "OK!\n"; }
-	widget_slider_float("Slider", &x, 0.0f, 1.0f);
-	widget_text_input("Textfield", text);
-	widget_text_input("Textfield2", text2);
-
 	memcpy(m_UIParamsBuffers[m_GfxDevice.get_frame_index()].mappedData, m_UIParamsData.data(), m_UIParamsData.size() * sizeof(UIParams));
 
 	// Rendering
@@ -137,6 +131,10 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 	m_UIParamsData.clear();
 
 	m_CursorOrigin = m_DefaultCursorOrigin;
+	m_LastCursorOriginDelta = { 0.0f, 0.0f };
+	m_SameLineIsActive = false;
+	m_SameLineWasActive = false;
+
 	if (m_ActiveWidgetID != 0) {
 		UIWidgetState& activeState = m_WidgetStateMap[m_ActiveWidgetID];
 
@@ -155,10 +153,17 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 }
 
 void UIPass::widget_text(const std::string& text) {
+	calc_cursor_origin();
+
 	draw_text(m_CursorOrigin, text);
+
+	m_LastCursorOriginDelta.x = m_DefaultFont->calc_text_width(text) + UI_PADDING * 2;
+	m_LastCursorOriginDelta.y = m_DefaultFont->boundingBoxHeight + UI_PADDING;
 }
 
 bool UIPass::widget_button(const std::string& text) {
+	calc_cursor_origin();
+
 	// Widget ID hash
 	const uint64_t idHash = std::hash<std::string>{}(text);
 	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::BUTTON);
@@ -197,7 +202,8 @@ bool UIPass::widget_button(const std::string& text) {
 	draw_rect(m_CursorOrigin, width, height, color);
 	draw_text(m_CursorOrigin + glm::vec2(width / 2, height / 2), text, UIPosFlag::HCENTER | UIPosFlag::VCENTER);
 
-	m_CursorOrigin.y += height + UI_PADDING; // TODO: Should have MARGIN constant instead
+	m_LastCursorOriginDelta.x = width + UI_PADDING;
+	m_LastCursorOriginDelta.y = height + UI_PADDING;
 
 	return ret;
 }
@@ -205,6 +211,8 @@ bool UIPass::widget_button(const std::string& text) {
 bool UIPass::widget_slider_float(const std::string& text, float* value, float min, float max) {
 	assert(value != nullptr);
 	assert(min < max);
+
+	calc_cursor_origin();
 
 	const int trackHeight = m_DefaultFont->boundingBoxHeight + UI_PADDING * 2;
 	const int handleHeight = trackHeight - 2;
@@ -242,20 +250,25 @@ bool UIPass::widget_slider_float(const std::string& text, float* value, float mi
 		}
 	}
 
-	min -= min;
-	max -= min;
-	const float percentage = (*value - min) / max;
+	int tempMin = min;
+	min -= tempMin;
+	max -= tempMin;
+	const float percentage = fabsf(*value - tempMin) / max;
 
 	draw_rect(m_CursorOrigin, UI_WIDGET_SLIDER_WIDTH, trackHeight, UI_WIDGET_PRIMARY_COL);
 	draw_rect({ m_CursorOrigin.x + 1 + std::clamp((innerTrackWidth - UI_WIDGET_SLIDER_HANDLE_WIDTH) * percentage, 0.0f, (float)innerTrackWidth - UI_WIDGET_SLIDER_HANDLE_WIDTH),
 				m_CursorOrigin.y + 1 }, UI_WIDGET_SLIDER_HANDLE_WIDTH, handleHeight, UI_WIDGET_ACCENT_COL);
 	draw_text(m_CursorOrigin + glm::vec2(UI_WIDGET_SLIDER_WIDTH / 2, trackHeight / 2), std::to_string(*value), UIPosFlag::HCENTER | UIPosFlag::VCENTER);
 
-	m_CursorOrigin.y += state.height + UI_PADDING;
+	m_LastCursorOriginDelta.x = state.width; + UI_PADDING;
+	m_LastCursorOriginDelta.y = state.height + UI_PADDING;
+
 	return false;
 }
 
 void UIPass::widget_text_input(const std::string& label, std::string& buffer) {
+	calc_cursor_origin();
+
 	const int boxWidth = UI_WIDGET_TEXT_INPUT_WIDTH;
 	const int boxHeight = m_DefaultFont->boundingBoxHeight + UI_PADDING * 2;
 	const int caretWidth = 1;
@@ -470,7 +483,46 @@ void UIPass::widget_text_input(const std::string& label, std::string& buffer) {
 	// Text
 	draw_text(textOrigin, buffer, UIPosFlag::VCENTER);
 
-	m_CursorOrigin.y += state.height + UI_PADDING;
+	m_LastCursorOriginDelta.x = state.width + UI_PADDING;
+	m_LastCursorOriginDelta.y = state.height + UI_PADDING;
+}
+
+void UIPass::widget_image(const Texture& texture, int width, int height) {
+	assert(has_flag(texture.info.bindFlags, BindFlag::SHADER_RESOURCE));
+
+	calc_cursor_origin();
+
+	const uint64_t idHash = std::hash<const Texture*>{}(&texture); // TODO: Might break
+	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::IMAGE);
+	const uint64_t id = widget_hash_combine(idHash, typeHash);
+
+	UIWidgetState state = {};
+	state.position = m_CursorOrigin;
+	state.width = width;
+	state.height = height;
+	state.id = id;
+	state.type = WidgetType::IMAGE;
+
+	const auto search = m_WidgetStateMap.find(id);
+
+	if (search == m_WidgetStateMap.end()) {
+		m_WidgetStateMap.insert({ id, state });
+	}
+	else {
+		state = search->second;
+	}
+
+	draw_rect(m_CursorOrigin, width, height, glm::vec4(1.0f), UIPosFlag::NONE, &texture);
+
+	m_LastCursorOriginDelta.x = state.width + UI_PADDING;
+	m_LastCursorOriginDelta.y = state.height + UI_PADDING;
+}
+
+void UIPass::widget_same_line() {
+	m_SameLineIsActive = true;
+	m_SameLineWasActive = false;
+
+	//m_CursorOrigin.y -= m_L
 }
 
 void UIPass::process_event(const UIEvent& event) {
@@ -589,7 +641,9 @@ void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag 
 	}
 }
 
-void UIPass::draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags) {
+void UIPass::draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags, const Texture* texture) {
+	uint32_t texIndex = texture != nullptr ? m_GfxDevice.get_descriptor_index(*texture) : 0;
+
 	glm::vec2 rectPos = pos;
 
 	if (has_flag(posFlags, UIPosFlag::HCENTER)) {
@@ -609,8 +663,30 @@ void UIPass::draw_rect(const glm::vec2& pos, int width, int height, const glm::v
 	rectParams.texCoords[1] = { 1.0f, 0.0f };
 	rectParams.texCoords[2] = { 1.0f, 1.0f };
 	rectParams.texCoords[3] = { 0.0f, 1.0f };
-	rectParams.texIndex = 0;
+	rectParams.texIndex = texIndex;
 	rectParams.uiType = UIType::RECTANGLE;
 
 	m_UIParamsData.push_back(rectParams);
+}
+
+void UIPass::calc_cursor_origin() {
+	if (m_SameLineWasActive) {
+		m_CursorOrigin.x = m_SameLineCursorOrigin.x;
+
+		m_SameLineWasActive = false;
+	}
+
+	if (m_SameLineIsActive) {
+		m_CursorOrigin.x += m_LastCursorOriginDelta.x;
+
+		m_SameLineIsActive = false;
+		m_SameLineWasActive = true;
+	}
+	else {
+		m_CursorOrigin.y += m_LastCursorOriginDelta.y;
+	}
+
+	if (!m_SameLineIsActive && !m_SameLineWasActive) {
+		m_SameLineCursorOrigin = m_CursorOrigin;
+	}
 }

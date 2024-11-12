@@ -3,13 +3,13 @@
 #include "platform.h"
 #include "frame_info.h"
 #include "data/camera.h"
+#include "data/scene.h"
 #include "ecs/ecs.h"
 #include "input/input.h"
 #include "graphics/render_graph.h"
 #include "graphics/renderpasses/gbuffer_pass.h"
 #include "graphics/renderpasses/lighting_pass.h"
 #include "graphics/renderpasses/ui_pass.h"
-
 #include "graphics/vulkan/gfx_device_vulkan.h"
 #include "managers/asset_manager.h"
 
@@ -47,6 +47,7 @@ GLOBAL_VARIABLE PerFrameData g_PerFrameData = {};
 GLOBAL_VARIABLE std::unique_ptr<Camera> g_Camera = {};
 GLOBAL_VARIABLE FrameInfo g_FrameInfo = {};
 GLOBAL_VARIABLE std::vector<entity_id> g_Entities = {};
+GLOBAL_VARIABLE std::unique_ptr<Scene> g_Scene = {};
 
 // Resources
 GLOBAL_VARIABLE Texture g_DefaultAlbedoMap = {};
@@ -260,8 +261,9 @@ INTERNAL void init_gfx() {
 	lightingPass->add_input_attachment("Position");
 	lightingPass->add_input_attachment("Albedo");
 	lightingPass->add_input_attachment("Normal");
+	lightingPass->add_input_attachment("Depth"); // TODO: Temporary
 	lightingPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
-		g_LightingPass->execute(executeInfo);
+		g_LightingPass->execute(executeInfo, *g_Scene);
 	});
 
 	auto uiPass = g_RenderGraph->add_pass("UIPass");
@@ -273,13 +275,15 @@ INTERNAL void init_gfx() {
 }
 
 INTERNAL void init_objects() {
+	g_Scene = std::make_unique<Scene>(*g_GfxDevice);
+
 	assetmanager::load_from_file(g_CubeModel, "resources/cube.gltf");
 	assetmanager::load_from_file(g_SponzaModel, "resources/models/sponza/Sponza.gltf");
 
 	g_Sphere = assetmanager::create_sphere(1.0f, 32, 64);
 
 	g_Camera = std::make_unique<Camera>(
-		glm::vec3(0, 0, -4.0f),
+		glm::vec3(0, 3.0f, -4.0f),
 		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
 		glm::radians(60.0f),
 		(float)g_FrameWidth / g_FrameHeight,
@@ -304,6 +308,35 @@ INTERNAL void init_objects() {
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
+	// UI
+	g_UIPass->widget_slider_float("Sun Direction X", &g_Scene->m_SunDirection.x, -1.0f, 1.0f);
+	g_UIPass->widget_slider_float("Sun Direction Y", &g_Scene->m_SunDirection.y, -1.0f, 1.0f);
+	g_UIPass->widget_slider_float("Sun Direction Z", &g_Scene->m_SunDirection.z, -1.0f, 1.0f);
+
+	g_UIPass->widget_text("Render Passes:");
+
+	// TODO: Fix hacky solution
+	const std::vector<RenderPassAttachment*> gBufferAttachments = {
+		g_RenderGraph->get_attachment("Position"),
+		g_RenderGraph->get_attachment("Albedo"),
+		g_RenderGraph->get_attachment("Normal"),
+		g_RenderGraph->get_attachment("Depth")
+	};
+
+	LOCAL_PERSIST size_t gBufferIndex = 0;
+
+	if (g_UIPass->widget_button("<") && gBufferIndex > 0) {
+		--gBufferIndex;
+	}
+	g_UIPass->widget_same_line();
+	if (g_UIPass->widget_button(">") && gBufferIndex < gBufferAttachments.size() - 1) {
+		++gBufferIndex;
+	}
+
+	g_UIPass->widget_text(gBufferAttachments[gBufferIndex]->name);
+	g_UIPass->widget_image(gBufferAttachments[gBufferIndex]->texture, g_FrameWidth / 4, g_FrameHeight / 4);
+
+	// Input
 	input::update();
 	input::MouseState mouse = {};
 	input::get_mouse_state(mouse);

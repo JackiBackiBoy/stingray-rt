@@ -220,7 +220,7 @@ namespace assetmanager {
 		std::string warning = {};
 
 		if (!g_GltfLoader.LoadASCIIFromFile(&gltfModel, &error, &warning, path)) {
-			throw std::runtime_error("GLTF ERROR: Failed to load GLFT model!");
+			throw std::runtime_error("GLTF ERROR: Failed to load GLTF model!");
 		}
 
 		asset->model.meshes.resize(gltfModel.meshes.size());
