@@ -17,6 +17,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <format>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -46,6 +47,9 @@ GLOBAL_VARIABLE PerFrameData g_PerFrameData = {};
 
 GLOBAL_VARIABLE std::unique_ptr<Camera> g_Camera = {};
 GLOBAL_VARIABLE FrameInfo g_FrameInfo = {};
+GLOBAL_VARIABLE uint64_t g_LastFrameCount = 0;
+GLOBAL_VARIABLE uint64_t g_CurrentFPS = 0;
+GLOBAL_VARIABLE std::chrono::high_resolution_clock::time_point g_FPSStartTime = {};
 GLOBAL_VARIABLE std::vector<entity_id> g_Entities = {};
 GLOBAL_VARIABLE std::unique_ptr<Scene> g_Scene = {};
 
@@ -424,22 +428,30 @@ int main() {
 	init_objects();
 	g_FrameInfo.camera = g_Camera.get();
 
-	float deltaTime = 0.0f;
-	float lastFrame = 0.0f;
-
 	while (!glfwWindowShouldClose(g_Window)) {
 		glfwPollEvents();
 
-		const float currentFrame = glfwGetTime();
-		deltaTime = currentFrame - lastFrame;
-		lastFrame = currentFrame;
+		static auto lastTime = std::chrono::high_resolution_clock::now();
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		const float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+		lastTime = currentTime;
+
+		// Update FPS counter
+		if (std::chrono::duration<float, std::chrono::seconds::period>(
+			currentTime - g_FPSStartTime).count() >= 1.0f) {
+			g_FPSStartTime = currentTime;
+			g_CurrentFPS = g_GfxDevice->get_frame_count() - g_LastFrameCount;
+			g_LastFrameCount = g_GfxDevice->get_frame_count();
+		}
 		
 		// Update
-		g_FrameInfo.dt = deltaTime;
+		g_FrameInfo.dt = dt;
 		// TODO: Make dynamic
 		g_FrameInfo.width = g_FrameWidth;
 		g_FrameInfo.height = g_FrameHeight;
 		on_update(g_FrameInfo);
+
+		g_UIPass->widget_text(std::format("FPS: {}", g_CurrentFPS));
 
 		// Rendering
 		CommandList cmdList = g_GfxDevice->begin_command_list(QueueType::DIRECT);

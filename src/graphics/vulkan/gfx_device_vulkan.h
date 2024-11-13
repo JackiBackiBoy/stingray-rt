@@ -14,6 +14,9 @@ public:
 	void create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) override;
 	void create_sampler(const SamplerInfo& info, Sampler& sampler) override;
 
+	// ------------------------------ Ray Tracing ------------------------------
+	void create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) override;
+
 	void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) override;
 	void bind_viewport(const Viewport& viewport, const CommandList& cmdList) override;
 	void bind_uniform_buffer(const Buffer& uniformBuffer, uint32_t slot) override;

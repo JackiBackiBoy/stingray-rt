@@ -3,6 +3,7 @@
 #include "gfx_types_vulkan.h"
 #include "../../platform.h"
 
+#include <GLFW/glfw3.h>
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -297,8 +298,8 @@ GFXDevice_Vulkan::Impl::~Impl() {
 }
 
 void GFXDevice_Vulkan::Impl::create_instance() {
-	if (m_EnableValidationLayers && !check_validation_layers()) {
-		throw std::runtime_error("VULKAN ERROR: Validation layers not available!");
+	if (volkInitialize() != VK_SUCCESS) {
+		throw std::runtime_error("VOLK ERROR: Failed to initialize Volk!");
 	}
 
 	const VkApplicationInfo appInfo = {
@@ -340,6 +341,12 @@ void GFXDevice_Vulkan::Impl::create_instance() {
 	VkResult result = vkCreateInstance(&createInfo, nullptr, &m_Instance);
 	if (result != VK_SUCCESS) {
 		throw std::runtime_error("VULKAN ERROR: Failed to create Vulkan instance!");
+	}
+
+	volkLoadInstanceOnly(m_Instance);
+
+	if (m_EnableValidationLayers && !check_validation_layers()) {
+		throw std::runtime_error("VULKAN ERROR: Validation layers not available!");
 	}
 }
 
@@ -478,6 +485,8 @@ void GFXDevice_Vulkan::Impl::create_device() {
 	if (vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device) != VK_SUCCESS) {
 		throw std::runtime_error("VULKAN ERROR: Failed to create logical device!");
 	}
+
+	volkLoadDevice(m_Device);
 
 	// TODO: Perhaps move this elsewhere?
 	vkGetDeviceQueue(m_Device, indices.graphicsFamily.value(), 0, &m_GraphicsQueue);
@@ -1829,6 +1838,66 @@ void GFXDevice_Vulkan::create_sampler(const SamplerInfo& info, Sampler& sampler)
 		0,
 		nullptr
 	);
+}
+
+// -------------------------------- Ray Tracing --------------------------------
+void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
+	rtas.info = rtasInfo;
+
+	auto internalState = std::make_shared<RTAS_Vulkan>();
+	internalState->info = rtasInfo;
+
+	// Geometry info
+	VkAccelerationStructureBuildGeometryInfoKHR& buildInfo = internalState->buildInfo;
+	buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+
+	switch (rtasInfo.type) {
+	case RTASType::BLAS:
+		{
+			buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+
+			for (const auto& geometry : rtasInfo.blas->geometries) {
+				VkAccelerationStructureGeometryKHR& vkGeometry = internalState->geometries.emplace_back();
+				uint32_t& primitiveCount = internalState->primitiveCounts.emplace_back();
+
+				vkGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+				vkGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR; // TODO: For now we only support triangles as the geometry type
+
+				// Triangle geometry
+				vkGeometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+				vkGeometry.geometry.triangles.vertexFormat = to_vk_format(geometry.triangles.vertexFormat);
+				// NOTE: We won't fill out the vertex data until we build the AS
+				vkGeometry.geometry.triangles.vertexStride = static_cast<uint64_t>(geometry.triangles.vertexStride);
+				vkGeometry.geometry.triangles.maxVertex = geometry.triangles.vertexCount - 1; // TODO: Not sure if -1 is needed
+				vkGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32; // TODO: We always assume this to be the case
+
+				primitiveCount = geometry.triangles.indexCount / 3;
+			}
+		}
+		break;
+	case RTASType::TLAS:
+		break;
+	}
+
+	buildInfo.geometryCount = static_cast<uint32_t>(internalState->geometries.size());
+	buildInfo.pGeometries = internalState->geometries.data();
+
+	internalState->sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+
+	// Memory requirements
+	vkGetAccelerationStructureBuildSizesKHR(
+		m_Impl->m_Device,
+		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+		&internalState->buildInfo,
+		internalState->primitiveCounts.data(),
+		&internalState->sizeInfo
+	);
+
+	const VkAccelerationStructureCreateInfoKHR info = {
+		.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+		.type = rtasInfo.type == RTASType::BLAS ? VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR : VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR
+	};
 }
 
 void GFXDevice_Vulkan::bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) {

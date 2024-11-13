@@ -1,8 +1,7 @@
 #pragma once
 
 #include "../gfx_types.h"
-#include <vulkan/vulkan.h>
-
+#include <volk.h>
 #include <deque>
 
 struct DestructionHandler {
@@ -110,6 +109,17 @@ struct DestructionHandler {
 
 		this->frameCount = frameCount;
 	}
+};
+
+// -------------------------------- Ray Tracing --------------------------------
+struct RTAS_Vulkan {
+	RTASInfo info = {};
+
+	DestructionHandler* destructionHandler = nullptr;
+	VkAccelerationStructureBuildGeometryInfoKHR buildInfo = {};
+	VkAccelerationStructureBuildSizesInfoKHR sizeInfo = {};
+	std::vector<VkAccelerationStructureGeometryKHR> geometries = {};
+	std::vector<uint32_t> primitiveCounts = {};
 };
 
 struct CommandList_Vulkan {

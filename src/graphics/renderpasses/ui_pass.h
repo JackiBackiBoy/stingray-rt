@@ -5,6 +5,7 @@
 #include "../../enum_flags.h"
 #include "../../data/font.h"
 
+#include <GLFW/glfw3.h>
 #include <cassert>
 #include <cstdint>
 #include <unordered_map>

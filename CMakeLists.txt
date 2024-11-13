@@ -20,8 +20,9 @@ set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/glm/)
 set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/tinygltf/)
 
 add_subdirectory(dependencies/freetype)
-add_subdirectory(dependencies/glfw)
 add_subdirectory(dependencies/tinygltf)
+add_subdirectory(dependencies/volk)
+add_subdirectory(dependencies/glfw)
 
 # Source files
 set(SOURCE_DIR ${CMAKE_HOME_DIRECTORY}/src)
@@ -77,21 +78,6 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/managers/asset_manager.h
 )
 
-# 1. Find Vulkan SDK
-if (DEFINED VULKAN_SDK_PATH)
-	set(Vulkan_INCLUDE_DIRS "${VULKAN_SDK_PATH}/Include") # 1.1 Make sure this include path is correct
-	set(Vulkan_LIBRARIES "${VULKAN_SDK_PATH}/Lib") # 1.2 Make sure lib path is correct
-	set(Vulkan_FOUND "True")
-else()
-	find_package(Vulkan REQUIRED) # throws error if could not find Vulkan
-	message(STATUS "Found Vulkan: $ENV{VULKAN_SDK}")
-endif()
-if (NOT Vulkan_FOUND)
-	message(FATAL_ERROR "Could not find Vulkan library!")
-else()
-	message(STATUS "Using Vulkan library at: ${Vulkan_LIBRARIES}")
-endif()
-
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCE_FILES})
 
 if (MSVC)
@@ -113,12 +99,13 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 	${FREETYPE_INCLUDE_DIR}
     ${GLFW_INCLUDE_DIR}
     ${GLM_INCLUDE_DIR}
-	${Vulkan_INCLUDE_DIRS}
 )
 
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
+target_link_libraries(${CMAKE_PROJECT_NAME}
+	PUBLIC
+	volk::volk
+	PRIVATE
 	freetype
     glfw
 	tinygltf
-	${Vulkan_LIBRARIES}
 )

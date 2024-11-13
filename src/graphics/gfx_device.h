@@ -1,12 +1,10 @@
 #pragma once
 
 #include "gfx_types.h"
-
-#define GLFW_INCLUDE_NONE
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <cstdint>
 #include <string>
+
+struct GLFWwindow;
 
 class GFXDevice {
 public:
@@ -14,6 +12,7 @@ public:
 	virtual ~GFXDevice() {};
 
 	inline virtual uint32_t get_frame_index() const final { return m_CurrentFrame; }
+	inline virtual uint64_t get_frame_count() const final { return m_FrameCount; }
 
 	virtual void create_swapchain(const SwapChainInfo& info, SwapChain& swapChain) = 0;
 	virtual void create_pipeline(const PipelineInfo& info, Pipeline& pipeline) = 0;
@@ -21,6 +20,9 @@ public:
 	virtual void create_shader(ShaderStage stage, const std::string& path, Shader& shader) = 0;
 	virtual void create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) = 0;
 	virtual void create_sampler(const SamplerInfo& info, Sampler& sampler) = 0;
+
+	// ------------------------------ Ray Tracing ------------------------------
+	virtual void create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) = 0;
 
 	virtual void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) = 0;
 	virtual void bind_viewport(const Viewport& viewport, const CommandList& cmdList) = 0;

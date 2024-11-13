@@ -287,6 +287,64 @@ struct Buffer : public Resource {
 	BufferInfo info = {};
 };
 
+// -------------------------------- Ray Tracing --------------------------------
+enum class RTASType {
+	BLAS,
+	TLAS
+};
+
+struct RTBLASGeometry {
+	enum class Type {
+		TRIANGLES, // TODO: Add more geometry types
+	} type;
+
+	struct Triangles {
+		const Buffer* vertexBuffer = nullptr;
+		const Buffer* indexBuffer = nullptr;
+		Format vertexFormat = Format::UNKNOWN;
+		uint32_t vertexCount = 0;
+		uint32_t vertexStride = 0;
+		uint64_t vertexByteOffset = 0;
+		uint32_t indexCount = 0;
+		uint32_t indexOffset = 0;
+	} triangles;
+};
+
+struct RTBLAS {
+	std::vector<RTBLASGeometry> geometries = {};
+};
+
+struct RTTLAS {
+	struct Instance {
+		float transform[3][4] = {
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f
+		};
+		uint32_t instanceID = 0;
+		uint32_t instanceMask = 0;
+		uint32_t instanceContributionHitGroupIndex = 0;
+		uint32_t flags = 0;
+		const Resource* blasResource = nullptr;
+	};
+
+	const Buffer* instanceBuffer = nullptr;
+	uint32_t offset = 0;
+	uint32_t numInstances = 0;
+};
+
+struct RTASInfo {
+	RTASType type = {};
+	union {
+		RTBLAS* blas;
+		RTTLAS* tlas;
+	};
+};
+
+struct RTAS : public Resource {
+	RTASInfo info = {};
+};
+
 struct CommandList {
 	void* internalState = nullptr;
 };
