@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.6.0)
 
-project(gl-testbench)
+project(stingray)
 
 # Options
 option(BUILD_VULKAN "Build Vulkan" ON)

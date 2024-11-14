@@ -157,7 +157,7 @@ INTERNAL int init_glfw(GLFWwindow** window) {
 		}
 	}();
 
-	const std::string title = "gl-testbench " + apiString;
+	const std::string title = "Stingray " + apiString;
 
 	*window = glfwCreateWindow(
 		g_FrameWidth,
