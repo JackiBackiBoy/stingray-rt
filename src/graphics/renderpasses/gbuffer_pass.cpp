@@ -37,7 +37,7 @@ GBufferPass::GBufferPass(GFXDevice& gfxDevice) : m_GfxDevice(gfxDevice) {
 	m_GfxDevice.create_pipeline(pipelineInfo, m_Pipeline);
 }
 
-void GBufferPass::execute(PassExecuteInfo& executeInfo, const std::vector<entity_id>& entities) {
+void GBufferPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 	const CommandList& cmdList = *executeInfo.cmdList;
 
 	// Update
@@ -46,6 +46,7 @@ void GBufferPass::execute(PassExecuteInfo& executeInfo, const std::vector<entity
 	// Rendering
 	m_GfxDevice.bind_pipeline(m_Pipeline, cmdList);
 
+	const auto& entities = scene.get_entities();
 	for (const auto& entity : entities) {
 		const Renderable* renderable = ecs::get_component_renderable(entity);
 		const Transform* transform = ecs::get_component_transform(entity);

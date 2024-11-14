@@ -6,11 +6,14 @@
 #include "data/scene.h"
 #include "ecs/ecs.h"
 #include "input/input.h"
+
 #include "graphics/render_graph.h"
 #include "graphics/renderpasses/gbuffer_pass.h"
 #include "graphics/renderpasses/lighting_pass.h"
+#include "graphics/renderpasses/ray_tracing_pass.h"
 #include "graphics/renderpasses/ui_pass.h"
 #include "graphics/vulkan/gfx_device_vulkan.h"
+
 #include "managers/asset_manager.h"
 
 #include <glm/glm.hpp>
@@ -37,6 +40,7 @@ GLOBAL_VARIABLE UIEvent g_KeyboardEvent = UIEvent(UIEventType::None);
 GLOBAL_VARIABLE std::unique_ptr<GFXDevice> g_GfxDevice = {};
 GLOBAL_VARIABLE std::unique_ptr<GBufferPass> g_GBufferPass = {};
 GLOBAL_VARIABLE std::unique_ptr<LightingPass> g_LightingPass = {};
+GLOBAL_VARIABLE std::unique_ptr<RayTracingPass> g_RayTracingPass = {};
 GLOBAL_VARIABLE std::unique_ptr<UIPass> g_UIPass = {};
 GLOBAL_VARIABLE std::unique_ptr<RenderGraph> g_RenderGraph = {};
 GLOBAL_VARIABLE SwapChain g_SwapChain = {};
@@ -50,7 +54,6 @@ GLOBAL_VARIABLE FrameInfo g_FrameInfo = {};
 GLOBAL_VARIABLE uint64_t g_LastFrameCount = 0;
 GLOBAL_VARIABLE uint64_t g_CurrentFPS = 0;
 GLOBAL_VARIABLE std::chrono::high_resolution_clock::time_point g_FPSStartTime = {};
-GLOBAL_VARIABLE std::vector<entity_id> g_Entities = {};
 GLOBAL_VARIABLE std::unique_ptr<Scene> g_Scene = {};
 
 // Resources
@@ -191,10 +194,10 @@ INTERNAL int init_glfw(GLFWwindow** window) {
 INTERNAL void init_gfx() {
 	switch (g_API) {
 	case GraphicsAPI::VULKAN:
-		{
-			g_GfxDevice = std::make_unique<GFXDevice_Vulkan>(g_Window);
-		}
-		break;
+	{
+		g_GfxDevice = std::make_unique<GFXDevice_Vulkan>(g_Window);
+	}
+	break;
 	}
 
 	const SwapChainInfo swapChainInfo = {
@@ -240,16 +243,16 @@ INTERNAL void init_gfx() {
 		.maxAnisotropy = 16
 	};
 	g_GfxDevice->create_sampler(defaultSamplerInfo, g_DefaultSampler);
+}
 
-	// TODO: Ugly solution in the sense that we do this before pass
-	assetmanager::initialize(*g_GfxDevice);
-
+INTERNAL void init_render_graph() {
 	// Render graph
 	const uint32_t uWidth = static_cast<uint32_t>(g_FrameWidth);
 	const uint32_t uHeight = static_cast<uint32_t>(g_FrameHeight);
 
 	g_GBufferPass = std::make_unique<GBufferPass>(*g_GfxDevice);
 	g_LightingPass = std::make_unique<LightingPass>(*g_GfxDevice);
+	g_RayTracingPass = std::make_unique<RayTracingPass>(*g_GfxDevice, *g_Scene);
 	g_UIPass = std::make_unique<UIPass>(*g_GfxDevice, g_Window);
 
 	g_RenderGraph = std::make_unique<RenderGraph>(*g_GfxDevice);
@@ -259,7 +262,7 @@ INTERNAL void init_gfx() {
 	gBufferPass->add_output_attachment("Normal", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R16G16B16A16_FLOAT });
 	gBufferPass->add_output_attachment("Depth", AttachmentInfo{ uWidth, uHeight, AttachmentType::DEPTH_STENCIL, Format::D32_FLOAT });
 	gBufferPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
-		g_GBufferPass->execute(executeInfo, g_Entities);
+		g_GBufferPass->execute(executeInfo, *g_Scene);
 	});
 
 	auto lightingPass = g_RenderGraph->add_pass("LightingPass");
@@ -282,6 +285,7 @@ INTERNAL void init_gfx() {
 INTERNAL void init_objects() {
 	g_Scene = std::make_unique<Scene>(*g_GfxDevice);
 
+	assetmanager::initialize(*g_GfxDevice);
 	assetmanager::load_from_file(g_CubeModel, "models/cube/cube.gltf");
 	g_PlaneModel = assetmanager::create_plane(10.0f, 10.0f);
 	g_Sphere = assetmanager::create_sphere(1.0f, 32, 64);
@@ -298,28 +302,23 @@ INTERNAL void init_objects() {
 	// Entities
 	ecs::initialize();
 
-	const entity_id sphere = ecs::create_entity();
+	const entity_id sphere = g_Scene->add_entity("Sphere");
 	ecs::add_component(sphere, Renderable{ g_Sphere.get() });
 	ecs::get_component_transform(sphere)->position = { -0.1f, 1.5f, 0.0f };
 
-	entity_id plane = ecs::create_entity();
+	entity_id plane = g_Scene->add_entity("Plane");
 	ecs::add_component(plane, Renderable{ g_PlaneModel.get() });
 	ecs::get_component_transform(plane)->position = { 0.0f, 0.0f, 0.0f };
 
-	entity_id backWall = ecs::create_entity();
+	entity_id backWall = g_Scene->add_entity("Back Wall");
 	ecs::add_component(backWall, Renderable{ g_PlaneModel.get() });
 	ecs::get_component_transform(backWall)->position = { 0.0f, 5.0f, 5.0f };
 	ecs::get_component_transform(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
 
-	entity_id leftWall = ecs::create_entity();
+	entity_id leftWall = g_Scene->add_entity("Left Wall");
 	ecs::add_component(leftWall, Renderable{ g_PlaneModel.get() });
 	ecs::get_component_transform(leftWall)->position = { -5.0f, 5.0f, 0.0f };
 	ecs::get_component_transform(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
-
-	g_Entities.push_back(sphere);
-	g_Entities.push_back(plane);
-	g_Entities.push_back(backWall);
-	g_Entities.push_back(leftWall);
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
@@ -426,6 +425,8 @@ int main() {
 
 	init_gfx();
 	init_objects();
+	init_render_graph();
+
 	g_FrameInfo.camera = g_Camera.get();
 
 	while (!glfwWindowShouldClose(g_Window)) {

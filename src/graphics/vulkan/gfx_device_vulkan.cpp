@@ -1857,7 +1857,7 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 		{
 			buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 
-			for (const auto& geometry : rtasInfo.blas->geometries) {
+			for (const auto& geometry : rtasInfo.blas.geometries) {
 				VkAccelerationStructureGeometryKHR& vkGeometry = internalState->geometries.emplace_back();
 				uint32_t& primitiveCount = internalState->primitiveCounts.emplace_back();
 
@@ -1877,6 +1877,8 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 		}
 		break;
 	case RTASType::TLAS:
+		{
+		}
 		break;
 	}
 
@@ -1894,10 +1896,86 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 		&internalState->sizeInfo
 	);
 
-	const VkAccelerationStructureCreateInfoKHR info = {
-		.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-		.type = rtasInfo.type == RTASType::BLAS ? VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR : VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR
+	// Create the acceleration structure
+	VkBufferCreateInfo bufferInfo = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.flags = 0,
+		.size = internalState->sizeInfo.accelerationStructureSize,
+		.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE
 	};
+
+	if (vkCreateBuffer(m_Impl->m_Device, &bufferInfo, nullptr, &internalState->asBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to create acceleration structure buffer!");
+	}
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(m_Impl->m_Device, internalState->asBuffer, &memRequirements);
+
+	uint32_t memoryType = m_Impl->find_memory_type(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	VkMemoryAllocateInfo allocInfo = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = memRequirements.size,
+		.memoryTypeIndex = memoryType
+	};
+
+	if (vkAllocateMemory(m_Impl->m_Device, &allocInfo, nullptr, &internalState->asBufferMemory) != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to allocate acceleration structure memory!");
+	}
+
+	if (vkBindBufferMemory(m_Impl->m_Device, internalState->asBuffer, internalState->asBufferMemory, 0) != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to bind acceleration structure buffer memory!");
+	}
+
+	VkAccelerationStructureCreateInfoKHR& createInfo = internalState->createInfo;
+	createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+	createInfo.buffer = internalState->asBuffer;
+	createInfo.size = internalState->sizeInfo.accelerationStructureSize;
+	createInfo.type = internalState->buildInfo.type;
+
+	VkResult res = vkCreateAccelerationStructureKHR(
+		m_Impl->m_Device,
+		&createInfo,
+		nullptr,
+		&internalState->as
+	);
+
+	if (res != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to create ray tracing acceleration structure!");
+	}
+
+	// Create the scratch buffer
+	bufferInfo.size = internalState->sizeInfo.buildScratchSize; // TODO: Should probably also use updateScratchSize
+	bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+
+	if (vkCreateBuffer(m_Impl->m_Device, &bufferInfo, nullptr, &internalState->scratchBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to create scratch buffer!");
+	}
+
+	vkGetBufferMemoryRequirements(m_Impl->m_Device, internalState->scratchBuffer, &memRequirements);
+
+	memoryType = m_Impl->find_memory_type(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = memoryType;
+
+	if (vkAllocateMemory(m_Impl->m_Device, &allocInfo, nullptr, &internalState->scratchBufferMemory) != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to allocate scratch buffer memory!");
+	}
+
+	if (vkBindBufferMemory(m_Impl->m_Device, internalState->scratchBuffer, internalState->scratchBufferMemory, 0) != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to bind scratch buffer memory!");
+	}
+
+	// Device address for acceleration structure
+	const VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo = {
+		.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
+		.accelerationStructure = internalState->as
+	};
+
+	internalState->asDeviceAddress = vkGetAccelerationStructureDeviceAddressKHR(
+		m_Impl->m_Device,
+		&deviceAddressInfo
+	);
 }
 
 void GFXDevice_Vulkan::bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) {

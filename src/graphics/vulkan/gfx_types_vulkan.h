@@ -116,10 +116,22 @@ struct RTAS_Vulkan {
 	RTASInfo info = {};
 
 	DestructionHandler* destructionHandler = nullptr;
+	VkAccelerationStructureCreateInfoKHR createInfo = {};
 	VkAccelerationStructureBuildGeometryInfoKHR buildInfo = {};
 	VkAccelerationStructureBuildSizesInfoKHR sizeInfo = {};
 	std::vector<VkAccelerationStructureGeometryKHR> geometries = {};
 	std::vector<uint32_t> primitiveCounts = {};
+
+	// Acceleration structure
+	VkBuffer asBuffer = nullptr;
+	VkDeviceMemory asBufferMemory = nullptr;
+	VkAccelerationStructureKHR as = nullptr;
+	VkDeviceAddress asDeviceAddress = {};
+
+	// Scratch buffer
+	VkBuffer scratchBuffer = nullptr;
+	VkDeviceMemory scratchBufferMemory = nullptr;
+	VkDeviceAddress scratchBufferDeviceAddress = {};
 };
 
 struct CommandList_Vulkan {

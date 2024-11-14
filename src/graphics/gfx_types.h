@@ -335,10 +335,8 @@ struct RTTLAS {
 
 struct RTASInfo {
 	RTASType type = {};
-	union {
-		RTBLAS* blas;
-		RTTLAS* tlas;
-	};
+	RTBLAS blas = {};
+	RTTLAS tlas = {};
 };
 
 struct RTAS : public Resource {

@@ -3,13 +3,14 @@
 #include "../gfx_device.h"
 #include "../render_graph.h"
 #include "../../ecs/ecs.h"
+#include "../../data/scene.h"
 
 class GBufferPass {
 public:
 	GBufferPass(GFXDevice& gfxDevice);
 	~GBufferPass() {}
 
-	void execute(PassExecuteInfo& executeInfo, const std::vector<entity_id>& entities); // TEMP
+	void execute(PassExecuteInfo& executeInfo, Scene& scene);
 
 private:
 	struct PushConstant {
