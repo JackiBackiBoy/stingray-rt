@@ -1,2 +1,4 @@
-# stingray
-A quick and dirty playground of mine experimenting with various graphics techniques in a multitude of graphics APIs.
+<h1 align="center">stingray</h1>
+<p align="center">
+GPU accelerated real-time ray tracer powered by Vulkan® and C++.
+</p>
