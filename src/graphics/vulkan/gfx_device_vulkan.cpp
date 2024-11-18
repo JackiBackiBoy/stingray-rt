@@ -1842,10 +1842,12 @@ void GFXDevice_Vulkan::create_sampler(const SamplerInfo& info, Sampler& sampler)
 
 // -------------------------------- Ray Tracing --------------------------------
 void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
-	rtas.info = rtasInfo;
-
 	auto internalState = std::make_shared<RTAS_Vulkan>();
 	internalState->info = rtasInfo;
+
+	rtas.internalState = internalState;
+	rtas.info = rtasInfo;
+	rtas.type = Resource::Type::RAYTRACING_AS;
 
 	// Geometry info
 	VkAccelerationStructureBuildGeometryInfoKHR& buildInfo = internalState->buildInfo;
@@ -1861,6 +1863,7 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 				VkAccelerationStructureGeometryKHR& vkGeometry = internalState->geometries.emplace_back();
 				uint32_t& primitiveCount = internalState->primitiveCounts.emplace_back();
 
+				vkGeometry = {};
 				vkGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 				vkGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR; // TODO: For now we only support triangles as the geometry type
 
@@ -1878,6 +1881,18 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 		break;
 	case RTASType::TLAS:
 		{
+			buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+
+			VkAccelerationStructureGeometryKHR& vkGeometry = internalState->geometries.emplace_back();
+			uint32_t& primitiveCount = internalState->primitiveCounts.emplace_back();
+
+			vkGeometry = {};
+			vkGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+			vkGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+			vkGeometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+			vkGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
+
+			primitiveCount = rtasInfo.tlas.numInstances;
 		}
 		break;
 	}
@@ -1976,6 +1991,214 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 		m_Impl->m_Device,
 		&deviceAddressInfo
 	);
+
+	int j = 0;
+}
+
+void GFXDevice_Vulkan::create_rt_instance_buffer(Buffer& buffer, uint32_t numBLASes) {
+	const BufferInfo instanceBufferInfo = {
+		.size = numBLASes * sizeof(VkAccelerationStructureInstanceKHR),
+		.stride = sizeof(VkAccelerationStructureInstanceKHR),
+		.usage = Usage::UPLOAD,
+		.bindFlags = BindFlag::SHADER_RESOURCE,
+		.miscFlags = MiscFlag::BUFFER_STRUCTURED,
+		.persistentMap = true
+	};
+
+	create_buffer(instanceBufferInfo, buffer, nullptr);
+}
+
+void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline& pipeline) {
+	assert(info.rayGenShader != nullptr && "Ray-generation shader required");
+	assert(info.missShader != nullptr && "Miss shader required!");
+	assert(info.closestHitShader != nullptr && "Closest-Hit shader required!");
+
+	auto internalState = std::make_shared<RTPipeline_Vulkan>();
+	internalState->info = info;
+
+	pipeline.info = info;
+	pipeline.internalState = internalState;
+
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {};
+
+	// Ray-generation shader
+	{
+		auto internalShader = to_internal(*info.rayGenShader);
+		const VkShaderModuleCreateInfo shaderModuleInfo = {
+			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.codeSize = internalShader->shaderCode.size(),
+			.pCode = reinterpret_cast<uint32_t*>(internalShader->shaderCode.data())
+		};
+
+		if (vkCreateShaderModule(
+			m_Impl->m_Device,
+			&shaderModuleInfo,
+			nullptr,
+			&internalShader->shaderModule) != VK_SUCCESS) {
+			throw std::runtime_error("VULKAN ERROR: Failed to create ray-gen shader module!");
+		}
+
+		VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStages.emplace_back();
+		shaderStageInfo = {};
+		shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStageInfo.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+		shaderStageInfo.module = internalShader->shaderModule;
+		shaderStageInfo.pName = "main";
+		shaderStageInfo.pSpecializationInfo = nullptr;
+	}
+
+	// Closest-hit shader
+	{
+		auto internalShader = to_internal(*info.closestHitShader);
+		const VkShaderModuleCreateInfo shaderModuleInfo = {
+			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.codeSize = internalShader->shaderCode.size(),
+			.pCode = reinterpret_cast<uint32_t*>(internalShader->shaderCode.data())
+		};
+
+		if (vkCreateShaderModule(
+			m_Impl->m_Device,
+			&shaderModuleInfo,
+			nullptr,
+			&internalShader->shaderModule) != VK_SUCCESS) {
+			throw std::runtime_error("VULKAN ERROR: Failed to create closest-hit shader module!");
+		}
+
+		VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStages.emplace_back();
+		shaderStageInfo = {};
+		shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStageInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+		shaderStageInfo.module = internalShader->shaderModule;
+		shaderStageInfo.pName = "main";
+		shaderStageInfo.pSpecializationInfo = nullptr;
+	}
+
+	// Miss shader
+	{
+		auto internalShader = to_internal(*info.missShader);
+		const VkShaderModuleCreateInfo shaderModuleInfo = {
+			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.codeSize = internalShader->shaderCode.size(),
+			.pCode = reinterpret_cast<uint32_t*>(internalShader->shaderCode.data())
+		};
+
+		if (vkCreateShaderModule(
+			m_Impl->m_Device,
+			&shaderModuleInfo,
+			nullptr,
+			&internalShader->shaderModule) != VK_SUCCESS) {
+			throw std::runtime_error("VULKAN ERROR: Failed to create miss shader module!");
+		}
+
+		VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStages.emplace_back();
+		shaderStageInfo = {};
+		shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStageInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+		shaderStageInfo.module = internalShader->shaderModule;
+		shaderStageInfo.pName = "main";
+		shaderStageInfo.pSpecializationInfo = nullptr;
+	}
+
+	// Hit groups
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups = {};
+	groups.reserve(1); // MAKE AMOUNT OF HIT GROUPS
+
+	VkRayTracingShaderGroupCreateInfoKHR& group = groups.emplace_back();
+	group = {};
+	group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+
+	switch (info.shaderHitGroup.type) {
+	case RTShaderHitGroup::Type::GENERAL:
+		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+		break;
+	case RTShaderHitGroup::Type::PROCEDURAL:
+		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+		break;
+	case RTShaderHitGroup::Type::TRIANGLES:
+		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+		break;
+	}
+
+	group.generalShader = info.shaderHitGroup.generalShader;
+	group.closestHitShader = info.shaderHitGroup.closestHitShader;
+	group.anyHitShader = info.shaderHitGroup.anyHitShader;
+	group.intersectionShader = info.shaderHitGroup.intersectionShader;
+
+	// Bindless descriptors
+	const VkDescriptorSetLayout descriptorSetLayouts[1] = {
+		m_Impl->m_ResourceDescriptorSetLayout
+	};
+
+	const VkPushConstantRange pushConstantRange = {
+		.stageFlags = VK_SHADER_STAGE_ALL,
+		.offset = 0,
+		.size = 128
+	};
+
+	// Create pipeline layout
+	const VkPipelineLayoutCreateInfo layoutInfo = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = 1,
+		.pSetLayouts = descriptorSetLayouts,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &pushConstantRange
+	};
+
+	VkResult res = vkCreatePipelineLayout(
+		m_Impl->m_Device,
+		&layoutInfo,
+		nullptr,
+		&internalState->psoLayout
+	);
+
+	if (res != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to create ray tracing pipeline layout!");
+	}
+
+	// Create pipeline
+	const VkRayTracingPipelineCreateInfoKHR pipelineInfo = {
+		.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
+		.stageCount = static_cast<uint32_t>(shaderStages.size()),
+		.pStages = shaderStages.data(),
+		.groupCount = static_cast<uint32_t>(groups.size()),
+		.pGroups = groups.data(),
+		.maxPipelineRayRecursionDepth = info.maxRayRecursionDepth,
+		.layout = internalState->psoLayout,
+		.basePipelineHandle = nullptr,
+		.basePipelineIndex = 0
+	};
+
+	res = vkCreateRayTracingPipelinesKHR(
+		m_Impl->m_Device,
+		nullptr,
+		nullptr,
+		1,
+		&pipelineInfo,
+		nullptr,
+		&internalState->pso
+	);
+
+	if (res != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to create ray tracing pipeline!");
+	}
+
+
+}
+
+void GFXDevice_Vulkan::write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) {
+	assert(instance.blasResource != nullptr);
+	auto internalBLAS = to_internal(*reinterpret_cast<const RTAS*>(instance.blasResource));
+
+	const VkAccelerationStructureInstanceKHR vkInstance = {
+		.transform = *(VkTransformMatrixKHR*)&instance.transform,
+		.instanceCustomIndex = instance.instanceID,
+		.mask = instance.instanceMask,
+		.instanceShaderBindingTableRecordOffset = instance.instanceContributionHitGroupIndex, // TODO: Research
+		.flags = instance.flags,
+		.accelerationStructureReference = internalBLAS->asDeviceAddress
+	};
+
+	std::memcpy(dst, &vkInstance, sizeof(vkInstance));
 }
 
 void GFXDevice_Vulkan::bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) {

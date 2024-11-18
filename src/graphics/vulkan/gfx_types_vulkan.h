@@ -112,6 +112,15 @@ struct DestructionHandler {
 };
 
 // -------------------------------- Ray Tracing --------------------------------
+// TODO: WE ONLY HAVE ONE SHADER GROUP/LIBRARY FOR NOW
+struct RTPipeline_Vulkan {
+	RTPipelineInfo info = {};
+
+	VkPipeline pso = nullptr;
+	VkPipelineLayout psoLayout = nullptr;
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups = {};
+};
+
 struct RTAS_Vulkan {
 	RTASInfo info = {};
 
@@ -196,6 +205,10 @@ struct Pipeline_Vulkan {
 // Vulkan converter functions
 CommandList_Vulkan* to_internal(const CommandList& cmdList) {
 	return (CommandList_Vulkan*)cmdList.internalState;
+}
+
+RTAS_Vulkan* to_internal(const RTAS& rtas) {
+	return (RTAS_Vulkan*)rtas.internalState.get();
 }
 
 Shader_Vulkan* to_internal(const Shader& shader) {

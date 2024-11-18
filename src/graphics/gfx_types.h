@@ -287,10 +287,46 @@ struct Buffer : public Resource {
 	BufferInfo info = {};
 };
 
+struct Shader {
+	ShaderStage stage = {};
+	std::shared_ptr<void> internalState = nullptr;
+};
+
 // -------------------------------- Ray Tracing --------------------------------
 enum class RTASType {
 	BLAS,
 	TLAS
+};
+
+struct RTShaderHitGroup {
+	enum class Type : uint8_t {
+		GENERAL,
+		TRIANGLES,
+		PROCEDURAL
+	} type = Type::TRIANGLES;
+
+	uint32_t generalShader = 0;
+	uint32_t closestHitShader = 0;
+	uint32_t anyHitShader = 0;
+	uint32_t intersectionShader = 0;
+};
+
+struct RTPipelineInfo {
+	const Shader* rayGenShader = nullptr;
+	const Shader* missShader = nullptr;
+	const Shader* closestHitShader = nullptr;
+	const Shader* intersectionShader = nullptr; // NOTE: Optional
+	const Shader* anyHitShader = nullptr; // NOTE: Optional
+
+	RTShaderHitGroup shaderHitGroup = {};
+	uint32_t maxRayRecursionDepth = 1;
+	uint32_t payloadSize = 0;
+};
+
+struct RTPipeline {
+	RTPipelineInfo info = {};
+
+	std::shared_ptr<void> internalState = nullptr;
 };
 
 struct RTBLASGeometry {
@@ -315,7 +351,7 @@ struct RTBLAS {
 };
 
 struct RTTLAS {
-	struct Instance {
+	struct BLASInstance {
 		float transform[3][4] = {
 			1.0f, 0.0f, 0.0f, 0.0f,
 			0.0f, 1.0f, 0.0f, 0.0f,
@@ -355,11 +391,6 @@ struct InputLayout {
 	};
 
 	std::vector<Element> elements = {};
-};
-
-struct Shader {
-	ShaderStage stage = {};
-	std::shared_ptr<void> internalState = nullptr;
 };
 
 struct BlendState {

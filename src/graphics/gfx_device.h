@@ -23,6 +23,9 @@ public:
 
 	// ------------------------------ Ray Tracing ------------------------------
 	virtual void create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) = 0;
+	virtual void create_rt_instance_buffer(Buffer& buffer, uint32_t numBLASes) = 0;
+	virtual void create_rt_pipeline(const RTPipelineInfo& info, RTPipeline& pipeline) = 0;
+	virtual void write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) = 0;
 
 	virtual void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) = 0;
 	virtual void bind_viewport(const Viewport& viewport, const CommandList& cmdList) = 0;

@@ -17,4 +17,7 @@ private:
 	GFXDevice& m_GfxDevice;
 
 	std::vector<RTAS> m_BLASes = {}; // NOTE: One per mesh
+	RTAS m_TLAS = {};
+	std::vector<RTTLAS::BLASInstance> m_Instances = {};
+	Buffer m_InstanceBuffer = {};
 };
