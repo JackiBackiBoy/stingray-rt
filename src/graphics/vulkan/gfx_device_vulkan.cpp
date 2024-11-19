@@ -1001,20 +1001,6 @@ void GFXDevice_Vulkan::create_pipeline(const PipelineInfo& info, Pipeline& pipel
 	if (info.vertexShader != nullptr) {
 		auto internalShader = to_internal(*info.vertexShader);
 
-		const VkShaderModuleCreateInfo shaderModuleInfo = {
-			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			.codeSize = internalShader->shaderCode.size(),
-			.pCode = reinterpret_cast<uint32_t*>(internalShader->shaderCode.data())
-		};
-
-		if (vkCreateShaderModule(
-			m_Impl->m_Device,
-			&shaderModuleInfo,
-			nullptr,
-			&internalShader->shaderModule) != VK_SUCCESS) {
-			throw std::runtime_error("VULKAN ERROR: Failed to create vertex shader module!");
-		}
-
 		const VkPipelineShaderStageCreateInfo shaderStageInfo = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
@@ -1029,20 +1015,6 @@ void GFXDevice_Vulkan::create_pipeline(const PipelineInfo& info, Pipeline& pipel
 	// Pixel shader
 	if (info.pixelShader != nullptr) {
 		auto internalShader = to_internal(*info.pixelShader);
-
-		const VkShaderModuleCreateInfo shaderModuleInfo = {
-			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			.codeSize = internalShader->shaderCode.size(),
-			.pCode = reinterpret_cast<uint32_t*>(internalShader->shaderCode.data())
-		};
-
-		if (vkCreateShaderModule(
-			m_Impl->m_Device,
-			&shaderModuleInfo,
-			nullptr,
-			&internalShader->shaderModule) != VK_SUCCESS) {
-			throw std::runtime_error("VULKAN ERROR: Failed to create pixel shader module!");
-		}
 
 		const VkPipelineShaderStageCreateInfo shaderStageInfo = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -1387,6 +1359,7 @@ void GFXDevice_Vulkan::create_shader(ShaderStage stage, const std::string& path,
 
 	shader.internalState = internalState;
 
+	// Load shader code
 	const std::string fullPath = ENGINE_RES_DIR + path;
 	std::ifstream file(fullPath, std::ios::ate | std::ios::binary);
 
@@ -1400,6 +1373,21 @@ void GFXDevice_Vulkan::create_shader(ShaderStage stage, const std::string& path,
 	file.seekg(0);
 	file.read(reinterpret_cast<char*>(internalState->shaderCode.data()), fileSize);
 	file.close();
+
+	// Create shader module
+	const VkShaderModuleCreateInfo shaderModuleInfo = {
+			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.codeSize = internalState->shaderCode.size(),
+			.pCode = reinterpret_cast<uint32_t*>(internalState->shaderCode.data())
+	};
+
+	if (vkCreateShaderModule(
+		m_Impl->m_Device,
+		&shaderModuleInfo,
+		nullptr,
+		&internalState->shaderModule) != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to create vertex shader module!");
+	}
 }
 
 void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) {
@@ -2024,19 +2012,6 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 	// Ray-generation shader
 	{
 		auto internalShader = to_internal(*info.rayGenShader);
-		const VkShaderModuleCreateInfo shaderModuleInfo = {
-			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			.codeSize = internalShader->shaderCode.size(),
-			.pCode = reinterpret_cast<uint32_t*>(internalShader->shaderCode.data())
-		};
-
-		if (vkCreateShaderModule(
-			m_Impl->m_Device,
-			&shaderModuleInfo,
-			nullptr,
-			&internalShader->shaderModule) != VK_SUCCESS) {
-			throw std::runtime_error("VULKAN ERROR: Failed to create ray-gen shader module!");
-		}
 
 		VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStages.emplace_back();
 		shaderStageInfo = {};
@@ -2050,19 +2025,6 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 	// Closest-hit shader
 	{
 		auto internalShader = to_internal(*info.closestHitShader);
-		const VkShaderModuleCreateInfo shaderModuleInfo = {
-			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			.codeSize = internalShader->shaderCode.size(),
-			.pCode = reinterpret_cast<uint32_t*>(internalShader->shaderCode.data())
-		};
-
-		if (vkCreateShaderModule(
-			m_Impl->m_Device,
-			&shaderModuleInfo,
-			nullptr,
-			&internalShader->shaderModule) != VK_SUCCESS) {
-			throw std::runtime_error("VULKAN ERROR: Failed to create closest-hit shader module!");
-		}
 
 		VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStages.emplace_back();
 		shaderStageInfo = {};
@@ -2076,19 +2038,6 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 	// Miss shader
 	{
 		auto internalShader = to_internal(*info.missShader);
-		const VkShaderModuleCreateInfo shaderModuleInfo = {
-			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			.codeSize = internalShader->shaderCode.size(),
-			.pCode = reinterpret_cast<uint32_t*>(internalShader->shaderCode.data())
-		};
-
-		if (vkCreateShaderModule(
-			m_Impl->m_Device,
-			&shaderModuleInfo,
-			nullptr,
-			&internalShader->shaderModule) != VK_SUCCESS) {
-			throw std::runtime_error("VULKAN ERROR: Failed to create miss shader module!");
-		}
 
 		VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStages.emplace_back();
 		shaderStageInfo = {};

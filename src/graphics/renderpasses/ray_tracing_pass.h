@@ -16,6 +16,11 @@ public:
 private:
 	GFXDevice& m_GfxDevice;
 
+	RTPipeline m_RTPipeline = {};
+	Shader m_RayGenShader = {};
+	Shader m_MissShader = {};
+	Shader m_ClosestHitShader = {};
+
 	std::vector<RTAS> m_BLASes = {}; // NOTE: One per mesh
 	RTAS m_TLAS = {};
 	std::vector<RTTLAS::BLASInstance> m_Instances = {};

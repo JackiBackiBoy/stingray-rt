@@ -94,7 +94,20 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 		m_GfxDevice.write_blas_instance(m_Instances[i], dataSection);
 	}
 
-	// ---------------------------- Shader Binding Table ----------------------------
+	// ---------------------- Create Ray-Tracing Pipeline ----------------------
+	//const RTPipelineInfo rtPipelineInfo = {
+	//	.rayGenShader = &m_RayGenShader,
+	//	.missShader = &m_MissShader,
+	//	.closestHitShader = &m_ClosestHitShader,
+	//	.shaderHitGroup = {
+	//		.type = RTShaderHitGroup::Type::TRIANGLES,
+	//		.generalShader = 0,
+	//		.closestHitShader = 0,
+	//	},
+	//	.payloadSize = 4 * sizeof(float)
+	//};
+
+
 }
 
 void RayTracingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
