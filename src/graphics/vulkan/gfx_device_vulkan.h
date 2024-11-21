@@ -7,6 +7,7 @@ public:
 	GFXDevice_Vulkan(GLFWwindow* window);
 	~GFXDevice_Vulkan();
 
+	// TODO: Destroy shader modules when not needed
 	void create_swapchain(const SwapChainInfo& info, SwapChain& swapChain) override;
 	void create_pipeline(const PipelineInfo& info, Pipeline& pipeline) override;
 	void create_buffer(const BufferInfo& info, Buffer& buffer, const void* data) override;
@@ -18,6 +19,7 @@ public:
 	void create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) override;
 	void create_rt_instance_buffer(Buffer& buffer, uint32_t numBLASes) override;
 	void create_rt_pipeline(const RTPipelineInfo& info, RTPipeline& pipeline) override;
+	void create_shader_binding_table(const RTPipeline& pipeline) override;
 	void write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) override;
 	void build_rtas(RTAS& rtas, const CommandList& cmdList) override;
 

@@ -1,18 +1,23 @@
 cmake_minimum_required(VERSION 3.6.0)
-
 project(stingray)
 
-# Options
+# -------------------------------- Build Options -------------------------------
 option(BUILD_VULKAN "Build Vulkan" ON)
 
-# Settings
+# ---------------------------------- Settings ----------------------------------
 set(DCMAKE_GENERATOR_PLATFORM "x64")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Dependencies
+if(MSVC)
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /fp:fast")
+else()
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -ffast-math")
+endif()
+
+# -------------------------------- Dependencies --------------------------------
 set(DEPENDENCY_DIR ${CMAKE_HOME_DIRECTORY}/dependencies)
 set(FREETYPE_INCLUDE_DIR ${DEPENDENCY_DIR}/freetype/include/)
 set(GLFW_INCLUDE_DIR ${DEPENDENCY_DIR}/glfw/include)
@@ -24,7 +29,7 @@ add_subdirectory(dependencies/tinygltf)
 add_subdirectory(dependencies/volk)
 add_subdirectory(dependencies/glfw)
 
-# Source files
+# -------------------------------- Source Files --------------------------------
 set(SOURCE_DIR ${CMAKE_HOME_DIRECTORY}/src)
 set(SOURCE_FILES
 	${SOURCE_DIR}/enum_flags.h
@@ -59,6 +64,9 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/graphics/render_graph.h
 	${SOURCE_DIR}/graphics/renderer_3d.cpp
 	${SOURCE_DIR}/graphics/renderer_3d.h
+
+	# Math
+	${SOURCE_DIR}/math/sr_math.h
 
 	# Renderpasses
 	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.cpp
@@ -106,6 +114,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_link_libraries(${CMAKE_PROJECT_NAME}
 	PUBLIC
 	volk::volk
+
 	PRIVATE
 	freetype
     glfw

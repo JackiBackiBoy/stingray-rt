@@ -2162,6 +2162,11 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 	}
 }
 
+void GFXDevice_Vulkan::create_shader_binding_table(const RTPipeline& pipeline) {
+	const uint32_t handleSize = m_Impl->m_RTProperties.shaderGroupHandleSize;
+	//const uint32_t handleSizeAligned = 
+}
+
 void GFXDevice_Vulkan::write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) {
 	assert(instance.blasResource != nullptr);
 	auto internalBLAS = to_internal(*reinterpret_cast<const RTAS*>(instance.blasResource));
