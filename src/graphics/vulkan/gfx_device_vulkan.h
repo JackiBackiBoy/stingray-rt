@@ -19,6 +19,7 @@ public:
 	void create_rt_instance_buffer(Buffer& buffer, uint32_t numBLASes) override;
 	void create_rt_pipeline(const RTPipelineInfo& info, RTPipeline& pipeline) override;
 	void write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) override;
+	void build_rtas(RTAS& rtas, const CommandList& cmdList) override;
 
 	void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) override;
 	void bind_viewport(const Viewport& viewport, const CommandList& cmdList) override;

@@ -58,6 +58,7 @@ struct GFXDevice_Vulkan::Impl {
 		BufferInfo info = {};
 		VkBuffer buffer = nullptr;
 		VkDeviceMemory bufferMemory = nullptr;
+		VkDeviceAddress address = {};
 	};
 
 	struct Texture_Vulkan {
@@ -424,7 +425,7 @@ void GFXDevice_Vulkan::Impl::create_device() {
 
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeatures = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
-		.pNext = &accelerationFeatures,
+		.pNext = &accelerationFeatures
 	};
 
 	VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures = {
@@ -432,16 +433,22 @@ void GFXDevice_Vulkan::Impl::create_device() {
 		.pNext = &rtPipelineFeatures
 	};
 
+	VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+		.pNext = &descriptorIndexingFeatures,
+		.bufferDeviceAddress = VK_TRUE
+	};
+
 	VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
-		.pNext = &descriptorIndexingFeatures,
+		.pNext = &bufferDeviceAddressFeatures,
 		.dynamicRendering = VK_TRUE
 	};
 
 	VkPhysicalDeviceSynchronization2Features synchronizationFeatures = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
 		.pNext = &dynamicRenderingFeatures,
-		.synchronization2 = VK_TRUE,
+		.synchronization2 = VK_TRUE
 	};
 
 	VkPhysicalDeviceFeatures2 deviceFeatures = {
@@ -1242,6 +1249,12 @@ void GFXDevice_Vulkan::create_buffer(const BufferInfo& info, Buffer& buffer, con
 	if (has_flag(info.miscFlags, MiscFlag::BUFFER_STRUCTURED)) {
 		bufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	}
+	if (has_flag(info.miscFlags, MiscFlag::RAY_TRACING)) {
+		bufferInfo.usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+	}
+
+	// TODO: Check if supported
+	bufferInfo.usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 
 	if (vkCreateBuffer(m_Impl->m_Device, &bufferInfo, nullptr, &internalState->buffer) != VK_SUCCESS) {
 		throw std::runtime_error("VULKAN ERROR: Failed to create buffer!");
@@ -1263,8 +1276,14 @@ void GFXDevice_Vulkan::create_buffer(const BufferInfo& info, Buffer& buffer, con
 	}
 
 	const uint32_t memoryType = m_Impl->find_memory_type(memRequirements.memoryTypeBits, memPropertyFlags);
+	const VkMemoryAllocateFlagsInfo allocFlagsInfo = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+		.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
+	};
+
 	const VkMemoryAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext = &allocFlagsInfo,
 		.allocationSize = memRequirements.size,
 		.memoryTypeIndex = memoryType
 	};
@@ -1344,6 +1363,14 @@ void GFXDevice_Vulkan::create_buffer(const BufferInfo& info, Buffer& buffer, con
 		}
 	}
 
+	// Buffer device address
+	if (bufferInfo.usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+		VkBufferDeviceAddressInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+		info.buffer = internalState->buffer;
+		internalState->address = vkGetBufferDeviceAddress(m_Impl->m_Device, &info);
+	}
+
 	// Descriptors
 	if (has_flag(info.bindFlags, BindFlag::UNIFORM_BUFFER)) {
 		internalState->descriptor.init_ubo(m_Impl, internalState->buffer);
@@ -1376,9 +1403,9 @@ void GFXDevice_Vulkan::create_shader(ShaderStage stage, const std::string& path,
 
 	// Create shader module
 	const VkShaderModuleCreateInfo shaderModuleInfo = {
-			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			.codeSize = internalState->shaderCode.size(),
-			.pCode = reinterpret_cast<uint32_t*>(internalState->shaderCode.data())
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.codeSize = internalState->shaderCode.size(),
+		.pCode = reinterpret_cast<uint32_t*>(internalState->shaderCode.data())
 	};
 
 	if (vkCreateShaderModule(
@@ -1386,7 +1413,7 @@ void GFXDevice_Vulkan::create_shader(ShaderStage stage, const std::string& path,
 		&shaderModuleInfo,
 		nullptr,
 		&internalState->shaderModule) != VK_SUCCESS) {
-		throw std::runtime_error("VULKAN ERROR: Failed to create vertex shader module!");
+		throw std::runtime_error("VULKAN ERROR: Failed to create shader module!");
 	}
 }
 
@@ -1856,12 +1883,16 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 				vkGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR; // TODO: For now we only support triangles as the geometry type
 
 				// Triangle geometry
-				vkGeometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-				vkGeometry.geometry.triangles.vertexFormat = to_vk_format(geometry.triangles.vertexFormat);
-				// NOTE: We won't fill out the vertex data until we build the AS
-				vkGeometry.geometry.triangles.vertexStride = static_cast<uint64_t>(geometry.triangles.vertexStride);
-				vkGeometry.geometry.triangles.maxVertex = geometry.triangles.vertexCount - 1; // TODO: Not sure if -1 is needed
-				vkGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32; // TODO: We always assume this to be the case
+				auto& vkTriangles = vkGeometry.geometry.triangles;
+				vkTriangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+				vkTriangles.vertexFormat = to_vk_format(geometry.triangles.vertexFormat);
+				vkTriangles.vertexData.deviceAddress = m_Impl->to_internal(*geometry.triangles.vertexBuffer)->address +
+					geometry.triangles.vertexByteOffset;
+				vkTriangles.vertexStride = static_cast<uint64_t>(geometry.triangles.vertexStride);
+				vkTriangles.maxVertex = geometry.triangles.vertexCount - 1; // TODO: Not sure if -1 is needed
+				vkTriangles.indexType = VK_INDEX_TYPE_UINT32;
+				vkTriangles.indexData.deviceAddress = m_Impl->to_internal(*geometry.triangles.indexBuffer)->address +
+					geometry.triangles.indexOffset * sizeof(uint32_t);
 
 				primitiveCount = geometry.triangles.indexCount / 3;
 			}
@@ -1879,6 +1910,9 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 			vkGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
 			vkGeometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
 			vkGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
+
+			auto internalInstanceBuffer = m_Impl->to_internal(*rtas.info.tlas.instanceBuffer);
+			vkGeometry.geometry.instances.data.deviceAddress = internalInstanceBuffer->address;
 
 			primitiveCount = rtasInfo.tlas.numInstances;
 		}
@@ -1916,8 +1950,14 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 	vkGetBufferMemoryRequirements(m_Impl->m_Device, internalState->asBuffer, &memRequirements);
 
 	uint32_t memoryType = m_Impl->find_memory_type(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	const VkMemoryAllocateFlagsInfo allocFlagsInfo = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+		.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
+	};
+
 	VkMemoryAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext = &allocFlagsInfo,
 		.allocationSize = memRequirements.size,
 		.memoryTypeIndex = memoryType
 	};
@@ -1948,26 +1988,14 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 	}
 
 	// Create the scratch buffer
-	bufferInfo.size = internalState->sizeInfo.buildScratchSize; // TODO: Should probably also use updateScratchSize
-	bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+	const BufferInfo scratchBufferInfo = {
+		.size = internalState->sizeInfo.buildScratchSize,
+		.usage = Usage::DEFAULT,
+		.bindFlags = BindFlag::SHADER_RESOURCE,
+		.miscFlags = MiscFlag::BUFFER_STRUCTURED
+	};
 
-	if (vkCreateBuffer(m_Impl->m_Device, &bufferInfo, nullptr, &internalState->scratchBuffer) != VK_SUCCESS) {
-		throw std::runtime_error("VULKAN ERROR: Failed to create scratch buffer!");
-	}
-
-	vkGetBufferMemoryRequirements(m_Impl->m_Device, internalState->scratchBuffer, &memRequirements);
-
-	memoryType = m_Impl->find_memory_type(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = memoryType;
-
-	if (vkAllocateMemory(m_Impl->m_Device, &allocInfo, nullptr, &internalState->scratchBufferMemory) != VK_SUCCESS) {
-		throw std::runtime_error("VULKAN ERROR: Failed to allocate scratch buffer memory!");
-	}
-
-	if (vkBindBufferMemory(m_Impl->m_Device, internalState->scratchBuffer, internalState->scratchBufferMemory, 0) != VK_SUCCESS) {
-		throw std::runtime_error("VULKAN ERROR: Failed to bind scratch buffer memory!");
-	}
+	create_buffer(scratchBufferInfo, internalState->scratchBuffer, nullptr);
 
 	// Device address for acceleration structure
 	const VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo = {
@@ -1979,8 +2007,6 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 		m_Impl->m_Device,
 		&deviceAddressInfo
 	);
-
-	int j = 0;
 }
 
 void GFXDevice_Vulkan::create_rt_instance_buffer(Buffer& buffer, uint32_t numBLASes) {
@@ -1989,7 +2015,7 @@ void GFXDevice_Vulkan::create_rt_instance_buffer(Buffer& buffer, uint32_t numBLA
 		.stride = sizeof(VkAccelerationStructureInstanceKHR),
 		.usage = Usage::UPLOAD,
 		.bindFlags = BindFlag::SHADER_RESOURCE,
-		.miscFlags = MiscFlag::BUFFER_STRUCTURED,
+		.miscFlags = MiscFlag::BUFFER_STRUCTURED | MiscFlag::RAY_TRACING,
 		.persistentMap = true
 	};
 
@@ -2022,19 +2048,6 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 		shaderStageInfo.pSpecializationInfo = nullptr;
 	}
 
-	// Closest-hit shader
-	{
-		auto internalShader = to_internal(*info.closestHitShader);
-
-		VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStages.emplace_back();
-		shaderStageInfo = {};
-		shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		shaderStageInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-		shaderStageInfo.module = internalShader->shaderModule;
-		shaderStageInfo.pName = "main";
-		shaderStageInfo.pSpecializationInfo = nullptr;
-	}
-
 	// Miss shader
 	{
 		auto internalShader = to_internal(*info.missShader);
@@ -2048,30 +2061,47 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 		shaderStageInfo.pSpecializationInfo = nullptr;
 	}
 
-	// Hit groups
-	std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups = {};
-	groups.reserve(1); // MAKE AMOUNT OF HIT GROUPS
+	// Closest-hit shader
+	{
+		auto internalShader = to_internal(*info.closestHitShader);
 
-	VkRayTracingShaderGroupCreateInfoKHR& group = groups.emplace_back();
-	group = {};
-	group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-
-	switch (info.shaderHitGroup.type) {
-	case RTShaderHitGroup::Type::GENERAL:
-		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-		break;
-	case RTShaderHitGroup::Type::PROCEDURAL:
-		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
-		break;
-	case RTShaderHitGroup::Type::TRIANGLES:
-		group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-		break;
+		VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStages.emplace_back();
+		shaderStageInfo = {};
+		shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStageInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+		shaderStageInfo.module = internalShader->shaderModule;
+		shaderStageInfo.pName = "main";
+		shaderStageInfo.pSpecializationInfo = nullptr;
 	}
 
-	group.generalShader = info.shaderHitGroup.generalShader;
-	group.closestHitShader = info.shaderHitGroup.closestHitShader;
-	group.anyHitShader = info.shaderHitGroup.anyHitShader;
-	group.intersectionShader = info.shaderHitGroup.intersectionShader;
+	// Shader groups
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> groups = {};
+	groups.reserve(info.shaderGroups.size());
+
+	for (size_t i = 0; i < info.shaderGroups.size(); ++i) {
+		const RTShaderGroup& shaderGroup = info.shaderGroups[i];
+
+		VkRayTracingShaderGroupCreateInfoKHR& vkGroup = groups.emplace_back();
+		vkGroup = {};
+		vkGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+
+		switch (shaderGroup.type) {
+		case RTShaderGroup::Type::GENERAL:
+			vkGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+			break;
+		case RTShaderGroup::Type::PROCEDURAL:
+			vkGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+			break;
+		case RTShaderGroup::Type::TRIANGLES:
+			vkGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+			break;
+		}
+
+		vkGroup.generalShader = shaderGroup.generalShader;
+		vkGroup.closestHitShader = shaderGroup.closestHitShader;
+		vkGroup.anyHitShader = shaderGroup.anyHitShader;
+		vkGroup.intersectionShader = shaderGroup.intersectionShader;
+	}
 
 	// Bindless descriptors
 	const VkDescriptorSetLayout descriptorSetLayouts[1] = {
@@ -2130,8 +2160,6 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 	if (res != VK_SUCCESS) {
 		throw std::runtime_error("VULKAN ERROR: Failed to create ray tracing pipeline!");
 	}
-
-
 }
 
 void GFXDevice_Vulkan::write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) {
@@ -2148,6 +2176,80 @@ void GFXDevice_Vulkan::write_blas_instance(const RTTLAS::BLASInstance& instance,
 	};
 
 	std::memcpy(dst, &vkInstance, sizeof(vkInstance));
+}
+
+void GFXDevice_Vulkan::build_rtas(RTAS& rtas, const CommandList& cmdList) {
+	auto internalRTAS = to_internal(rtas);
+	auto internalCmdList = to_internal(cmdList);
+
+	VkAccelerationStructureBuildGeometryInfoKHR info = internalRTAS->buildInfo;
+	info.dstAccelerationStructure = internalRTAS->as;
+	info.srcAccelerationStructure = nullptr;
+	info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	info.scratchData.deviceAddress = m_Impl->to_internal(internalRTAS->scratchBuffer)->address;
+
+	std::vector<VkAccelerationStructureBuildRangeInfoKHR> buildRanges = {};
+	buildRanges.reserve(info.geometryCount);
+
+	switch (rtas.info.type) {
+	case RTASType::BLAS:
+		for (const auto& geometry : rtas.info.blas.geometries) {
+			// TODO: Only works for triangles for now
+			auto& buildRange = buildRanges.emplace_back();
+			buildRange = {};
+			buildRange.primitiveCount = geometry.triangles.indexCount / 3;
+			buildRange.primitiveOffset = 0;
+		}
+		break;
+	case RTASType::TLAS:
+		{
+			auto& buildRange = buildRanges.emplace_back();
+			buildRange = {};
+			buildRange.primitiveCount = static_cast<uint32_t>(rtas.info.tlas.numInstances);
+			buildRange.primitiveOffset = 0;
+		}
+		break;
+	}
+
+	VkAccelerationStructureBuildRangeInfoKHR* pRangeInfo = buildRanges.data();
+
+	// Temporary command list
+	const VkCommandBufferAllocateInfo tempAllocInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = m_Impl->m_CommandPool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	VkCommandBuffer tempCommandBuffer;
+	vkAllocateCommandBuffers(m_Impl->m_Device, &tempAllocInfo, &tempCommandBuffer);
+
+	const VkCommandBufferBeginInfo tempBeginInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+	};
+
+	vkBeginCommandBuffer(tempCommandBuffer, &tempBeginInfo);
+
+	// Build the acceleration structure
+	vkCmdBuildAccelerationStructuresKHR(
+		internalCmdList->commandBuffers[m_CurrentFrame],
+		1,
+		&info,
+		&pRangeInfo
+	);
+
+	vkEndCommandBuffer(tempCommandBuffer);
+
+	const VkSubmitInfo submitInfo = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &tempCommandBuffer
+	};
+
+	vkQueueSubmit(m_Impl->m_GraphicsQueue, 1, &submitInfo, nullptr);
+	vkQueueWaitIdle(m_Impl->m_GraphicsQueue);
+	vkFreeCommandBuffers(m_Impl->m_Device, m_Impl->m_CommandPool, 1, &tempCommandBuffer);
 }
 
 void GFXDevice_Vulkan::bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) {

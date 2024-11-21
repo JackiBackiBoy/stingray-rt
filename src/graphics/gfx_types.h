@@ -36,6 +36,7 @@ enum class MiscFlag : uint8_t {
 	INDIRECT_ARGS = 1 << 1,
 	BUFFER_RAW = 1 << 2,
 	BUFFER_STRUCTURED = 1 << 3,
+	RAY_TRACING = 1 << 4,
 };
 
 enum class Filter : uint8_t {
@@ -190,7 +191,12 @@ enum class TextureAddressMode : uint8_t {
 
 enum class ShaderStage : uint8_t {
 	VERTEX,
-	PIXEL
+	PIXEL,
+	RAYGEN,
+	MISS,
+	CLOSEST_HIT,
+	ANY_HIT,
+	INTERSECTION
 };
 
 enum class Blend : uint8_t {
@@ -262,7 +268,7 @@ template<>
 struct enable_bitmask_operators<ResourceState> { static constexpr bool enable = true; };
 
 struct Resource {
-	enum class Type {
+	enum class Type : uint8_t {
 		UNKNOWN,
 		BUFFER,
 		TEXTURE,
@@ -293,22 +299,22 @@ struct Shader {
 };
 
 // -------------------------------- Ray Tracing --------------------------------
-enum class RTASType {
+enum class RTASType : uint8_t {
 	BLAS,
 	TLAS
 };
 
-struct RTShaderHitGroup {
+struct RTShaderGroup {
 	enum class Type : uint8_t {
 		GENERAL,
 		TRIANGLES,
 		PROCEDURAL
 	} type = Type::TRIANGLES;
 
-	uint32_t generalShader = 0;
-	uint32_t closestHitShader = 0;
-	uint32_t anyHitShader = 0;
-	uint32_t intersectionShader = 0;
+	uint32_t generalShader = ~0u; // NOTE: Can be either refer to ray-gen, miss or intersection shader
+	uint32_t closestHitShader = ~0u;
+	uint32_t anyHitShader = ~0u;
+	uint32_t intersectionShader = ~0u;
 };
 
 struct RTPipelineInfo {
@@ -318,7 +324,7 @@ struct RTPipelineInfo {
 	const Shader* intersectionShader = nullptr; // NOTE: Optional
 	const Shader* anyHitShader = nullptr; // NOTE: Optional
 
-	RTShaderHitGroup shaderHitGroup = {};
+	std::vector<RTShaderGroup> shaderGroups = {};
 	uint32_t maxRayRecursionDepth = 1;
 	uint32_t payloadSize = 0;
 };
@@ -330,7 +336,7 @@ struct RTPipeline {
 };
 
 struct RTBLASGeometry {
-	enum class Type {
+	enum class Type : uint8_t {
 		TRIANGLES, // TODO: Add more geometry types
 	} type;
 
@@ -463,7 +469,7 @@ struct Texture : public Resource {
 };
 
 struct GPUBarrier {
-	enum class Type {
+	enum class Type : uint8_t {
 		UAV, // UAV accesses
 		IMAGE,
 		BUFFER,

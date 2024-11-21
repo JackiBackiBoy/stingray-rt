@@ -101,18 +101,21 @@ namespace assetmanager {
 		Mesh mesh = { .primitives = { primitive } };
 		model->meshes.push_back(mesh);
 
+		// TODO: This is hacky, where every single model will use RAY_TRACING flag
 		const BufferInfo vertexBufferInfo = {
 			.size = sizeof(ModelVertex) * model->vertices.size(),
 			.stride = sizeof(ModelVertex),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::VERTEX_BUFFER
+			.bindFlags = BindFlag::VERTEX_BUFFER,
+			.miscFlags = MiscFlag::RAY_TRACING
 		};
 
 		const BufferInfo indexBufferInfo = {
 			.size = sizeof(uint32_t) * model->indices.size(),
 			.stride = sizeof(uint32_t),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::INDEX_BUFFER
+			.bindFlags = BindFlag::INDEX_BUFFER,
+			.miscFlags = MiscFlag::RAY_TRACING
 		};
 
 		g_GfxDevice->create_buffer(vertexBufferInfo, model->vertexBuffer, model->vertices.data());
@@ -193,14 +196,16 @@ namespace assetmanager {
 			.size = sizeof(ModelVertex) * model->vertices.size(),
 			.stride = sizeof(ModelVertex),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::VERTEX_BUFFER
+			.bindFlags = BindFlag::VERTEX_BUFFER,
+			.miscFlags = MiscFlag::RAY_TRACING
 		};
 
 		const BufferInfo indexBufferInfo = {
 			.size = sizeof(uint32_t) * model->indices.size(),
 			.stride = sizeof(uint32_t),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::INDEX_BUFFER
+			.bindFlags = BindFlag::INDEX_BUFFER,
+			.miscFlags = MiscFlag::RAY_TRACING
 		};
 
 		g_GfxDevice->create_buffer(vertexBufferInfo, model->vertexBuffer, model->vertices.data());
@@ -383,14 +388,16 @@ namespace assetmanager {
 			.size = asset->model.vertices.size() * sizeof(ModelVertex),
 			.stride = sizeof(ModelVertex),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::VERTEX_BUFFER
+			.bindFlags = BindFlag::VERTEX_BUFFER,
+			.miscFlags = MiscFlag::RAY_TRACING
 		};
 
 		const BufferInfo indexBufferInfo = {
 			.size = asset->model.indices.size() * sizeof(uint32_t),
 			.stride = sizeof(uint32_t),
 			.usage = Usage::DEFAULT,
-			.bindFlags = BindFlag::INDEX_BUFFER
+			.bindFlags = BindFlag::INDEX_BUFFER,
+			.miscFlags = MiscFlag::RAY_TRACING
 		};
 
 		g_GfxDevice->create_buffer(vertexBufferInfo, asset->model.vertexBuffer, asset->model.vertices.data());

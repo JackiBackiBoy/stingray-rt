@@ -12,7 +12,9 @@ public:
 	RayTracingPass(GFXDevice& gfxDevice, Scene& scene);
 	~RayTracingPass() {}
 
+	void build_acceleration_structures(const CommandList& cmdList);
 	void execute(PassExecuteInfo& executeInfo, Scene& scene);
+
 private:
 	GFXDevice& m_GfxDevice;
 

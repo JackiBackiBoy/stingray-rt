@@ -274,6 +274,11 @@ INTERNAL void init_render_graph() {
 		g_LightingPass->execute(executeInfo, *g_Scene);
 	});
 
+	auto rtPass = g_RenderGraph->add_pass("RayTracingPass");
+	rtPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
+		g_RayTracingPass->execute(executeInfo, *g_Scene);
+	});
+
 	auto uiPass = g_RenderGraph->add_pass("UIPass");
 	uiPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
 		g_UIPass->execute(executeInfo);
@@ -456,6 +461,14 @@ int main() {
 
 		// Rendering
 		CommandList cmdList = g_GfxDevice->begin_command_list(QueueType::DIRECT);
+
+		static bool builtASes = false;
+
+		if (!builtASes) {
+			g_RayTracingPass->build_acceleration_structures(cmdList);
+			builtASes = true;
+		}
+
 		g_RenderGraph->execute(g_SwapChain, cmdList, g_FrameInfo);
 		g_GfxDevice->submit_command_lists(g_SwapChain);
 	}

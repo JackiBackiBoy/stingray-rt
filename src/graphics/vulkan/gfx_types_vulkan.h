@@ -137,10 +137,7 @@ struct RTAS_Vulkan {
 	VkAccelerationStructureKHR as = nullptr;
 	VkDeviceAddress asDeviceAddress = {};
 
-	// Scratch buffer
-	VkBuffer scratchBuffer = nullptr;
-	VkDeviceMemory scratchBufferMemory = nullptr;
-	VkDeviceAddress scratchBufferDeviceAddress = {};
+	Buffer scratchBuffer = {};
 };
 
 struct CommandList_Vulkan {
