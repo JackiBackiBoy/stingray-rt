@@ -48,8 +48,8 @@ void GBufferPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 
 	const auto& entities = scene.get_entities();
 	for (const auto& entity : entities) {
-		const Renderable* renderable = ecs::get_component_renderable(entity);
-		const Transform* transform = ecs::get_component_transform(entity);
+		const Renderable* renderable = ecs::get_component<Renderable>(entity);
+		const Transform* transform = ecs::get_component<Transform>(entity);
 		const Model* model = renderable->model;
 
 		const glm::mat4 matScale = glm::scale(glm::mat4(1.0f), transform->scale);
@@ -69,7 +69,7 @@ void GBufferPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 					m_PushConstant.albedoMapIndex = 0;
 				}
 				else {
-					m_PushConstant.albedoMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[primitive.albedoMapIndex]);
+					m_PushConstant.albedoMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[primitive.albedoMapIndex], SubresourceType::SRV);
 				}
 
 				// Normal map
@@ -77,7 +77,7 @@ void GBufferPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 					m_PushConstant.normalMapIndex = 1;
 				}
 				else {
-					m_PushConstant.normalMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[primitive.normalMapIndex]);
+					m_PushConstant.normalMapIndex = m_GfxDevice.get_descriptor_index(model->materialTextures[primitive.normalMapIndex], SubresourceType::SRV);
 				}
 
 				m_GfxDevice.push_constants(&m_PushConstant, sizeof(m_PushConstant), cmdList);

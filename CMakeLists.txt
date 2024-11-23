@@ -69,6 +69,8 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/math/sr_math.h
 
 	# Renderpasses
+	${SOURCE_DIR}/graphics/renderpasses/fullscreen_tri_pass.cpp
+	${SOURCE_DIR}/graphics/renderpasses/fullscreen_tri_pass.h
 	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.cpp
 	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.h
 	${SOURCE_DIR}/graphics/renderpasses/lighting_pass.cpp

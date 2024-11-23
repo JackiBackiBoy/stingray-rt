@@ -19,9 +19,12 @@ public:
 	void create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) override;
 	void create_rt_instance_buffer(Buffer& buffer, uint32_t numBLASes) override;
 	void create_rt_pipeline(const RTPipelineInfo& info, RTPipeline& pipeline) override;
-	void create_shader_binding_table(const RTPipeline& pipeline) override;
+	void create_shader_binding_table(const RTPipeline& pipeline, uint32_t groupID, ShaderBindingTable& sbt) override;
 	void write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) override;
 	void build_rtas(RTAS& rtas, const CommandList& cmdList) override;
+	void bind_rt_pipeline(const RTPipeline& pipeline, const CommandList& cmdList) override;
+	void push_rt_constants(const void* data, uint32_t size, const RTPipeline& pipeline, const CommandList& cmdList) override;
+	void dispatch_rays(const DispatchRaysInfo& info, const CommandList& cmdList) override;
 
 	void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) override;
 	void bind_viewport(const Viewport& viewport, const CommandList& cmdList) override;
@@ -45,7 +48,7 @@ public:
 	void draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) override;
 	void draw_instanced(uint32_t vertexCount, uint32_t instanceCount, uint32_t startVertex, uint32_t startInstance, const CommandList& cmdList) override;
 
-	uint32_t get_descriptor_index(const Resource& resource) override;
+	uint32_t get_descriptor_index(const Resource& resource, SubresourceType type) override;
 	void wait_for_gpu() override;
 
 private:

@@ -2,6 +2,7 @@
 
 #include "gfx_types_vulkan.h"
 #include "../../platform.h"
+#include "../../math/sr_math.h"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -26,6 +27,7 @@ struct GFXDevice_Vulkan::Impl {
 		void init_ubo(Impl* impl, VkBuffer buffer);
 		void init_texture(Impl* impl, VkImageView imageView, VkImageLayout layout);
 		void init_storage_buffer(Impl* impl, VkBuffer buffer);
+		void init_rw_texture(Impl* impl, VkImageView imageView, VkImageLayout layout);
 	};
 
 	// NOTE: In Vulkan, we do not need separate descriptor pools
@@ -71,6 +73,7 @@ struct GFXDevice_Vulkan::Impl {
 
 		DestructionHandler* destructionHandler = nullptr;
 		Descriptor descriptor = {};
+		Descriptor uavDescriptor = {};
 		VkImage image = nullptr;
 		VkImageView imageView = nullptr;
 		VkDeviceMemory imageMemory = nullptr;
@@ -158,6 +161,8 @@ struct GFXDevice_Vulkan::Impl {
 	static constexpr uint32_t TEXTURE_BINDING = 1;
 	static constexpr uint32_t SAMPLER_BINDING = 2;
 	static constexpr uint32_t STORAGE_BUFFER_BINDING = 3;
+	static constexpr uint32_t RW_TEXTURE_BINDING = 4;
+	static constexpr uint32_t TLAS_BINDING = 5;
 
 	VkDescriptorPool m_DescriptorPool = nullptr;
 	VkDescriptorSet m_ResourceDescriptorSet = nullptr;
@@ -165,6 +170,7 @@ struct GFXDevice_Vulkan::Impl {
 	DescriptorHeap m_UBODescriptorHeap = DescriptorHeap(GFXDevice::MAX_UBO_DESCRIPTORS);
 	DescriptorHeap m_TextureDescriptorHeap = DescriptorHeap(GFXDevice::MAX_TEXTURE_DESCRIPTORS);
 	DescriptorHeap m_StorageBufferDescriptorHeap = DescriptorHeap(GFXDevice::MAX_STORAGE_BUFFERS);
+	DescriptorHeap m_RWTextureDescriptorHeap = DescriptorHeap(GFXDevice::MAX_RW_TEXTURE_DESCRIPTORS);
 
 	// Synchronization
 	std::vector<VkSemaphore> m_ImageAvailableSemaphores = {};
@@ -236,6 +242,29 @@ void GFXDevice_Vulkan::Impl::Descriptor::init_texture(Impl* impl, VkImageView im
 		.dstArrayElement = index,
 		.descriptorCount = 1,
 		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+		.pImageInfo = &descriptorImageInfo
+	};
+
+	vkUpdateDescriptorSets(impl->m_Device, 1, &descriptorWrite, 0, nullptr);
+}
+
+void GFXDevice_Vulkan::Impl::Descriptor::init_rw_texture(Impl* impl, VkImageView imageView, VkImageLayout layout) {
+	const VkDescriptorImageInfo descriptorImageInfo = {
+		.sampler = nullptr,
+		.imageView = imageView,
+		.imageLayout = layout
+	};
+
+	index = impl->m_RWTextureDescriptorHeap.getCurrentDescriptorHandle();
+	impl->m_RWTextureDescriptorHeap.offsetCurrentDescriptorHandle(1);
+
+	const VkWriteDescriptorSet descriptorWrite = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = impl->m_ResourceDescriptorSet,
+		.dstBinding = RW_TEXTURE_BINDING,
+		.dstArrayElement = index,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
 		.pImageInfo = &descriptorImageInfo
 	};
 
@@ -545,11 +574,13 @@ void GFXDevice_Vulkan::Impl::create_sync_objects() {
 
 void GFXDevice_Vulkan::Impl::create_descriptors() {
 	// Descriptor pool
-	const std::array<VkDescriptorPoolSize, 4> poolSizes = {
+	const std::array<VkDescriptorPoolSize, 6> poolSizes = {
 		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_UBO_DESCRIPTORS },
 		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MAX_TEXTURE_DESCRIPTORS },
 		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, MAX_SAMPLER_DESCRIPTORS },
-		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_STORAGE_BUFFERS }
+		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_STORAGE_BUFFERS },
+		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, MAX_RW_TEXTURE_DESCRIPTORS },
+		VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, MAX_RAY_TRACING_TLASES } // TODO: Look into how we should best handle AS descriptors (realistically we will only ever have one TLAS descriptor)
 	};
 
 	const VkDescriptorPoolCreateInfo poolInfo = {
@@ -565,25 +596,31 @@ void GFXDevice_Vulkan::Impl::create_descriptors() {
 	}
 
 	// Bindless descriptor sets
-	const std::array<VkDescriptorBindingFlags, 4> descriptorBindingFlags = {
+	const std::array<VkDescriptorBindingFlags, 6> descriptorBindingFlags = {
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
 	};
-	const std::array<VkDescriptorType, 4> descriptorTypes = {
+	const std::array<VkDescriptorType, 6> descriptorTypes = {
 		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 		VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
 		VK_DESCRIPTOR_TYPE_SAMPLER,
-		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+		VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR
 	};
-	const std::array<uint32_t, 4> descriptorCounts = {
+	const std::array<uint32_t, 6> descriptorCounts = {
 		MAX_UBO_DESCRIPTORS,
 		MAX_TEXTURE_DESCRIPTORS,
 		MAX_SAMPLER_DESCRIPTORS,
-		MAX_STORAGE_BUFFERS
+		MAX_STORAGE_BUFFERS,
+		MAX_RW_TEXTURE_DESCRIPTORS,
+		MAX_RAY_TRACING_TLASES
 	};
-	std::array<VkDescriptorSetLayoutBinding, 4> descriptorBindings = {};
+	std::array<VkDescriptorSetLayoutBinding, 6> descriptorBindings = {};
 
 	for (uint32_t i = 0; i < descriptorBindings.size(); ++i) {
 		descriptorBindings[i].binding = i;
@@ -1251,6 +1288,7 @@ void GFXDevice_Vulkan::create_buffer(const BufferInfo& info, Buffer& buffer, con
 	}
 	if (has_flag(info.miscFlags, MiscFlag::RAY_TRACING)) {
 		bufferInfo.usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+		bufferInfo.usage |= VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR;
 	}
 
 	// TODO: Check if supported
@@ -1455,6 +1493,10 @@ void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture,
 		resourceState = VK_ACCESS_2_SHADER_READ_BIT;
 		targetLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
+	if (has_flag(info.bindFlags, BindFlag::UNORDERED_ACCESS)) {
+		imageInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		targetLayout = VK_IMAGE_LAYOUT_GENERAL;
+	}
 
 	if (has_flag(info.bindFlags, BindFlag::RENDER_TARGET)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -1642,6 +1684,9 @@ void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture,
 	// Create resource descriptor
 	if (has_flag(info.bindFlags, BindFlag::SHADER_RESOURCE)) {
 		internalState->descriptor.init_texture(m_Impl, internalState->imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+	if (has_flag(info.bindFlags, BindFlag::UNORDERED_ACCESS)) {
+		internalState->uavDescriptor.init_rw_texture(m_Impl, internalState->imageView, VK_IMAGE_LAYOUT_GENERAL);
 	}
 }
 
@@ -2162,9 +2207,37 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 	}
 }
 
-void GFXDevice_Vulkan::create_shader_binding_table(const RTPipeline& pipeline) {
+void GFXDevice_Vulkan::create_shader_binding_table(const RTPipeline& pipeline, uint32_t groupID, ShaderBindingTable& sbt) {
+	const auto internalPipeline = to_internal(pipeline);
 	const uint32_t handleSize = m_Impl->m_RTProperties.shaderGroupHandleSize;
-	//const uint32_t handleSizeAligned = 
+	const uint32_t handleSizeAligned = sr::math::align_to(handleSize, m_Impl->m_RTProperties.shaderGroupHandleAlignment);
+
+	const BufferInfo sbtBufferInfo = {
+		.size = handleSize * 1, // TODO: ONE HANDLE ONLY, needs fixing
+		.stride = handleSizeAligned, // NOTE: The stride for raygen is actually the size itself.
+									 // However, in this case it doesn't matter since we account
+									 // for this in the dispatch_rays function.
+		.usage = Usage::UPLOAD,
+		.miscFlags = MiscFlag::RAY_TRACING,
+		.persistentMap = true
+	};
+	create_buffer(sbtBufferInfo, sbt.buffer, nullptr);
+
+	std::vector<uint8_t> shaderHandleStorage(handleSize);
+	const VkResult res = vkGetRayTracingShaderGroupHandlesKHR(
+		m_Impl->m_Device,
+		internalPipeline->pso,
+		groupID,
+		1,
+		handleSize,
+		shaderHandleStorage.data()
+	);
+
+	if (res != VK_SUCCESS) {
+		throw std::runtime_error("VULKAN ERROR: Failed to get ray tracing shader group handles!");
+	}
+
+	std::memcpy(sbt.buffer.mappedData, shaderHandleStorage.data(), handleSize);
 }
 
 void GFXDevice_Vulkan::write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) {
@@ -2238,7 +2311,7 @@ void GFXDevice_Vulkan::build_rtas(RTAS& rtas, const CommandList& cmdList) {
 
 	// Build the acceleration structure
 	vkCmdBuildAccelerationStructuresKHR(
-		internalCmdList->commandBuffers[m_CurrentFrame],
+		tempCommandBuffer,
 		1,
 		&info,
 		&pRangeInfo
@@ -2255,6 +2328,107 @@ void GFXDevice_Vulkan::build_rtas(RTAS& rtas, const CommandList& cmdList) {
 	vkQueueSubmit(m_Impl->m_GraphicsQueue, 1, &submitInfo, nullptr);
 	vkQueueWaitIdle(m_Impl->m_GraphicsQueue);
 	vkFreeCommandBuffers(m_Impl->m_Device, m_Impl->m_CommandPool, 1, &tempCommandBuffer);
+
+	// Create TLAS descriptor
+	// TODO: This is extremely hacky since we create it from here and also
+	// assume that this function will only ever be called once for TLAS, i.e.
+	// we assume that only 1 TLAS descriptor will ever exist
+	if (rtas.info.type == RTASType::TLAS) {
+		const VkWriteDescriptorSetAccelerationStructureKHR asDescriptorWrite = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+			.accelerationStructureCount = 1,
+			.pAccelerationStructures = &internalRTAS->as
+		};
+
+		const VkWriteDescriptorSet descriptorWrite = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext = &asDescriptorWrite,
+			.dstSet = m_Impl->m_ResourceDescriptorSet,
+			.dstBinding = Impl::TLAS_BINDING,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+		};
+
+		vkUpdateDescriptorSets(m_Impl->m_Device, 1, &descriptorWrite, 0, nullptr);
+	}
+}
+
+void GFXDevice_Vulkan::bind_rt_pipeline(const RTPipeline& pipeline, const CommandList& cmdList) {
+	auto internalPipeline = to_internal(pipeline);
+	auto internalCmdList = to_internal(cmdList);
+
+	VkCommandBuffer currCommandBuffer = internalCmdList->commandBuffers[m_CurrentFrame];
+
+	vkCmdBindPipeline(
+		currCommandBuffer,
+		VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+		internalPipeline->pso
+	);
+
+	vkCmdBindDescriptorSets(
+		currCommandBuffer,
+		VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+		internalPipeline->psoLayout,
+		0,
+		1,
+		&m_Impl->m_ResourceDescriptorSet,
+		0,
+		nullptr
+	);
+}
+
+void GFXDevice_Vulkan::push_rt_constants(const void* data, uint32_t size, const RTPipeline& pipeline, const CommandList& cmdList) {
+	assert(data != nullptr);
+	assert(size <= 128);
+
+	auto internalCmdList = to_internal(cmdList);
+	auto internalPipeline = to_internal(pipeline);
+
+	vkCmdPushConstants(
+		internalCmdList->commandBuffers[m_CurrentFrame],
+		internalPipeline->psoLayout,
+		VK_SHADER_STAGE_ALL,
+		0,
+		size,
+		data
+	);
+}
+
+void GFXDevice_Vulkan::dispatch_rays(const DispatchRaysInfo& info, const CommandList& cmdList) {
+	auto internalCmdList = to_internal(cmdList);
+
+	VkStridedDeviceAddressRegionKHR raygen = {};
+	raygen.deviceAddress = m_Impl->to_internal(info.rayGenTable->buffer)->address;
+	raygen.deviceAddress += info.rayGenTable->offset;
+	raygen.size = info.rayGenTable->size;
+	raygen.stride = raygen.size; // raygen specifically must be size == stride
+
+	VkStridedDeviceAddressRegionKHR miss = {};
+	miss.deviceAddress = m_Impl->to_internal(info.missTable->buffer)->address;
+	miss.deviceAddress += info.missTable->offset;
+	miss.size = info.missTable->size;
+	miss.stride = info.missTable->stride;
+
+	VkStridedDeviceAddressRegionKHR hitgroup = {};
+	hitgroup.deviceAddress = m_Impl->to_internal(info.hitGroupTable->buffer)->address;
+	hitgroup.deviceAddress += info.hitGroupTable->offset;
+	hitgroup.size = info.hitGroupTable->size;
+	hitgroup.stride = info.hitGroupTable->stride;
+
+	VkStridedDeviceAddressRegionKHR callable = {};
+
+	// TODO: Callables?
+	vkCmdTraceRaysKHR(
+		internalCmdList->commandBuffers[m_CurrentFrame],
+		&raygen,
+		&miss,
+		&hitgroup,
+		&callable,
+		info.width,
+		info.height,
+		info.depth
+	);
 }
 
 void GFXDevice_Vulkan::bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) {
@@ -2361,6 +2535,10 @@ void GFXDevice_Vulkan::barrier(const GPUBarrier& barrier, const CommandList& cmd
 	switch (barrier.type) {
 	case GPUBarrier::Type::IMAGE:
 		{
+			if (barrier.image.stateBefore == barrier.image.stateAfter) {
+				return;
+			}
+
 			const TextureInfo& textureInfo = barrier.image.texture->info;
 			auto internalTexture = m_Impl->to_internal(*barrier.image.texture);
 
@@ -2704,12 +2882,17 @@ void GFXDevice_Vulkan::draw_instanced(uint32_t vertexCount, uint32_t instanceCou
 	);
 }
 
-uint32_t GFXDevice_Vulkan::get_descriptor_index(const Resource& resource) {
+uint32_t GFXDevice_Vulkan::get_descriptor_index(const Resource& resource, SubresourceType type) {
 	if (resource.type == Resource::Type::TEXTURE) {
 		auto internalTexture = (Impl::Texture_Vulkan*)resource.internalState.get();
 
-		// TODO: Handle subresource types
-		return internalTexture->descriptor.index;
+		// TODO: Handle subresource types BETTER
+		switch (type) {
+		case SubresourceType::SRV:
+			return internalTexture->descriptor.index;
+		case SubresourceType::UAV:
+			return internalTexture->uavDescriptor.index;
+		}
 	}
 	else if (resource.type == Resource::Type::BUFFER) {
 		auto internalBuffer = (Impl::Buffer_Vulkan*)resource.internalState.get();

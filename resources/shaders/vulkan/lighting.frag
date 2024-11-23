@@ -1,5 +1,7 @@
 #version 450
-#include "bindless.glsl"
+#extension GL_GOOGLE_include_directive : require
+
+#include "includes/bindless.glsl"
 
 // Inputs
 layout (location = 0) in vec2 fsInTexCoord;

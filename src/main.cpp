@@ -8,8 +8,7 @@
 #include "input/input.h"
 
 #include "graphics/render_graph.h"
-#include "graphics/renderpasses/gbuffer_pass.h"
-#include "graphics/renderpasses/lighting_pass.h"
+#include "graphics/renderpasses/fullscreen_tri_pass.h"
 #include "graphics/renderpasses/ray_tracing_pass.h"
 #include "graphics/renderpasses/ui_pass.h"
 #include "graphics/vulkan/gfx_device_vulkan.h"
@@ -28,6 +27,9 @@
 struct PerFrameData {
 	glm::mat4 projectionMatrix = { 1.0f };
 	glm::mat4 viewMatrix = { 1.0f };
+	glm::mat4 invViewProjection = { 1.0f };
+	glm::vec3 cameraPosition = { 0.0f, 0.0f, 0.0f };
+	uint32_t pad1 = 0;
 };
 
 GLOBAL_VARIABLE GraphicsAPI g_API = GraphicsAPI::VULKAN;
@@ -38,8 +40,7 @@ GLOBAL_VARIABLE UIEvent g_MouseEvent = UIEvent(UIEventType::None);
 GLOBAL_VARIABLE UIEvent g_KeyboardEvent = UIEvent(UIEventType::None);
 
 GLOBAL_VARIABLE std::unique_ptr<GFXDevice> g_GfxDevice = {};
-GLOBAL_VARIABLE std::unique_ptr<GBufferPass> g_GBufferPass = {};
-GLOBAL_VARIABLE std::unique_ptr<LightingPass> g_LightingPass = {};
+GLOBAL_VARIABLE std::unique_ptr<FullscreenTriPass> g_FullscreenTriPass = {};
 GLOBAL_VARIABLE std::unique_ptr<RayTracingPass> g_RayTracingPass = {};
 GLOBAL_VARIABLE std::unique_ptr<UIPass> g_UIPass = {};
 GLOBAL_VARIABLE std::unique_ptr<RenderGraph> g_RenderGraph = {};
@@ -246,37 +247,27 @@ INTERNAL void init_gfx() {
 }
 
 INTERNAL void init_render_graph() {
-	// Render graph
+	// Initialize passes
+	g_RayTracingPass = std::make_unique<RayTracingPass>(*g_GfxDevice, *g_Scene);
+	g_FullscreenTriPass = std::make_unique<FullscreenTriPass>(*g_GfxDevice);
+	g_UIPass = std::make_unique<UIPass>(*g_GfxDevice, g_Window);
+
+	// Create render graph
 	const uint32_t uWidth = static_cast<uint32_t>(g_FrameWidth);
 	const uint32_t uHeight = static_cast<uint32_t>(g_FrameHeight);
 
-	g_GBufferPass = std::make_unique<GBufferPass>(*g_GfxDevice);
-	g_LightingPass = std::make_unique<LightingPass>(*g_GfxDevice);
-	g_RayTracingPass = std::make_unique<RayTracingPass>(*g_GfxDevice, *g_Scene);
-	g_UIPass = std::make_unique<UIPass>(*g_GfxDevice, g_Window);
-
 	g_RenderGraph = std::make_unique<RenderGraph>(*g_GfxDevice);
-	auto gBufferPass = g_RenderGraph->add_pass("GBufferPass");
-	gBufferPass->add_output_attachment("Position", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R32G32B32A32_FLOAT });
-	gBufferPass->add_output_attachment("Albedo", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R8G8B8A8_UNORM });
-	gBufferPass->add_output_attachment("Normal", AttachmentInfo{ uWidth, uHeight, AttachmentType::RENDER_TARGET, Format::R16G16B16A16_FLOAT });
-	gBufferPass->add_output_attachment("Depth", AttachmentInfo{ uWidth, uHeight, AttachmentType::DEPTH_STENCIL, Format::D32_FLOAT });
-	gBufferPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
-		g_GBufferPass->execute(executeInfo, *g_Scene);
-	});
-
-	auto lightingPass = g_RenderGraph->add_pass("LightingPass");
-	lightingPass->add_input_attachment("Position");
-	lightingPass->add_input_attachment("Albedo");
-	lightingPass->add_input_attachment("Normal");
-	lightingPass->add_input_attachment("Depth"); // TODO: Temporary
-	lightingPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
-		g_LightingPass->execute(executeInfo, *g_Scene);
-	});
 
 	auto rtPass = g_RenderGraph->add_pass("RayTracingPass");
+	rtPass->add_output_attachment("RTOutput", AttachmentInfo{ uWidth, uHeight, AttachmentType::RW_TEXTURE, Format::R8G8B8A8_UNORM });
 	rtPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
 		g_RayTracingPass->execute(executeInfo, *g_Scene);
+	});
+
+	auto fullscreenTriPass = g_RenderGraph->add_pass("FullScreenTriPass");
+	fullscreenTriPass->add_input_attachment("RTOutput");
+	fullscreenTriPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
+		g_FullscreenTriPass->execute(executeInfo);
 	});
 
 	auto uiPass = g_RenderGraph->add_pass("UIPass");
@@ -308,22 +299,22 @@ INTERNAL void init_objects() {
 	ecs::initialize();
 
 	const entity_id sphere = g_Scene->add_entity("Sphere");
-	ecs::add_component(sphere, Renderable{ g_Sphere.get() });
-	ecs::get_component_transform(sphere)->position = { -0.1f, 1.5f, 0.0f };
+	ecs::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
+	ecs::get_component<Transform>(sphere)->position = { -0.1f, 1.5f, 0.0f };
 
 	entity_id plane = g_Scene->add_entity("Plane");
-	ecs::add_component(plane, Renderable{ g_PlaneModel.get() });
-	ecs::get_component_transform(plane)->position = { 0.0f, 0.0f, 0.0f };
+	ecs::add_component<Renderable>(plane, Renderable{ g_PlaneModel.get() });
+	ecs::get_component<Transform>(plane)->position = { 0.0f, 0.0f, 0.0f };
 
 	entity_id backWall = g_Scene->add_entity("Back Wall");
-	ecs::add_component(backWall, Renderable{ g_PlaneModel.get() });
-	ecs::get_component_transform(backWall)->position = { 0.0f, 5.0f, 5.0f };
-	ecs::get_component_transform(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get() });
+	ecs::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
+	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
 
 	entity_id leftWall = g_Scene->add_entity("Left Wall");
-	ecs::add_component(leftWall, Renderable{ g_PlaneModel.get() });
-	ecs::get_component_transform(leftWall)->position = { -5.0f, 5.0f, 0.0f };
-	ecs::get_component_transform(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
+	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get() });
+	ecs::get_component<Transform>(leftWall)->position = { -5.0f, 5.0f, 0.0f };
+	ecs::get_component<Transform>(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
@@ -332,28 +323,28 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 	g_UIPass->widget_slider_float("Sun Direction Y", &g_Scene->m_SunDirection.y, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Z", &g_Scene->m_SunDirection.z, -1.0f, 1.0f);
 
-	g_UIPass->widget_text("Render Passes:");
+	//g_UIPass->widget_text("Render Passes:");
 
-	// TODO: Fix hacky solution
-	const std::vector<RenderPassAttachment*> gBufferAttachments = {
-		g_RenderGraph->get_attachment("Position"),
-		g_RenderGraph->get_attachment("Albedo"),
-		g_RenderGraph->get_attachment("Normal"),
-		g_RenderGraph->get_attachment("Depth")
-	};
+	//// TODO: Fix hacky solution
+	//const std::vector<RenderPassAttachment*> gBufferAttachments = {
+	//	g_RenderGraph->get_attachment("Position"),
+	//	g_RenderGraph->get_attachment("Albedo"),
+	//	g_RenderGraph->get_attachment("Normal"),
+	//	g_RenderGraph->get_attachment("Depth")
+	//};
 
-	LOCAL_PERSIST size_t gBufferIndex = 0;
+	//LOCAL_PERSIST size_t gBufferIndex = 0;
 
-	if (g_UIPass->widget_button("<") && gBufferIndex > 0) {
-		--gBufferIndex;
-	}
-	g_UIPass->widget_same_line();
-	if (g_UIPass->widget_button(">") && gBufferIndex < gBufferAttachments.size() - 1) {
-		++gBufferIndex;
-	}
+	//if (g_UIPass->widget_button("<") && gBufferIndex > 0) {
+	//	--gBufferIndex;
+	//}
+	//g_UIPass->widget_same_line();
+	//if (g_UIPass->widget_button(">") && gBufferIndex < gBufferAttachments.size() - 1) {
+	//	++gBufferIndex;
+	//}
 
-	g_UIPass->widget_text(gBufferAttachments[gBufferIndex]->name);
-	g_UIPass->widget_image(gBufferAttachments[gBufferIndex]->texture, g_FrameWidth / 4, g_FrameHeight / 4);
+	//g_UIPass->widget_text(gBufferAttachments[gBufferIndex]->name);
+	//g_UIPass->widget_image(gBufferAttachments[gBufferIndex]->texture, g_FrameWidth / 4, g_FrameHeight / 4);
 
 	// Input
 	input::update();
@@ -413,7 +404,8 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 
 	g_PerFrameData.projectionMatrix = camera.getProjMatrix();
 	g_PerFrameData.viewMatrix = camera.getViewMatrix();
-	g_GfxDevice->update_buffer(g_PerFrameDataBuffers[g_GfxDevice->get_frame_index()], &g_PerFrameData);
+	g_PerFrameData.invViewProjection = camera.getInvViewProjMatrix();
+	g_PerFrameData.cameraPosition = camera.getPosition();
 
 	std::memcpy(g_PerFrameDataBuffers[g_GfxDevice->get_frame_index()].mappedData, &g_PerFrameData, sizeof(g_PerFrameData));
 }

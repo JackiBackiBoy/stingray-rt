@@ -200,23 +200,27 @@ struct Pipeline_Vulkan {
 };
 
 // Vulkan converter functions
-CommandList_Vulkan* to_internal(const CommandList& cmdList) {
+inline CommandList_Vulkan* to_internal(const CommandList& cmdList) {
 	return (CommandList_Vulkan*)cmdList.internalState;
 }
 
-RTAS_Vulkan* to_internal(const RTAS& rtas) {
+inline RTAS_Vulkan* to_internal(const RTAS& rtas) {
 	return (RTAS_Vulkan*)rtas.internalState.get();
 }
 
-Shader_Vulkan* to_internal(const Shader& shader) {
+inline RTPipeline_Vulkan* to_internal(const RTPipeline& pipeline) {
+	return (RTPipeline_Vulkan*)pipeline.internalState.get();
+}
+
+inline Shader_Vulkan* to_internal(const Shader& shader) {
 	return (Shader_Vulkan*)shader.internalState.get();
 }
 
-SwapChain_Vulkan* to_internal(const SwapChain& swapChain) {
+inline SwapChain_Vulkan* to_internal(const SwapChain& swapChain) {
 	return (SwapChain_Vulkan*)swapChain.internalState.get();
 }
 
-Pipeline_Vulkan* to_internal(const Pipeline& pipeline) {
+inline Pipeline_Vulkan* to_internal(const Pipeline& pipeline) {
 	return (Pipeline_Vulkan*)pipeline.internalState.get();
 }
 

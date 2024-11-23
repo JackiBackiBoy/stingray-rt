@@ -1,5 +1,7 @@
 #version 450
-#include "bindless.glsl"
+#extension GL_GOOGLE_include_directive : require
+
+#include "includes/bindless.glsl"
 
 const uint UI_TYPE_RECTANGLE = 0;
 const uint UI_TYPE_TEXT = 1 << 0;

@@ -16,12 +16,20 @@ public:
 	void execute(PassExecuteInfo& executeInfo, Scene& scene);
 
 private:
+	struct PushConstant {
+		uint32_t frameIndex;
+		uint32_t rtImageIndex;
+	} m_PushConstant = {};
+
 	GFXDevice& m_GfxDevice;
 
 	RTPipeline m_RTPipeline = {};
 	Shader m_RayGenShader = {};
 	Shader m_MissShader = {};
 	Shader m_ClosestHitShader = {};
+	ShaderBindingTable m_RayGenSBT = {};
+	ShaderBindingTable m_MissSBT = {};
+	ShaderBindingTable m_HitSBT = {};
 
 	std::vector<RTAS> m_BLASes = {}; // NOTE: One per mesh
 	RTAS m_TLAS = {};

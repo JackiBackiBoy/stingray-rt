@@ -25,9 +25,12 @@ public:
 	virtual void create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) = 0;
 	virtual void create_rt_instance_buffer(Buffer& buffer, uint32_t numBLASes) = 0;
 	virtual void create_rt_pipeline(const RTPipelineInfo& info, RTPipeline& pipeline) = 0;
-	virtual void create_shader_binding_table(const RTPipeline& pipeline) = 0;
+	virtual void create_shader_binding_table(const RTPipeline& pipeline, uint32_t groupID, ShaderBindingTable& sbt) = 0;
 	virtual void write_blas_instance(const RTTLAS::BLASInstance& instance, void* dst) = 0;
 	virtual void build_rtas(RTAS& rtas, const CommandList& cmdList) = 0; // TODO: Use dst and src instead
+	virtual void bind_rt_pipeline(const RTPipeline& pipeline, const CommandList& cmdList) = 0;
+	virtual void push_rt_constants(const void* data, uint32_t size, const RTPipeline& pipeline, const CommandList& cmdList) = 0;
+	virtual void dispatch_rays(const DispatchRaysInfo& info, const CommandList& cmdList) = 0;
 
 	virtual void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) = 0;
 	virtual void bind_viewport(const Viewport& viewport, const CommandList& cmdList) = 0;
@@ -51,14 +54,16 @@ public:
 	virtual void draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) = 0;
 	virtual void draw_instanced(uint32_t vertexCount, uint32_t instanceCount, uint32_t startVertex, uint32_t startInstance, const CommandList& cmdList) = 0;
 
-	virtual uint32_t get_descriptor_index(const Resource& resource) = 0;
+	virtual uint32_t get_descriptor_index(const Resource& resource, SubresourceType type) = 0;
 	virtual void wait_for_gpu() = 0;
 
 	static constexpr uint32_t FRAMES_IN_FLIGHT = 3;
 	static constexpr uint32_t MAX_UBO_DESCRIPTORS = 32;
 	static constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 1024;
+	static constexpr uint32_t MAX_RW_TEXTURE_DESCRIPTORS = 16;
 	static constexpr uint32_t MAX_SAMPLER_DESCRIPTORS = 16;
 	static constexpr uint32_t MAX_STORAGE_BUFFERS = 32;
+	static constexpr uint32_t MAX_RAY_TRACING_TLASES = 1;
 
 protected:
 	GLFWwindow* m_Window = nullptr;

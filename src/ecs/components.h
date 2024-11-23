@@ -17,3 +17,8 @@ struct Transform {
 struct Renderable {
 	const Model* model = nullptr;
 };
+
+struct Material {
+	glm::vec3 color = { 1.0f, 1.0f, 1.0f };
+	float refractiveIndex = 1.0f;
+};

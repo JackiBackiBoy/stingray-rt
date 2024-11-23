@@ -181,6 +181,13 @@ enum class BorderColor : uint8_t {
 	OPAQUE_WHITE,
 };
 
+enum class SubresourceType : uint8_t {
+	SRV, // shader resource view
+	UAV, // unordered access view
+	RTV, // render target view
+	DSV, // depth stencil view
+};
+
 enum class TextureAddressMode : uint8_t {
 	WRAP,
 	MIRROR,
@@ -383,6 +390,22 @@ struct RTASInfo {
 
 struct RTAS : public Resource {
 	RTASInfo info = {};
+};
+
+struct ShaderBindingTable { // NOTE: This essentially works like a wrapper around a buffer
+	Buffer buffer = {};
+	uint64_t offset = 0;
+	uint64_t size = 0;
+	uint64_t stride = 0;
+};
+
+struct DispatchRaysInfo {
+	const ShaderBindingTable* rayGenTable = nullptr;
+	const ShaderBindingTable* missTable = nullptr;
+	const ShaderBindingTable* hitGroupTable = nullptr;
+	uint32_t width = 1;
+	uint32_t height = 1;
+	uint32_t depth = 1;
 };
 
 struct CommandList {

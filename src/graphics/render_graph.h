@@ -13,6 +13,7 @@ class RenderGraph;
 enum class AttachmentType : uint8_t {
 	RENDER_TARGET,
 	DEPTH_STENCIL,
+	RW_TEXTURE
 };
 
 struct AttachmentInfo {

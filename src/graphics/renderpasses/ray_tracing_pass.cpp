@@ -31,7 +31,7 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 	
 	// Count number of BLASes required
 	for (const auto& entity : entities) {
-		const Renderable* renderable = ecs::get_component_renderable(entity);
+		const Renderable* renderable = ecs::get_component<Renderable>(entity);
 		const Model* model = renderable->model;
 
 		for (const auto& mesh : model->meshes) {
@@ -44,8 +44,8 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 
 	// TODO: Rename MeshPrimitive to just "Mesh", GLTF terminology is confusing
 	for (const auto& entity : entities) {
-		const Renderable* renderable = ecs::get_component_renderable(entity);
-		const Transform* transform = ecs::get_component_transform(entity);
+		const Renderable* renderable = ecs::get_component<Renderable>(entity);
+		const Transform* transform = ecs::get_component<Transform>(entity);
 		const Model* model = renderable->model;
 
 		for (const auto& mesh : model->meshes) {
@@ -87,7 +87,7 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 					// 2 -> closest-hit -> TRIANGLES_HIT_GROUP
 					// Then the closest-hit shader at index 2 in the SBT will be the only
 					// hit group, and thus its index within the HIT GROUP SBT will be 0.
-					// That is at least what seems to be the case, so we'll have to revisit this again
+					// That is at least what seems to be the case, so this might not be true
 					.blasResource = &blas
 				};
 
@@ -120,6 +120,11 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 		void* dataSection = (uint8_t*)m_InstanceBuffer.mappedData + i * m_InstanceBuffer.info.stride;
 		m_GfxDevice.write_blas_instance(m_Instances[i], dataSection);
 	}
+
+	// ------------------------- Shader Binding Tables -------------------------
+	m_GfxDevice.create_shader_binding_table(m_RTPipeline, 0, m_RayGenSBT);
+	m_GfxDevice.create_shader_binding_table(m_RTPipeline, 1, m_MissSBT);
+	m_GfxDevice.create_shader_binding_table(m_RTPipeline, 2, m_HitSBT);
 }
 
 void RayTracingPass::build_acceleration_structures(const CommandList& cmdList) {
@@ -131,4 +136,24 @@ void RayTracingPass::build_acceleration_structures(const CommandList& cmdList) {
 }
 
 void RayTracingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
+	const CommandList& cmdList = *executeInfo.cmdList;
+	RenderGraph& renderGraph = *executeInfo.renderGraph;
+
+	auto rtOutput = renderGraph.get_attachment("RTOutput");
+
+	m_PushConstant.frameIndex = m_GfxDevice.get_frame_index();
+	m_PushConstant.rtImageIndex = m_GfxDevice.get_descriptor_index(rtOutput->texture, SubresourceType::UAV);
+
+	m_GfxDevice.bind_rt_pipeline(m_RTPipeline, cmdList);
+	m_GfxDevice.push_rt_constants(&m_PushConstant, sizeof(m_PushConstant), m_RTPipeline, cmdList);
+
+	const DispatchRaysInfo dispatchInfo = {
+		.rayGenTable = &m_RayGenSBT,
+		.missTable = &m_MissSBT,
+		.hitGroupTable = &m_HitSBT,
+		.width = static_cast<uint32_t>(executeInfo.frameInfo->width),
+		.height = static_cast<uint32_t>(executeInfo.frameInfo->height)
+	};
+
+	m_GfxDevice.dispatch_rays(dispatchInfo, cmdList);
 }

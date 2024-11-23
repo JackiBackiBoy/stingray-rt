@@ -43,10 +43,10 @@ void LightingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 	memcpy(m_LightingUBOs[m_GfxDevice.get_frame_index()].mappedData, &m_LightingUBOData, sizeof(m_LightingUBOData));
 
 	// Rendering
-	m_PushConstant.positionIndex = m_GfxDevice.get_descriptor_index(positionAttachment->texture);
-	m_PushConstant.albedoIndex = m_GfxDevice.get_descriptor_index(albedoAttachment->texture);
-	m_PushConstant.normalIndex = m_GfxDevice.get_descriptor_index(normalAttachment->texture);
-	m_PushConstant.lightingUBOIndex = m_GfxDevice.get_descriptor_index(m_LightingUBOs[m_GfxDevice.get_frame_index()]);
+	m_PushConstant.positionIndex = m_GfxDevice.get_descriptor_index(positionAttachment->texture, SubresourceType::SRV);
+	m_PushConstant.albedoIndex = m_GfxDevice.get_descriptor_index(albedoAttachment->texture, SubresourceType::SRV);
+	m_PushConstant.normalIndex = m_GfxDevice.get_descriptor_index(normalAttachment->texture, SubresourceType::SRV);
+	m_PushConstant.lightingUBOIndex = m_GfxDevice.get_descriptor_index(m_LightingUBOs[m_GfxDevice.get_frame_index()], SubresourceType::SRV);
 
 	m_GfxDevice.bind_pipeline(m_Pipeline, cmdList);
 	m_GfxDevice.push_constants(&m_PushConstant, sizeof(m_PushConstant), cmdList);

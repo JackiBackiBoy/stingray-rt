@@ -7,12 +7,13 @@ namespace ecs {
 	void initialize();
 	void destroy();
 
-	entity_id create_entity();
-	void add_component(entity_id entity, const Transform& transform);
-	void add_component(entity_id entity, const Renderable& renderable);
+	template <typename T>
+	void add_component(entity_id entity, const T& component);
 
-	Transform* get_component_transform(entity_id entity);
-	Renderable* get_component_renderable(entity_id entity);
+	template <typename T>
+	T* get_component(entity_id entity);
+
+	entity_id create_entity();
 
 	GLOBAL_VARIABLE constexpr entity_id MAX_ENTITIES = 16384;
 }

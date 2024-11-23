@@ -35,6 +35,7 @@ namespace ecs {
 	GLOBAL_VARIABLE uint32_t g_LiveEntityCount = 0;
 	GLOBAL_VARIABLE ComponentArray<Transform> g_TransformComponents = {};
 	GLOBAL_VARIABLE ComponentArray<Renderable> g_RenderableComponents = {};
+	GLOBAL_VARIABLE ComponentArray<Material> g_MaterialComponents = {};
 
 	void initialize() {
 		for (entity_id i = 0; i < MAX_ENTITIES; ++i) {
@@ -46,6 +47,46 @@ namespace ecs {
 
 	}
 
+	template <typename T>
+	void add_component(entity_id entity, const T& component) {
+		static_assert(sizeof(T) == 0, "add_component is not implemented for this component type.");
+	}
+
+	template <>
+	void add_component<Transform>(entity_id entity, const Transform& component) {
+		g_TransformComponents.add(entity, component);
+	}
+
+	template <>
+	void add_component<Renderable>(entity_id entity, const Renderable& component) {
+		g_RenderableComponents.add(entity, component);
+	}
+
+	template <>
+	void add_component<Material>(entity_id entity, const Material& component) {
+		g_MaterialComponents.add(entity, component);
+	}
+
+	template <typename T>
+	T* get_component(entity_id entity) {
+		static_assert(sizeof(T) == 0, "get_component is not implemented for this component type.");
+	}
+
+	template <>
+	Transform* get_component<Transform>(entity_id entity) {
+		return g_TransformComponents.get(entity);
+	}
+
+	template <>
+	Renderable* get_component<Renderable>(entity_id entity) {
+		return g_RenderableComponents.get(entity);
+	}
+
+	template <>
+	Material* get_component<Material>(entity_id entity) {
+		return g_MaterialComponents.get(entity);
+	}
+
 	entity_id create_entity() {
 		assert(g_LiveEntityCount < MAX_ENTITIES);
 
@@ -54,15 +95,10 @@ namespace ecs {
 		++g_LiveEntityCount;
 
 		// Add default entity components
-		add_component(id, Transform{});
+		add_component<Transform>(id, Transform{});
+		add_component<Material>(id, Material{});
 
 		return id;
 	}
-
-	void add_component(entity_id entity, const Transform& transform) { g_TransformComponents.add(entity, transform); }
-	void add_component(entity_id entity, const Renderable& renderable) { g_RenderableComponents.add(entity, renderable); }
-
-	Transform* get_component_transform(entity_id entity) { return g_TransformComponents.get(entity); }
-	Renderable* get_component_renderable(entity_id entity) { return g_RenderableComponents.get(entity); }
 
 }

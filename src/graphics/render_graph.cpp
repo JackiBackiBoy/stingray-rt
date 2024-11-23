@@ -23,6 +23,9 @@ void RenderPass::add_output_attachment(const std::string& name, const Attachment
 	case AttachmentType::DEPTH_STENCIL:
 		attachment->currentState = ResourceState::DEPTH_WRITE;
 		break;
+	case AttachmentType::RW_TEXTURE:
+		attachment->currentState = ResourceState::UNORDERED_ACCESS;
+		break;
 	}
 
 	m_OutputAttachments.push_back(attachment);
@@ -130,6 +133,11 @@ void RenderGraph::execute(const SwapChain& swapChain, const CommandList& cmdList
 					targetState = ResourceState::DEPTH_WRITE;
 				}
 				break;
+			case AttachmentType::RW_TEXTURE:
+				{
+					targetState = ResourceState::UNORDERED_ACCESS;
+				}
+				break;
 			}
 
 			if (attachment->currentState != targetState) {
@@ -182,7 +190,9 @@ void RenderGraph::execute(const SwapChain& swapChain, const CommandList& cmdList
 			}
 		}
 		else {
-			m_GfxDevice.begin_render_pass(passInfo, cmdList);
+			if (outputAttachments[0]->info.type != AttachmentType::RW_TEXTURE) {
+				m_GfxDevice.begin_render_pass(passInfo, cmdList);
+			}
 
 			const uint32_t width = outputAttachments[0]->info.width;
 			const uint32_t height = outputAttachments[0]->info.height;
@@ -198,7 +208,10 @@ void RenderGraph::execute(const SwapChain& swapChain, const CommandList& cmdList
 			m_GfxDevice.bind_viewport(viewport, cmdList);
 
 			pass.execute(m_GfxDevice, cmdList, frameInfo);
-			m_GfxDevice.end_render_pass(cmdList);
+
+			if (outputAttachments[0]->info.type != AttachmentType::RW_TEXTURE) {
+				m_GfxDevice.end_render_pass(cmdList);
+			}
 		}
 	}
 }
@@ -231,6 +244,9 @@ void RenderGraph::recurse_build(uint32_t index) {
 		case AttachmentType::DEPTH_STENCIL:
 			textureInfo.bindFlags |= BindFlag::DEPTH_STENCIL;
 			break;
+		case AttachmentType::RW_TEXTURE:
+			textureInfo.bindFlags |= BindFlag::UNORDERED_ACCESS;
+			break;
 		}
 
 		m_GfxDevice.create_texture(textureInfo, attachment->texture, nullptr);
@@ -248,7 +264,7 @@ void RenderGraph::recurse_build(uint32_t index) {
 		}
 	}
 
-	if (inputs.empty() && outputs.empty() && index > 0) {
+	if (inputs.empty() && index > 0) {
 		recurse_build(index - 1);
 	}
 }

@@ -106,7 +106,7 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 	const FrameInfo& frameInfo = *executeInfo.frameInfo;
 
 	m_PushConstant.projectionMatrix = glm::ortho(0.0f, (float)frameInfo.width, (float)frameInfo.height, 0.0f);
-	m_PushConstant.uiParamsBufferIndex = m_GfxDevice.get_descriptor_index(m_UIParamsBuffers[m_GfxDevice.get_frame_index()]);
+	m_PushConstant.uiParamsBufferIndex = m_GfxDevice.get_descriptor_index(m_UIParamsBuffers[m_GfxDevice.get_frame_index()], SubresourceType::SRV);
 
 	// Update
 	static float x = 0.5f;
@@ -633,7 +633,7 @@ void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag 
 		textParams.texCoords[1] = glyphData.texCoords[1];
 		textParams.texCoords[2] = glyphData.texCoords[2];
 		textParams.texCoords[3] = glyphData.texCoords[3];
-		textParams.texIndex = m_GfxDevice.get_descriptor_index(m_DefaultFont->atlasTexture);
+		textParams.texIndex = m_GfxDevice.get_descriptor_index(m_DefaultFont->atlasTexture, SubresourceType::SRV);
 		textParams.uiType = UIType::TEXT;
 		m_UIParamsData.push_back(textParams);
 
@@ -642,7 +642,7 @@ void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag 
 }
 
 void UIPass::draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags, const Texture* texture) {
-	uint32_t texIndex = texture != nullptr ? m_GfxDevice.get_descriptor_index(*texture) : 0;
+	uint32_t texIndex = texture != nullptr ? m_GfxDevice.get_descriptor_index(*texture, SubresourceType::SRV) : 0;
 
 	glm::vec2 rectPos = pos;
 
