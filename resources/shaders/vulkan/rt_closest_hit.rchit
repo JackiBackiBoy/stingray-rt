@@ -8,6 +8,7 @@
 #include "includes/bindless.glsl"
 #include "includes/geometry_types.glsl"
 #include "includes/ray_payload.glsl"
+#include "includes/ray_tracing_math.glsl"
 
 struct Object {
 	uint64_t verticesBDA;
@@ -36,30 +37,15 @@ layout (push_constant) uniform constants {
 layout (location = 0) rayPayloadInEXT RayPayload rayPayload;
 hitAttributeEXT vec3 attribs;
 
-float barycentric_lerp(in float v0, in float v1, in float v2, in vec3 barycentrics) {
-    return v0 * barycentrics.x + v1 * barycentrics.y + v2 * barycentrics.z;
-}
+RayPayload scatter(Vertex vtx, Material mat, uint rngSeed) {
+    RayPayload payload;
+    payload.distance = gl_HitTEXT;
 
-vec2 barycentric_lerp(in vec2 v0, in vec2 v1, in vec2 v2, in vec3 barycentrics) {
-    return v0 * barycentrics.x + v1 * barycentrics.y + v2 * barycentrics.z;
-}
+    payload.color = mat.color;
+    payload.scatterDir = vtx.normal + rand_cos_hemisphere_dir(rngSeed);
+    payload.rngSeed = rngSeed;
 
-vec3 barycentric_lerp(in vec3 v0, in vec3 v1, in vec3 v2, in vec3 barycentrics) {
-    return v0 * barycentrics.x + v1 * barycentrics.y + v2 * barycentrics.z;
-}
-
-vec4 barycentric_lerp(in vec4 v0, in vec4 v1, in vec4 v2, in vec3 barycentrics) {
-    return v0 * barycentrics.x + v1 * barycentrics.y + v2 * barycentrics.z;
-}
-
-Vertex barycentric_lerp(in Vertex v0, in Vertex v1, in Vertex v2, in vec3 barycentrics) {
-    Vertex vtx;
-    vtx.pos = barycentric_lerp(v0.pos, v1.pos, v2.pos, barycentrics);
-    vtx.normal = normalize(barycentric_lerp(v0.normal, v1.normal, v2.normal, barycentrics));
-    vtx.tangent = normalize(barycentric_lerp(v0.tangent, v1.tangent, v2.tangent, barycentrics));
-    vtx.uv = barycentric_lerp(v0.uv, v1.uv, v2.uv, barycentrics);
-
-    return vtx;
+    return payload;
 }
 
 void main() {
@@ -73,10 +59,11 @@ void main() {
     Vertex vtx2 = vertices.v[indices.i[gl_PrimitiveID * 3 + 2]];
 
     const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
-    const Vertex hitVertex = barycentric_lerp(vtx0, vtx1, vtx2, barycentrics);
+    Vertex hitVtx = barycentric_lerp(vtx0, vtx1, vtx2, barycentrics);
+    hitVtx.normal = normalize(vec3(hitVtx.normal * gl_WorldToObjectEXT));
 
     Materials mats = Materials(obj.materialsBDA);
     Material mat = mats.m[gl_InstanceCustomIndexEXT];
 
-    rayPayload.color = mat.color;
+    rayPayload = scatter(hitVtx, mat, rayPayload.rngSeed);
 }

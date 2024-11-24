@@ -13,4 +13,5 @@ void main() {
     const vec3 gradientEnd = vec3(1.0);
     const vec3 skyColor = mix(gradientEnd, gradientStart, t);
     rayPayload.color = skyColor;
+    rayPayload.distance = -1.0;
 }

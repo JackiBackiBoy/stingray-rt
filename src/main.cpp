@@ -63,7 +63,7 @@ GLOBAL_VARIABLE Texture g_DefaultNormalMap = {};
 GLOBAL_VARIABLE Asset g_CubeModel = {};
 GLOBAL_VARIABLE Asset g_TestTexture = {};
 GLOBAL_VARIABLE Asset g_SponzaModel = {};
-GLOBAL_VARIABLE std::unique_ptr<Model> g_PlaneModel = {};
+GLOBAL_VARIABLE Asset g_PlaneModel = {};
 GLOBAL_VARIABLE std::unique_ptr<Model> g_Sphere = {};
 
 // Callbacks
@@ -283,7 +283,7 @@ INTERNAL void init_objects() {
 
 	assetmanager::initialize(*g_GfxDevice);
 	assetmanager::load_from_file(g_CubeModel, "models/cube/cube.gltf");
-	g_PlaneModel = assetmanager::create_plane(10.0f, 10.0f);
+	assetmanager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
 	g_Sphere = assetmanager::create_sphere(1.0f, 32, 64);
 
 	g_Camera = std::make_unique<Camera>(
@@ -304,26 +304,30 @@ INTERNAL void init_objects() {
 	ecs::get_component<Material>(sphere)->color = { 0.0f, 0.0f, 1.0f };
 
 	entity_id plane = g_Scene->add_entity("Plane");
-	ecs::add_component<Renderable>(plane, Renderable{ g_PlaneModel.get() });
+	ecs::add_component<Renderable>(plane, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(plane)->position = { 0.0f, 0.0f, 0.0f };
+	ecs::get_component<Transform>(plane)->scale = glm::vec3(10.0f);
 	ecs::get_component<Material>(plane)->color = { 1.0f, 1.0f, 1.0f };
 
 	entity_id backWall = g_Scene->add_entity("Back Wall");
-	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get() });
+	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
 	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+	ecs::get_component<Transform>(backWall)->scale = glm::vec3(10.0f);
 	ecs::get_component<Material>(backWall)->color = { 1.0f, 1.0f, 1.0f };
 
 	entity_id leftWall = g_Scene->add_entity("Left Wall");
-	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get() });
+	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(leftWall)->position = { -5.0f, 5.0f, 0.0f };
 	ecs::get_component<Transform>(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
+	ecs::get_component<Transform>(leftWall)->scale = glm::vec3(10.0f);
 	ecs::get_component<Material>(leftWall)->color = { 1.0f, 0.0f, 0.0f };
 
 	entity_id rightWall = g_Scene->add_entity("Right Wall");
-	ecs::add_component<Renderable>(rightWall, Renderable{ g_PlaneModel.get() });
+	ecs::add_component<Renderable>(rightWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(rightWall)->position = { 5.0f, 5.0f, 0.0f };
 	ecs::get_component<Transform>(rightWall)->orientation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
+	ecs::get_component<Transform>(rightWall)->scale = glm::vec3(10.0f);
 	ecs::get_component<Material>(rightWall)->color = { 0.0f, 1.0f, 0.0f };
 }
 
