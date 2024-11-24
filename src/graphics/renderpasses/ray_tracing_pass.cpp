@@ -36,10 +36,30 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 
 		for (const auto& mesh : model->meshes) {
 			numBLASes += mesh.primitives.size();
+
+			for (const auto& primitive : mesh.primitives) {
+				// TODO: We need to improve the material system a lot
+				const Material* material = ecs::get_component<Material>(entity);
+				m_MaterialBufferData.push_back(*material);
+			}
 		}
 	}
+
+	// Create material buffer
+	const BufferInfo materialBufferInfo = {
+		.size = static_cast<uint64_t>(m_MaterialBufferData.size()) * sizeof(Material),
+		.stride = sizeof(Material),
+		.usage = Usage::UPLOAD,
+		.bindFlags = BindFlag::SHADER_RESOURCE,
+		.miscFlags = MiscFlag::BUFFER_STRUCTURED,
+		.persistentMap = false
+	};
+
+	m_GfxDevice.create_buffer(materialBufferInfo, m_MaterialBuffer, m_MaterialBufferData.data());
+
 	m_BLASes.reserve(numBLASes);
 	m_Instances.reserve(numBLASes);
+	m_SceneDescBufferData.reserve(numBLASes);
 	m_GfxDevice.create_rt_instance_buffer(m_InstanceBuffer, numBLASes);
 
 	// TODO: Rename MeshPrimitive to just "Mesh", GLTF terminology is confusing
@@ -100,6 +120,12 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 				std::memcpy(instance.transform, &transformation[0][0], sizeof(instance.transform));
 
 				m_Instances.push_back(instance);
+
+				// Create object for scene desc
+				Object& object = m_SceneDescBufferData.emplace_back();
+				object.verticesBDA = m_GfxDevice.get_bda(model->vertexBuffer);
+				object.indicesBDA = m_GfxDevice.get_bda(model->indexBuffer);
+				object.materialsBDA = m_GfxDevice.get_bda(m_MaterialBuffer);
 			}
 		}
 	}
@@ -125,6 +151,18 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 	m_GfxDevice.create_shader_binding_table(m_RTPipeline, 0, m_RayGenSBT);
 	m_GfxDevice.create_shader_binding_table(m_RTPipeline, 1, m_MissSBT);
 	m_GfxDevice.create_shader_binding_table(m_RTPipeline, 2, m_HitSBT);
+
+	// --------------------------- Create Scene Desc ---------------------------
+	const BufferInfo sceneDescBufferInfo = {
+		.size = static_cast<uint64_t>(m_Instances.size()) * sizeof(Object),
+		.stride = sizeof(Object),
+		.usage = Usage::UPLOAD,
+		.bindFlags = BindFlag::SHADER_RESOURCE,
+		.miscFlags = MiscFlag::BUFFER_STRUCTURED,
+		.persistentMap = false
+	};
+
+	m_GfxDevice.create_buffer(sceneDescBufferInfo, m_SceneDescBuffer, m_SceneDescBufferData.data());
 }
 
 void RayTracingPass::build_acceleration_structures(const CommandList& cmdList) {
@@ -143,6 +181,7 @@ void RayTracingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 
 	m_PushConstant.frameIndex = m_GfxDevice.get_frame_index();
 	m_PushConstant.rtImageIndex = m_GfxDevice.get_descriptor_index(rtOutput->texture, SubresourceType::UAV);
+	m_PushConstant.sceneDescBufferIndex = m_GfxDevice.get_descriptor_index(m_SceneDescBuffer, SubresourceType::SRV);
 
 	m_GfxDevice.bind_rt_pipeline(m_RTPipeline, cmdList);
 	m_GfxDevice.push_rt_constants(&m_PushConstant, sizeof(m_PushConstant), m_RTPipeline, cmdList);

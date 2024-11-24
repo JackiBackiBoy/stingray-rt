@@ -49,6 +49,7 @@ public:
 	void draw_instanced(uint32_t vertexCount, uint32_t instanceCount, uint32_t startVertex, uint32_t startInstance, const CommandList& cmdList) override;
 
 	uint32_t get_descriptor_index(const Resource& resource, SubresourceType type) override;
+	uint64_t get_bda(const Buffer& buffer) override;
 	void wait_for_gpu() override;
 
 private:

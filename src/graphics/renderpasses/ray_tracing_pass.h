@@ -19,7 +19,14 @@ private:
 	struct PushConstant {
 		uint32_t frameIndex;
 		uint32_t rtImageIndex;
+		uint32_t sceneDescBufferIndex;
 	} m_PushConstant = {};
+
+	struct Object {
+		uint64_t verticesBDA = 0;
+		uint64_t indicesBDA = 0;
+		uint64_t materialsBDA = 0;
+	};
 
 	GFXDevice& m_GfxDevice;
 
@@ -35,4 +42,10 @@ private:
 	RTAS m_TLAS = {};
 	std::vector<RTTLAS::BLASInstance> m_Instances = {};
 	Buffer m_InstanceBuffer = {};
+
+	// TODO: Might have to have a frames-in-flight amount of these buffers
+	Buffer m_SceneDescBuffer = {};
+	std::vector<Object> m_SceneDescBufferData = {};
+	Buffer m_MaterialBuffer = {};
+	std::vector<Material> m_MaterialBufferData = {};
 };

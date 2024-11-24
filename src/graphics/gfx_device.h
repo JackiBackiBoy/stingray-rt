@@ -55,6 +55,7 @@ public:
 	virtual void draw_instanced(uint32_t vertexCount, uint32_t instanceCount, uint32_t startVertex, uint32_t startInstance, const CommandList& cmdList) = 0;
 
 	virtual uint32_t get_descriptor_index(const Resource& resource, SubresourceType type) = 0;
+	virtual uint64_t get_bda(const Buffer& buffer) = 0;
 	virtual void wait_for_gpu() = 0;
 
 	static constexpr uint32_t FRAMES_IN_FLIGHT = 3;

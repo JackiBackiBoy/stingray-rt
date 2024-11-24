@@ -37,6 +37,5 @@ private:
 
 	std::unordered_map<std::string, size_t> m_EntityIndicesMap = {};
 	std::vector<entity_id> m_Entities = {};
-
 	glm::vec3 m_SunColor = { 1.0f, 1.0f, 1.0f };
 };

@@ -8,5 +8,9 @@
 layout (location = 0) rayPayloadInEXT RayPayload rayPayload;
 
 void main() {
-    rayPayload.color = vec3(0.0, 0.0, 0.0);
+    const float t = 0.5 * (normalize(gl_WorldRayDirectionEXT).y + 1.0);
+    const vec3 gradientStart = vec3(0.5, 0.6, 1.0);
+    const vec3 gradientEnd = vec3(1.0);
+    const vec3 skyColor = mix(gradientEnd, gradientStart, t);
+    rayPayload.color = skyColor;
 }

@@ -468,9 +468,15 @@ void GFXDevice_Vulkan::Impl::create_device() {
 		.bufferDeviceAddress = VK_TRUE
 	};
 
+	VkPhysicalDeviceScalarBlockLayoutFeatures scalarLayoutFeatures = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES,
+		.pNext = &bufferDeviceAddressFeatures,
+		.scalarBlockLayout = VK_TRUE
+	};
+
 	VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
-		.pNext = &bufferDeviceAddressFeatures,
+		.pNext = &scalarLayoutFeatures,
 		.dynamicRendering = VK_TRUE
 	};
 
@@ -2899,6 +2905,10 @@ uint32_t GFXDevice_Vulkan::get_descriptor_index(const Resource& resource, Subres
 
 		return internalBuffer->descriptor.index;
 	}
+}
+
+uint64_t GFXDevice_Vulkan::get_bda(const Buffer& buffer) {
+	return m_Impl->to_internal(buffer)->address;
 }
 
 void GFXDevice_Vulkan::wait_for_gpu() {

@@ -301,20 +301,30 @@ INTERNAL void init_objects() {
 	const entity_id sphere = g_Scene->add_entity("Sphere");
 	ecs::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
 	ecs::get_component<Transform>(sphere)->position = { -0.1f, 1.5f, 0.0f };
+	ecs::get_component<Material>(sphere)->color = { 0.0f, 0.0f, 1.0f };
 
 	entity_id plane = g_Scene->add_entity("Plane");
 	ecs::add_component<Renderable>(plane, Renderable{ g_PlaneModel.get() });
 	ecs::get_component<Transform>(plane)->position = { 0.0f, 0.0f, 0.0f };
+	ecs::get_component<Material>(plane)->color = { 1.0f, 1.0f, 1.0f };
 
 	entity_id backWall = g_Scene->add_entity("Back Wall");
 	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get() });
 	ecs::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
 	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+	ecs::get_component<Material>(backWall)->color = { 1.0f, 1.0f, 1.0f };
 
 	entity_id leftWall = g_Scene->add_entity("Left Wall");
 	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get() });
 	ecs::get_component<Transform>(leftWall)->position = { -5.0f, 5.0f, 0.0f };
 	ecs::get_component<Transform>(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
+	ecs::get_component<Material>(leftWall)->color = { 1.0f, 0.0f, 0.0f };
+
+	entity_id rightWall = g_Scene->add_entity("Right Wall");
+	ecs::add_component<Renderable>(rightWall, Renderable{ g_PlaneModel.get() });
+	ecs::get_component<Transform>(rightWall)->position = { 5.0f, 5.0f, 0.0f };
+	ecs::get_component<Transform>(rightWall)->orientation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
+	ecs::get_component<Material>(rightWall)->color = { 0.0f, 1.0f, 0.0f };
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
@@ -322,29 +332,6 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 	g_UIPass->widget_slider_float("Sun Direction X", &g_Scene->m_SunDirection.x, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Y", &g_Scene->m_SunDirection.y, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Z", &g_Scene->m_SunDirection.z, -1.0f, 1.0f);
-
-	//g_UIPass->widget_text("Render Passes:");
-
-	//// TODO: Fix hacky solution
-	//const std::vector<RenderPassAttachment*> gBufferAttachments = {
-	//	g_RenderGraph->get_attachment("Position"),
-	//	g_RenderGraph->get_attachment("Albedo"),
-	//	g_RenderGraph->get_attachment("Normal"),
-	//	g_RenderGraph->get_attachment("Depth")
-	//};
-
-	//LOCAL_PERSIST size_t gBufferIndex = 0;
-
-	//if (g_UIPass->widget_button("<") && gBufferIndex > 0) {
-	//	--gBufferIndex;
-	//}
-	//g_UIPass->widget_same_line();
-	//if (g_UIPass->widget_button(">") && gBufferIndex < gBufferAttachments.size() - 1) {
-	//	++gBufferIndex;
-	//}
-
-	//g_UIPass->widget_text(gBufferAttachments[gBufferIndex]->name);
-	//g_UIPass->widget_image(gBufferAttachments[gBufferIndex]->texture, g_FrameWidth / 4, g_FrameHeight / 4);
 
 	// Input
 	input::update();
@@ -472,5 +459,6 @@ int main() {
 	assetmanager::destroy();
 	glfwDestroyWindow(g_Window);
 	glfwTerminate();
+
 	return 0;
 }

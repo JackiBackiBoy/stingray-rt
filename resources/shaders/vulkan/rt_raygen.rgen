@@ -12,6 +12,7 @@ layout (set = BINDLESS_DESCRIPTOR_SET, binding = BINDLESS_TLAS_BINDING) uniform 
 layout (push_constant) uniform constants {
     uint frameIndex;
     uint rtImageIndex;
+    uint sceneDescBufferIndex;
 } g_PushConstants;
 
 void main() {
