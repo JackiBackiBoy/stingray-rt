@@ -13,25 +13,27 @@ layout (set = BINDLESS_DESCRIPTOR_SET, binding = BINDLESS_TLAS_BINDING) uniform 
 
 layout (push_constant) uniform constants {
     uint frameIndex;
+    uint rtAccumulationIndex;
     uint rtImageIndex;
     uint sceneDescBufferIndex;
+    uint samplesPerPixel;
+    uint totalSamplesPerPixel;
 } g_PushConstants;
 
-const uint RAY_BOUNCES = 3;
-const uint SAMPLES_PER_PIXEL = 64; // NOTE: Must be a power of 2
+const uint RAY_BOUNCES = 16;
 
 void main() {
     const vec2 pixelCoord = vec2(gl_LaunchIDEXT.xy);
-    uint rngSeed = uint(pixelCoord.x) + uint(pixelCoord.y) * uint(gl_LaunchSizeEXT.x);
-    rayPayload.rngSeed = rngSeed;
+    uint rngSeed = g_PushConstants.totalSamplesPerPixel;
+    rayPayload.rngSeed = InitRandomSeed(InitRandomSeed(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), g_PushConstants.totalSamplesPerPixel);
 
-    const uint stratumDim = uint(sqrt(float(SAMPLES_PER_PIXEL)));
+    const uint stratumDim = uint(sqrt(float(g_PushConstants.samplesPerPixel)));
     const float stratumSize = 1.0 / float(stratumDim);
 
     vec3 color = vec3(0.0);
     for (uint sy = 0; sy < stratumDim; sy++) {
         for (uint sx = 0; sx < stratumDim; sx++) {
-            const vec2 jitter = rand_vec2(rngSeed) * stratumSize;
+            const vec2 jitter = vec2(RandomFloat(rngSeed), RandomFloat(rngSeed)) * stratumSize;
             const vec2 stratumCoord = pixelCoord + stratumSize * vec2(sx, sy) + jitter;
             const vec2 inUV = stratumCoord / vec2(gl_LaunchSizeEXT.xy);
 
@@ -44,11 +46,11 @@ void main() {
             rayEnd.xyz /= rayEnd.w;
 
             vec3 rayDir = normalize(rayEnd.xyz - rayOrigin.xyz);
+            vec3 rayColor = vec3(1.0);
 
-            vec3 sampleColor = vec3(1.0);
             for (uint j = 0; j <= RAY_BOUNCES; j++) {
-                // Break if the final bounce has not hit any light source
-                if ((RAY_BOUNCES > 0) && (j == RAY_BOUNCES)) {
+                if (j == RAY_BOUNCES) {
+                    rayColor = vec3(0.0);
                     break;
                 }
 
@@ -67,9 +69,9 @@ void main() {
                     0               // payload (location = 0)
                 );
 
-                sampleColor *= rayPayload.color;
+                rayColor *= rayPayload.color;
 
-                if (rayPayload.distance < 0) {				
+                if (rayPayload.distance < 0 || !rayPayload.isScattered) {
                     break;
                 }
 
@@ -77,12 +79,34 @@ void main() {
                 rayDir = rayPayload.scatterDir;
             }
 
-            color += sampleColor;
+            color += rayColor;
         }
     }
 
-    color /= SAMPLES_PER_PIXEL;
-    color = pow(color, vec3(1.0/2.2));
+    vec3 accumulatedColor = color;
+    // NOTE: When accumulation is reset, we set totalSamplesPerPixel to
+    // samplesPerPixel from CPU-side, so this condition will only ever
+    // be false the first time.
+    if (g_PushConstants.totalSamplesPerPixel != g_PushConstants.samplesPerPixel) {
+        accumulatedColor += imageLoad(
+            g_RWTexturesRGBA8[g_PushConstants.rtAccumulationIndex],
+            ivec2(gl_LaunchIDEXT.xy)
+        ).rgb;
+    }
+
+    color = accumulatedColor / g_PushConstants.totalSamplesPerPixel;
+
+    imageStore(
+        g_RWTexturesRGBA8[g_PushConstants.rtAccumulationIndex],
+        ivec2(gl_LaunchIDEXT.xy),
+        vec4(accumulatedColor, 1.0)
+    );
+
+    // Get display color
+	color = accumulatedColor / g_PushConstants.totalSamplesPerPixel;
+	// Gamma correction
+	color = sqrt(color);
+
     imageStore(
         g_RWTexturesRGBA8[g_PushConstants.rtImageIndex],
         ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y),

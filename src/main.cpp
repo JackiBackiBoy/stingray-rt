@@ -60,10 +60,10 @@ GLOBAL_VARIABLE std::unique_ptr<Scene> g_Scene = {};
 // Resources
 GLOBAL_VARIABLE Texture g_DefaultAlbedoMap = {};
 GLOBAL_VARIABLE Texture g_DefaultNormalMap = {};
-GLOBAL_VARIABLE Asset g_CubeModel = {};
 GLOBAL_VARIABLE Asset g_TestTexture = {};
 GLOBAL_VARIABLE Asset g_SponzaModel = {};
 GLOBAL_VARIABLE Asset g_PlaneModel = {};
+GLOBAL_VARIABLE Asset g_LucyModel = {};
 GLOBAL_VARIABLE std::unique_ptr<Model> g_Sphere = {};
 
 // Callbacks
@@ -260,12 +260,14 @@ INTERNAL void init_render_graph() {
 
 	auto rtPass = g_RenderGraph->add_pass("RayTracingPass");
 	rtPass->add_output_attachment("RTOutput", AttachmentInfo{ uWidth, uHeight, AttachmentType::RW_TEXTURE, Format::R8G8B8A8_UNORM });
+	rtPass->add_output_attachment("RTAccumulation", AttachmentInfo{ uWidth, uHeight, AttachmentType::RW_TEXTURE, Format::R32G32B32A32_FLOAT });
 	rtPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
 		g_RayTracingPass->execute(executeInfo, *g_Scene);
 	});
 
 	auto fullscreenTriPass = g_RenderGraph->add_pass("FullScreenTriPass");
 	fullscreenTriPass->add_input_attachment("RTOutput");
+	fullscreenTriPass->add_input_attachment("RTAccumulation");
 	fullscreenTriPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
 		g_FullscreenTriPass->execute(executeInfo);
 	});
@@ -282,9 +284,9 @@ INTERNAL void init_objects() {
 	g_Scene = std::make_unique<Scene>(*g_GfxDevice);
 
 	assetmanager::initialize(*g_GfxDevice);
-	assetmanager::load_from_file(g_CubeModel, "models/cube/cube.gltf");
 	assetmanager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
-	g_Sphere = assetmanager::create_sphere(1.0f, 32, 64);
+	assetmanager::load_from_file(g_LucyModel, "models/lucy/lucy.gltf");
+	g_Sphere = assetmanager::create_sphere(1.5f, 32, 64);
 
 	g_Camera = std::make_unique<Camera>(
 		glm::vec3(0, 3.0f, -4.0f),
@@ -298,37 +300,57 @@ INTERNAL void init_objects() {
 	// Entities
 	ecs::initialize();
 
+	const entity_id light = g_Scene->add_entity("Light");
+	ecs::add_component<Renderable>(light, Renderable{ g_PlaneModel.get_model() });
+	ecs::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
+	ecs::get_component<Transform>(light)->scale = 3.0f * glm::vec3(1.0f);
+	ecs::get_component<Material>(light)->color = 20.0f * glm::vec3(1.0f);
+	ecs::get_component<Material>(light)->materialType = Material::Type::DIFFUSE_LIGHT;
+
 	const entity_id sphere = g_Scene->add_entity("Sphere");
 	ecs::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
-	ecs::get_component<Transform>(sphere)->position = { -0.1f, 1.5f, 0.0f };
-	ecs::get_component<Material>(sphere)->color = { 0.0f, 0.0f, 1.0f };
+	ecs::get_component<Transform>(sphere)->position = { -2.0f, 1.5f, -2.0f };
+	ecs::get_component<Material>(sphere)->color = { 1.0f, 1.0f, 1.0f };
 
-	entity_id plane = g_Scene->add_entity("Plane");
-	ecs::add_component<Renderable>(plane, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(plane)->position = { 0.0f, 0.0f, 0.0f };
-	ecs::get_component<Transform>(plane)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(plane)->color = { 1.0f, 1.0f, 1.0f };
+	const entity_id lucy = g_Scene->add_entity("Lucy");
+	ecs::add_component<Renderable>(lucy, Renderable{ g_LucyModel.get_model() });
+	ecs::get_component<Transform>(lucy)->position = { 1.0f, 0.0f, 2.0f };
+	ecs::get_component<Transform>(lucy)->scale = glm::vec3(2.0f);
+	ecs::get_component<Transform>(lucy)->orientation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ecs::get_component<Material>(lucy)->color = { 1.0f, 1.0f, 1.0f };
 
-	entity_id backWall = g_Scene->add_entity("Back Wall");
+	const entity_id floor = g_Scene->add_entity("Floor");
+	ecs::add_component<Renderable>(floor, Renderable{ g_PlaneModel.get_model() });
+	ecs::get_component<Transform>(floor)->position = { 0.0f, 0.0f, 0.0f };
+	ecs::get_component<Transform>(floor)->scale = glm::vec3(10.0f);
+	ecs::get_component<Material>(floor)->color = { 0.5f, 0.5f, 0.5f };
+
+	const entity_id backWall = g_Scene->add_entity("Back Wall");
 	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
 	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
 	ecs::get_component<Transform>(backWall)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(backWall)->color = { 1.0f, 1.0f, 1.0f };
+	ecs::get_component<Material>(backWall)->color = { 0.5f, 0.5f, 0.5f };
 
-	entity_id leftWall = g_Scene->add_entity("Left Wall");
+	const entity_id leftWall = g_Scene->add_entity("Left Wall");
 	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(leftWall)->position = { -5.0f, 5.0f, 0.0f };
 	ecs::get_component<Transform>(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
 	ecs::get_component<Transform>(leftWall)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(leftWall)->color = { 1.0f, 0.0f, 0.0f };
+	ecs::get_component<Material>(leftWall)->color = { 0.6f, 0.0f, 0.0f };
 
-	entity_id rightWall = g_Scene->add_entity("Right Wall");
+	const entity_id rightWall = g_Scene->add_entity("Right Wall");
 	ecs::add_component<Renderable>(rightWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(rightWall)->position = { 5.0f, 5.0f, 0.0f };
 	ecs::get_component<Transform>(rightWall)->orientation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
 	ecs::get_component<Transform>(rightWall)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(rightWall)->color = { 0.0f, 1.0f, 0.0f };
+	ecs::get_component<Material>(rightWall)->color = { 0.0f, 0.6f, 0.0f };
+
+	const entity_id ceiling = g_Scene->add_entity("Ceiling");
+	ecs::add_component<Renderable>(ceiling, Renderable{ g_PlaneModel.get_model() });
+	ecs::get_component<Transform>(ceiling)->position = { 0.0f, 10.0f, 0.0f };
+	ecs::get_component<Transform>(ceiling)->scale = glm::vec3(10.0f);
+	ecs::get_component<Material>(ceiling)->color = { 1.0f, 1.0f, 1.0f };
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {

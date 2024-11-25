@@ -18,8 +18,11 @@ public:
 private:
 	struct PushConstant {
 		uint32_t frameIndex;
+		uint32_t rtAccumulationIndex;
 		uint32_t rtImageIndex;
 		uint32_t sceneDescBufferIndex;
+		uint32_t samplesPerPixel;
+		uint32_t totalSamplesPerPixel;
 	} m_PushConstant = {};
 
 	struct Object {
@@ -48,4 +51,7 @@ private:
 	std::vector<Object> m_SceneDescBufferData = {};
 	Buffer m_MaterialBuffer = {};
 	std::vector<Material> m_MaterialBufferData = {};
+
+	uint32_t m_SamplesPerPixel = 8;
+	uint32_t m_TotalSamplesPerPixel = m_SamplesPerPixel;
 };

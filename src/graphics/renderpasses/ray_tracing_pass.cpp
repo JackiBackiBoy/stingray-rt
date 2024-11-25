@@ -174,14 +174,25 @@ void RayTracingPass::build_acceleration_structures(const CommandList& cmdList) {
 }
 
 void RayTracingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
+	static Camera lastCamera = *executeInfo.frameInfo->camera;
+
+	// Reset accumulation if camera has moved
+	if (executeInfo.frameInfo->camera->getViewMatrix() != lastCamera.getViewMatrix()) {
+		m_TotalSamplesPerPixel = m_SamplesPerPixel; // reset accumulation
+	}
+
 	const CommandList& cmdList = *executeInfo.cmdList;
 	RenderGraph& renderGraph = *executeInfo.renderGraph;
 
 	auto rtOutput = renderGraph.get_attachment("RTOutput");
+	auto rtAccumulation = renderGraph.get_attachment("RTAccumulation");
 
 	m_PushConstant.frameIndex = m_GfxDevice.get_frame_index();
+	m_PushConstant.rtAccumulationIndex = m_GfxDevice.get_descriptor_index(rtAccumulation->texture, SubresourceType::UAV);
 	m_PushConstant.rtImageIndex = m_GfxDevice.get_descriptor_index(rtOutput->texture, SubresourceType::UAV);
 	m_PushConstant.sceneDescBufferIndex = m_GfxDevice.get_descriptor_index(m_SceneDescBuffer, SubresourceType::SRV);
+	m_PushConstant.samplesPerPixel = m_SamplesPerPixel;
+	m_PushConstant.totalSamplesPerPixel = m_TotalSamplesPerPixel;
 
 	m_GfxDevice.bind_rt_pipeline(m_RTPipeline, cmdList);
 	m_GfxDevice.push_rt_constants(&m_PushConstant, sizeof(m_PushConstant), m_RTPipeline, cmdList);
@@ -195,4 +206,8 @@ void RayTracingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 	};
 
 	m_GfxDevice.dispatch_rays(dispatchInfo, cmdList);
+
+	m_TotalSamplesPerPixel += m_SamplesPerPixel;
+
+	lastCamera = *executeInfo.frameInfo->camera;
 }

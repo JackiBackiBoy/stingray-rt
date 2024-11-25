@@ -7,6 +7,7 @@
 
 #include "includes/bindless.glsl"
 #include "includes/geometry_types.glsl"
+#include "includes/material.glsl"
 #include "includes/ray_payload.glsl"
 #include "includes/ray_tracing_math.glsl"
 
@@ -14,11 +15,6 @@ struct Object {
 	uint64_t verticesBDA;
 	uint64_t indicesBDA;
 	uint64_t materialsBDA;
-};
-
-struct Material {
-    vec3 color;
-    float refractiveIndex;
 };
 
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
@@ -30,22 +26,47 @@ layout (set = BINDLESS_DESCRIPTOR_SET, binding = BINDLESS_SSBOS_BINDING) readonl
 
 layout (push_constant) uniform constants {
     uint frameIndex;
+    uint rtAccumulationIndex;
     uint rtImageIndex;
     uint sceneDescBufferIndex;
+    uint samplesPerPixel;
+    uint totalSamplesPerPixel;
 } g_PushConstants;
 
 layout (location = 0) rayPayloadInEXT RayPayload rayPayload;
 hitAttributeEXT vec3 attribs;
 
-RayPayload scatter(Vertex vtx, Material mat, uint rngSeed) {
+RayPayload scatter_lambertian(Material mat, vec3 direction, vec3 normal, vec2 uv, float t, inout uint rngSeed) {
     RayPayload payload;
-    payload.distance = gl_HitTEXT;
-
     payload.color = mat.color;
-    payload.scatterDir = vtx.normal + rand_cos_hemisphere_dir(rngSeed);
+    payload.distance = t;
+    payload.scatterDir = normal + RandomInUnitSphere(rngSeed);
+    payload.isScattered = dot(direction, normal) < 0; // NOTE: Always true for Lambertian materials
     payload.rngSeed = rngSeed;
 
     return payload;
+}
+
+RayPayload scatter_diffuse_light(Material mat, float t, inout uint rngSeed) {
+    RayPayload payload;
+    payload.color = mat.color;
+    payload.distance = t;
+    payload.scatterDir = vec3(1, 0, 0);
+    payload.isScattered = false; // Always false for diffuse light materials
+    payload.rngSeed = rngSeed;
+
+    return payload;
+}
+
+RayPayload scatter(Material mat, vec3 dir, vec3 normal, vec2 uv, float t, inout uint rngSeed) {
+    const vec3 normDir = normalize(dir);
+
+    switch (mat.materialType) {
+    case MATERIAL_TYPE_LAMBERTIAN:
+        return scatter_lambertian(mat, normDir, normal, uv, t, rngSeed);
+    case MATERIAL_TYPE_DIFFUSE_LIGHT:
+        return scatter_diffuse_light(mat, t, rngSeed);
+    }
 }
 
 void main() {
@@ -65,5 +86,6 @@ void main() {
     Materials mats = Materials(obj.materialsBDA);
     Material mat = mats.m[gl_InstanceCustomIndexEXT];
 
-    rayPayload = scatter(hitVtx, mat, rayPayload.rngSeed);
+    // Scattering
+    rayPayload = scatter(mat, gl_WorldRayDirectionEXT, hitVtx.normal, hitVtx.uv, gl_HitTEXT, rayPayload.rngSeed);
 }

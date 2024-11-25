@@ -23,10 +23,10 @@ void FullscreenTriPass::execute(PassExecuteInfo& executeInfo) {
 	const CommandList& cmdList = *executeInfo.cmdList;
 	RenderGraph& renderGraph = *executeInfo.renderGraph;
 
-	auto rtOutput = renderGraph.get_attachment("RTOutput");
+	auto rtAccumulation = renderGraph.get_attachment("RTOutput");
 
 	// Rendering
-	m_PushConstant.texIndex = m_GfxDevice.get_descriptor_index(rtOutput->texture, SubresourceType::SRV);
+	m_PushConstant.texIndex = m_GfxDevice.get_descriptor_index(rtAccumulation->texture, SubresourceType::SRV);
 
 	m_GfxDevice.bind_pipeline(m_Pipeline, cmdList);
 	m_GfxDevice.push_constants(&m_PushConstant, sizeof(m_PushConstant), cmdList);
