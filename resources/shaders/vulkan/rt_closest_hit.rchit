@@ -36,6 +36,7 @@ layout (push_constant) uniform constants {
 layout (location = 0) rayPayloadInEXT RayPayload rayPayload;
 hitAttributeEXT vec3 attribs;
 
+// ----------------------------- Scatter Functions -----------------------------
 RayPayload scatter_lambertian(Material mat, vec3 direction, vec3 normal, vec2 uv, float t, inout uint rngSeed) {
     RayPayload payload;
     payload.color = mat.color;
@@ -54,6 +55,12 @@ RayPayload scatter_diffuse_light(Material mat, float t, inout uint rngSeed) {
     payload.scatterDir = vec3(1, 0, 0);
     payload.isScattered = false; // Always false for diffuse light materials
     payload.rngSeed = rngSeed;
+
+    return payload;
+}
+
+RayPayload scatter_metallic(Material mat, float t, inout uint rngSeed) {
+    RayPayload payload;
 
     return payload;
 }
