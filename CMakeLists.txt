@@ -36,8 +36,6 @@ set(SOURCE_FILES
     ${SOURCE_DIR}/main.cpp
     ${SOURCE_DIR}/platform.h
 	${SOURCE_DIR}/frame_info.h
-	${SOURCE_DIR}/editor.cpp
-	${SOURCE_DIR}/editor.h
 
 	# Data
 	${SOURCE_DIR}/data/camera.cpp
@@ -62,8 +60,6 @@ set(SOURCE_FILES
     ${SOURCE_DIR}/graphics/gfx_types.h
 	${SOURCE_DIR}/graphics/render_graph.cpp
 	${SOURCE_DIR}/graphics/render_graph.h
-	${SOURCE_DIR}/graphics/renderer_3d.cpp
-	${SOURCE_DIR}/graphics/renderer_3d.h
 
 	# Math
 	${SOURCE_DIR}/math/sr_math.h
