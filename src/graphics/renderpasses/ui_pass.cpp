@@ -212,6 +212,7 @@ bool UIPass::widget_slider_float(const std::string& text, float* value, float mi
 	assert(value != nullptr);
 	assert(min < max);
 
+	bool ret = false;
 	calc_cursor_origin();
 
 	const int trackHeight = m_DefaultFont->boundingBoxHeight + UI_PADDING * 2;
@@ -246,7 +247,13 @@ bool UIPass::widget_slider_float(const std::string& text, float* value, float mi
 
 			const int innerTrackRelMouseX = std::min(mouse.position.x - m_CursorOrigin.x - 1 - UI_WIDGET_SLIDER_HANDLE_WIDTH / 2, m_CursorOrigin.x + 1 + innerTrackWidth - UI_WIDGET_SLIDER_HANDLE_WIDTH / 2);
 			const float percentage = std::clamp((float)innerTrackRelMouseX / (innerTrackWidth - UI_WIDGET_SLIDER_HANDLE_WIDTH), 0.0f, 1.0f);
-			*value = min + fabsf(max - min) * percentage;
+			const float newValue = min + fabsf(max - min) * percentage;
+
+			if (newValue != *value) {
+				ret = true; // indicate that variable has changed
+			}
+
+			*value = newValue;
 		}
 	}
 
@@ -260,10 +267,13 @@ bool UIPass::widget_slider_float(const std::string& text, float* value, float mi
 				m_CursorOrigin.y + 1 }, UI_WIDGET_SLIDER_HANDLE_WIDTH, handleHeight, UI_WIDGET_ACCENT_COL);
 	draw_text(m_CursorOrigin + glm::vec2(UI_WIDGET_SLIDER_WIDTH / 2, trackHeight / 2), std::to_string(*value), UIPosFlag::HCENTER | UIPosFlag::VCENTER);
 
+	// Label
+	draw_text(m_CursorOrigin + glm::vec2(UI_WIDGET_SLIDER_WIDTH + UI_PADDING, trackHeight / 2), text, UIPosFlag::VCENTER);
+
 	m_LastCursorOriginDelta.x = state.width; + UI_PADDING;
 	m_LastCursorOriginDelta.y = state.height + UI_PADDING;
 
-	return false;
+	return ret;
 }
 
 void UIPass::widget_text_input(const std::string& label, std::string& buffer) {

@@ -291,7 +291,7 @@ INTERNAL void init_objects() {
 	g_Camera = std::make_unique<Camera>(
 		glm::vec3(0, 3.0f, -4.0f),
 		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-		glm::radians(60.0f),
+		60.0f,
 		(float)g_FrameWidth / g_FrameHeight,
 		0.1f,
 		100.0f
@@ -305,19 +305,23 @@ INTERNAL void init_objects() {
 	ecs::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
 	ecs::get_component<Transform>(light)->scale = 3.0f * glm::vec3(1.0f);
 	ecs::get_component<Material>(light)->color = 20.0f * glm::vec3(1.0f);
-	ecs::get_component<Material>(light)->materialType = Material::Type::DIFFUSE_LIGHT;
+	ecs::get_component<Material>(light)->type = Material::Type::DIFFUSE_LIGHT;
 
 	const entity_id sphere = g_Scene->add_entity("Sphere");
 	ecs::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
 	ecs::get_component<Transform>(sphere)->position = { -2.0f, 1.5f, -2.0f };
 	ecs::get_component<Material>(sphere)->color = { 1.0f, 1.0f, 1.0f };
+	ecs::get_component<Material>(sphere)->roughness = 0.3f;
+	ecs::get_component<Material>(sphere)->type = Material::Type::METAL;
 
 	const entity_id lucy = g_Scene->add_entity("Lucy");
 	ecs::add_component<Renderable>(lucy, Renderable{ g_LucyModel.get_model() });
 	ecs::get_component<Transform>(lucy)->position = { 1.0f, 0.0f, 2.0f };
 	ecs::get_component<Transform>(lucy)->scale = glm::vec3(2.0f);
 	ecs::get_component<Transform>(lucy)->orientation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ecs::get_component<Material>(lucy)->type = Material::Type::METAL;
 	ecs::get_component<Material>(lucy)->color = { 1.0f, 1.0f, 1.0f };
+	ecs::get_component<Material>(lucy)->roughness = 0.3f;
 
 	const entity_id floor = g_Scene->add_entity("Floor");
 	ecs::add_component<Renderable>(floor, Renderable{ g_PlaneModel.get_model() });
@@ -330,7 +334,7 @@ INTERNAL void init_objects() {
 	ecs::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
 	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
 	ecs::get_component<Transform>(backWall)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(backWall)->color = { 0.5f, 0.5f, 0.5f };
+	ecs::get_component<Material>(backWall)->color = { 1.0f, 1.0f, 1.0f };
 
 	const entity_id leftWall = g_Scene->add_entity("Left Wall");
 	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get_model() });
@@ -358,6 +362,12 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 	g_UIPass->widget_slider_float("Sun Direction X", &g_Scene->m_SunDirection.x, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Y", &g_Scene->m_SunDirection.y, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Z", &g_Scene->m_SunDirection.z, -1.0f, 1.0f);
+	
+	// Camera settings
+	LOCAL_PERSIST float fov = g_Camera->get_vertical_fov();
+	if (g_UIPass->widget_slider_float("FOV", &fov, 10.0f, 110.0f)) {
+		g_Camera->set_vertical_fov(fov);
+	}
 
 	// Input
 	input::update();
@@ -369,7 +379,7 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 	const float mouseSensitivity = 0.001f;
 
 	if (mouse.buttons[2]) {
-		glm::quat newOrientation = camera.getOrientation();
+		glm::quat newOrientation = camera.get_orientation();
 
 		if (mouse.deltaY != 0.0f) {
 			newOrientation = newOrientation * glm::angleAxis(mouse.deltaY * mouseSensitivity, glm::vec3(1.0f, 0.0f, 0.0f)); // pitch
@@ -379,14 +389,14 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 			newOrientation = glm::angleAxis(mouse.deltaX * mouseSensitivity, glm::vec3(0.0f, 1.0f, 0.0f)) * newOrientation; // yaw
 		}
 
-		camera.setOrientation(newOrientation);
+		camera.set_orientation(newOrientation);
 	}
 
-	const glm::vec3 qRight = camera.getRight();
-	const glm::vec3 qUp = camera.getUp();
-	const glm::vec3 qForward = camera.getForward();
+	const glm::vec3 qRight = camera.get_right();
+	const glm::vec3 qUp = camera.get_up();
+	const glm::vec3 qForward = camera.get_forward();
 
-	glm::vec3 newPosition = camera.getPosition();
+	glm::vec3 newPosition = camera.get_position();
 
 	if (input::is_key_down(GLFW_KEY_W)) {
 		newPosition += qForward * cameraMoveSpeed * frameInfo.dt;
@@ -408,17 +418,17 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 		newPosition.y -= cameraMoveSpeed * frameInfo.dt;
 	}
 
-	camera.setPosition(newPosition);
+	camera.set_position(newPosition);
 
 	const float aspectRatio = static_cast<float>(g_FrameWidth) / g_FrameHeight;
-	camera.setAspectRatio(aspectRatio);
+	camera.set_aspect_ratio(aspectRatio);
 
 	camera.update();
 
-	g_PerFrameData.projectionMatrix = camera.getProjMatrix();
-	g_PerFrameData.viewMatrix = camera.getViewMatrix();
-	g_PerFrameData.invViewProjection = camera.getInvViewProjMatrix();
-	g_PerFrameData.cameraPosition = camera.getPosition();
+	g_PerFrameData.projectionMatrix = camera.get_proj_matrix();
+	g_PerFrameData.viewMatrix = camera.get_view_matrix();
+	g_PerFrameData.invViewProjection = camera.get_inv_view_proj_matrix();
+	g_PerFrameData.cameraPosition = camera.get_position();
 
 	std::memcpy(g_PerFrameDataBuffers[g_GfxDevice->get_frame_index()].mappedData, &g_PerFrameData, sizeof(g_PerFrameData));
 }

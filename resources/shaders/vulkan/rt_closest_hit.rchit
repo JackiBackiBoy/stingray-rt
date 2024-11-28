@@ -41,7 +41,7 @@ RayPayload scatter_lambertian(Material mat, vec3 direction, vec3 normal, vec2 uv
     RayPayload payload;
     payload.color = mat.color;
     payload.distance = t;
-    payload.scatterDir = normal + RandomInUnitSphere(rngSeed);
+    payload.scatterDir = normal + RandomInUnitSphere(rngSeed); // TODO: This might be zero (or very near zero)
     payload.isScattered = dot(direction, normal) < 0; // NOTE: Always true for Lambertian materials
     payload.rngSeed = rngSeed;
 
@@ -59,8 +59,16 @@ RayPayload scatter_diffuse_light(Material mat, float t, inout uint rngSeed) {
     return payload;
 }
 
-RayPayload scatter_metallic(Material mat, float t, inout uint rngSeed) {
+RayPayload scatter_metallic(Material mat, vec3 dir, vec3 normal, float t, inout uint rngSeed) {
     RayPayload payload;
+    payload.color = mat.color;
+    payload.distance = t;
+    
+    vec3 diffuseDir = normal + RandomInUnitSphere(rngSeed);
+    vec3 reflectDir = reflect(dir, normal);
+    payload.scatterDir = mix(reflectDir, diffuseDir, mat.roughness);
+    payload.isScattered = true;
+    payload.rngSeed = rngSeed;
 
     return payload;
 }
@@ -68,11 +76,13 @@ RayPayload scatter_metallic(Material mat, float t, inout uint rngSeed) {
 RayPayload scatter(Material mat, vec3 dir, vec3 normal, vec2 uv, float t, inout uint rngSeed) {
     const vec3 normDir = normalize(dir);
 
-    switch (mat.materialType) {
+    switch (mat.type) {
     case MATERIAL_TYPE_LAMBERTIAN:
         return scatter_lambertian(mat, normDir, normal, uv, t, rngSeed);
     case MATERIAL_TYPE_DIFFUSE_LIGHT:
         return scatter_diffuse_light(mat, t, rngSeed);
+    case MATERIAL_TYPE_METAL:
+        return scatter_metallic(mat, normDir, normal, t, rngSeed);
     }
 }
 

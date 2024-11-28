@@ -19,11 +19,13 @@ struct Renderable {
 };
 
 struct Material {
-	enum Type {
+	enum Type : uint32_t {
 		LAMBERTIAN = 0,
 		DIFFUSE_LIGHT = 1,
+		METAL = 2,
 	};
 
 	glm::vec3 color = { 1.0f, 1.0f, 1.0f };
-	uint32_t materialType = Type::LAMBERTIAN;
+	uint32_t type = Type::LAMBERTIAN;
+	float roughness = 1.0f;
 };

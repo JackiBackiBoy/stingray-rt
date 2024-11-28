@@ -335,9 +335,9 @@ void GFXDevice_Vulkan::Impl::create_instance() {
 	const VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext = nullptr,
-		.pApplicationName = "Engine",
+		.pApplicationName = "Stingray",
 		.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
-		.pEngineName = "Engine",
+		.pEngineName = "Stingray",
 		.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
 		.apiVersion = VK_API_VERSION_1_3
 	};

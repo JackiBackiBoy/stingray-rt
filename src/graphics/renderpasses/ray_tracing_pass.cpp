@@ -177,7 +177,8 @@ void RayTracingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 	static Camera lastCamera = *executeInfo.frameInfo->camera;
 
 	// Reset accumulation if camera has moved
-	if (executeInfo.frameInfo->camera->getViewMatrix() != lastCamera.getViewMatrix()) {
+	if (executeInfo.frameInfo->camera->get_view_matrix() != lastCamera.get_view_matrix() ||
+		executeInfo.frameInfo->camera->get_proj_matrix() != lastCamera.get_proj_matrix()) {
 		m_TotalSamplesPerPixel = m_SamplesPerPixel; // reset accumulation
 	}
 

@@ -14,11 +14,11 @@ Camera::Camera(const glm::vec3& position, const glm::quat& orientation, float ve
 
 void Camera::update() noexcept {
 	if (m_UpdateViewMatrix) {
-		updateViewMatrix();
+		update_view_matrix();
 	}
 
 	if (m_UpdateProjMatrix) {
-		updateProjMatrix();
+		update_proj_matrix();
 	}
 
 	if (m_UpdateViewMatrix || m_UpdateProjMatrix) {
@@ -29,7 +29,7 @@ void Camera::update() noexcept {
 	m_UpdateProjMatrix = false;
 }
 
-void Camera::setPosition(const glm::vec3& position) noexcept {
+void Camera::set_position(const glm::vec3& position) noexcept {
 	if (position == m_Position) {
 		return;
 	}
@@ -38,7 +38,7 @@ void Camera::setPosition(const glm::vec3& position) noexcept {
 	m_Position = position;
 }
 
-void Camera::setOrientation(const glm::quat& orientation) noexcept {
+void Camera::set_orientation(const glm::quat& orientation) noexcept {
 	if (orientation == m_Orientation) {
 		return;
 	}
@@ -51,7 +51,7 @@ void Camera::setOrientation(const glm::quat& orientation) noexcept {
 	m_Forward = glm::normalize(m_Orientation * LH_BASIS_FORWARD);
 }
 
-void Camera::setVerticalFOV(float fov) noexcept {
+void Camera::set_vertical_fov(float fov) noexcept {
 	if (fov == m_VerticalFOV) {
 		return;
 	}
@@ -60,7 +60,7 @@ void Camera::setVerticalFOV(float fov) noexcept {
 	m_VerticalFOV = fov;
 }
 
-void Camera::setAspectRatio(float aspectRatio) noexcept {
+void Camera::set_aspect_ratio(float aspectRatio) noexcept {
 	if (aspectRatio == m_AspectRatio) {
 		return;
 	}
@@ -69,10 +69,10 @@ void Camera::setAspectRatio(float aspectRatio) noexcept {
 	m_AspectRatio = aspectRatio;
 }
 
-void Camera::updateViewMatrix() {
+void Camera::update_view_matrix() {
 	m_ViewMatrix = glm::lookAt(m_Position, m_Position + m_Forward, m_Up);
 }
 
-void Camera::updateProjMatrix() {
-	m_ProjMatrix = glm::perspective(m_VerticalFOV, m_AspectRatio, m_ZNear, m_ZFar);
+void Camera::update_proj_matrix() {
+	m_ProjMatrix = glm::perspective(glm::radians(m_VerticalFOV), m_AspectRatio, m_ZNear, m_ZFar);
 }
