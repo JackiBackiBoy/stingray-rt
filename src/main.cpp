@@ -267,7 +267,6 @@ INTERNAL void init_render_graph() {
 
 	auto fullscreenTriPass = g_RenderGraph->add_pass("FullScreenTriPass");
 	fullscreenTriPass->add_input_attachment("RTOutput");
-	fullscreenTriPass->add_input_attachment("RTAccumulation");
 	fullscreenTriPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
 		g_FullscreenTriPass->execute(executeInfo);
 	});
@@ -311,7 +310,7 @@ INTERNAL void init_objects() {
 	ecs::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
 	ecs::get_component<Transform>(sphere)->position = { -2.0f, 1.5f, -2.0f };
 	ecs::get_component<Material>(sphere)->color = { 1.0f, 1.0f, 1.0f };
-	ecs::get_component<Material>(sphere)->roughness = 0.3f;
+	ecs::get_component<Material>(sphere)->roughness = 0.0f;
 	ecs::get_component<Material>(sphere)->type = Material::Type::METAL;
 
 	const entity_id lucy = g_Scene->add_entity("Lucy");
@@ -334,7 +333,9 @@ INTERNAL void init_objects() {
 	ecs::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
 	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
 	ecs::get_component<Transform>(backWall)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(backWall)->color = { 1.0f, 1.0f, 1.0f };
+	ecs::get_component<Material>(backWall)->color = { 0.7f, 0.7f, 1.0f };
+	ecs::get_component<Material>(backWall)->type = Material::Type::METAL;
+	ecs::get_component<Material>(backWall)->roughness = 0.0f;
 
 	const entity_id leftWall = g_Scene->add_entity("Left Wall");
 	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get_model() });
@@ -358,10 +359,25 @@ INTERNAL void init_objects() {
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
+	// Menu bar
+
 	// UI
 	g_UIPass->widget_slider_float("Sun Direction X", &g_Scene->m_SunDirection.x, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Y", &g_Scene->m_SunDirection.y, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Z", &g_Scene->m_SunDirection.z, -1.0f, 1.0f);
+
+	LOCAL_PERSIST uint32_t samplesPerPixelRoot = 1;
+	g_UIPass->widget_text("Path Tracing:");
+
+	if (g_UIPass->widget_button("<") && samplesPerPixelRoot > 1) {
+		--samplesPerPixelRoot;
+	}
+	g_UIPass->widget_same_line();
+	g_UIPass->widget_text(std::to_string(samplesPerPixelRoot * samplesPerPixelRoot));
+	g_UIPass->widget_same_line();
+	if (g_UIPass->widget_button(">")) {
+		++samplesPerPixelRoot;
+	}
 	
 	// Camera settings
 	LOCAL_PERSIST float fov = g_Camera->get_vertical_fov();
