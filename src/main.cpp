@@ -311,22 +311,23 @@ INTERNAL void init_objects() {
 	ecs::get_component<Transform>(sphere)->position = { -2.0f, 1.5f, -2.0f };
 	ecs::get_component<Material>(sphere)->color = { 1.0f, 1.0f, 1.0f };
 	ecs::get_component<Material>(sphere)->roughness = 0.0f;
-	ecs::get_component<Material>(sphere)->type = Material::Type::METAL;
+	ecs::get_component<Material>(sphere)->metallic = 1.0f;
 
 	const entity_id lucy = g_Scene->add_entity("Lucy");
 	ecs::add_component<Renderable>(lucy, Renderable{ g_LucyModel.get_model() });
 	ecs::get_component<Transform>(lucy)->position = { 1.0f, 0.0f, 2.0f };
 	ecs::get_component<Transform>(lucy)->scale = glm::vec3(2.0f);
 	ecs::get_component<Transform>(lucy)->orientation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	ecs::get_component<Material>(lucy)->type = Material::Type::METAL;
 	ecs::get_component<Material>(lucy)->color = { 1.0f, 1.0f, 1.0f };
 	ecs::get_component<Material>(lucy)->roughness = 0.3f;
+	ecs::get_component<Material>(lucy)->metallic = 1.0f;
 
 	const entity_id floor = g_Scene->add_entity("Floor");
 	ecs::add_component<Renderable>(floor, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(floor)->position = { 0.0f, 0.0f, 0.0f };
 	ecs::get_component<Transform>(floor)->scale = glm::vec3(10.0f);
 	ecs::get_component<Material>(floor)->color = { 0.5f, 0.5f, 0.5f };
+	ecs::get_component<Material>(floor)->roughness = 0.03f;
 
 	const entity_id backWall = g_Scene->add_entity("Back Wall");
 	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get_model() });
@@ -334,8 +335,8 @@ INTERNAL void init_objects() {
 	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
 	ecs::get_component<Transform>(backWall)->scale = glm::vec3(10.0f);
 	ecs::get_component<Material>(backWall)->color = { 0.7f, 0.7f, 1.0f };
-	ecs::get_component<Material>(backWall)->type = Material::Type::METAL;
 	ecs::get_component<Material>(backWall)->roughness = 0.0f;
+	ecs::get_component<Material>(backWall)->metallic = 1.0f;
 
 	const entity_id leftWall = g_Scene->add_entity("Left Wall");
 	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get_model() });

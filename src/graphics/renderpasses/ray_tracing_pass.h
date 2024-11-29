@@ -52,6 +52,6 @@ private:
 	Buffer m_MaterialBuffer = {};
 	std::vector<Material> m_MaterialBufferData = {};
 
-	uint32_t m_SamplesPerPixel = 9;
+	uint32_t m_SamplesPerPixel = 4;
 	uint32_t m_TotalSamplesPerPixel = m_SamplesPerPixel;
 };

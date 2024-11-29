@@ -20,12 +20,15 @@ struct Renderable {
 
 struct Material {
 	enum Type : uint32_t {
-		LAMBERTIAN = 0,
+		NOT_DIFFUSE_LIGHT = 0,
 		DIFFUSE_LIGHT = 1,
-		METAL = 2,
 	};
 
 	glm::vec3 color = { 1.0f, 1.0f, 1.0f };
-	uint32_t type = Type::LAMBERTIAN;
+	uint32_t type = Type::NOT_DIFFUSE_LIGHT;
+	uint32_t albedoTexIndex = 0;
+	uint32_t normalTexIndex = 1;
+	float metallic = 0.0f; // 0 = dielectric, 1 = metallic
 	float roughness = 1.0f;
+	float ior = 1.45f;
 };
