@@ -27,3 +27,6 @@ Stingray is a real-time path tracer leveraging the Vulkan ray tracing pipeline. 
 - Dynamic scene support with rebuildable TLAS/BLAS.
 - Additional primitive support for path-traced scenes.
 - Extended rendering effects like caustics and volumetrics.
+
+# Acknowledgements
+- Pharr, Jakob, Humphreys, Physically Based Rendering - From Theory to Implementation
