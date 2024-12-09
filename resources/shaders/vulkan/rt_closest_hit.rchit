@@ -43,7 +43,7 @@ float schlick_fresnel(float cosTheta, float ior) {
     return r0 + (1.0 - r0) * pow(1.0 - cosTheta, 5);
 }
 
-RayPayload scatter_combined(Material mat, vec3 dir, vec3 normal, float t, inout uint rngSeed) {
+RayPayload scatter_combined(Material mat, vec3 dir, vec3 normal, vec2 uv, float t, inout uint rngSeed) {
     // dot(u, v) = ||u|| * ||v|| * cos(theta)
     // if ||u|| = ||v|| = 1 => dot(u, v) = cos(theta)
     // NOTE: We assume `dir` and `normal` to be normalized
@@ -56,8 +56,10 @@ RayPayload scatter_combined(Material mat, vec3 dir, vec3 normal, float t, inout 
     bool isSpecular = RandomFloat(rngSeed) < fresnel;
     vec3 scatterDir = isSpecular ? mix(reflectDir, diffuseDir, mat.roughness) : diffuseDir;
 
+    vec3 albedoTexColor = texture(sampler2D(g_Textures[mat.albedoTexIndex], g_Samplers[0]), uv).rgb;
+
     RayPayload payload;
-    payload.color = mat.color;
+    payload.color = mat.color * albedoTexColor;
     payload.distance = t;
     payload.scatterDir = scatterDir;
     payload.isScattered = true;
@@ -82,7 +84,7 @@ RayPayload scatter(Material mat, vec3 dir, vec3 normal, vec2 uv, float t, inout 
 
     switch (mat.type) {
     case MATERIAL_TYPE_NOT_DIFFUSE_LIGHT:
-        return scatter_combined(mat, normDir, normal, t, rngSeed);
+        return scatter_combined(mat, normDir, normal, uv, t, rngSeed);
     case MATERIAL_TYPE_DIFFUSE_LIGHT:
         return scatter_diffuse_light(mat, t, rngSeed);
     }

@@ -286,6 +286,7 @@ INTERNAL void init_objects() {
 	assetmanager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
 	assetmanager::load_from_file(g_LucyModel, "models/lucy/lucy.gltf");
 	g_Sphere = assetmanager::create_sphere(1.5f, 32, 64);
+	assetmanager::load_from_file(g_TestTexture, "textures/earth.jpg");
 
 	g_Camera = std::make_unique<Camera>(
 		glm::vec3(0, 3.0f, -4.0f),
@@ -310,8 +311,9 @@ INTERNAL void init_objects() {
 	ecs::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
 	ecs::get_component<Transform>(sphere)->position = { -2.0f, 1.5f, -2.0f };
 	ecs::get_component<Material>(sphere)->color = { 1.0f, 1.0f, 1.0f };
-	ecs::get_component<Material>(sphere)->roughness = 0.0f;
-	ecs::get_component<Material>(sphere)->metallic = 1.0f;
+	ecs::get_component<Material>(sphere)->roughness = 0.02f;
+	ecs::get_component<Material>(sphere)->metallic = 0.0f;
+	ecs::get_component<Material>(sphere)->albedoTexIndex = g_GfxDevice->get_descriptor_index(*g_TestTexture.get_texture(), SubresourceType::SRV);
 
 	const entity_id lucy = g_Scene->add_entity("Lucy");
 	ecs::add_component<Renderable>(lucy, Renderable{ g_LucyModel.get_model() });
@@ -327,7 +329,7 @@ INTERNAL void init_objects() {
 	ecs::get_component<Transform>(floor)->position = { 0.0f, 0.0f, 0.0f };
 	ecs::get_component<Transform>(floor)->scale = glm::vec3(10.0f);
 	ecs::get_component<Material>(floor)->color = { 0.5f, 0.5f, 0.5f };
-	ecs::get_component<Material>(floor)->roughness = 0.03f;
+	ecs::get_component<Material>(floor)->roughness = 0.001f;
 
 	const entity_id backWall = g_Scene->add_entity("Back Wall");
 	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get_model() });
@@ -360,13 +362,41 @@ INTERNAL void init_objects() {
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
-	// Menu bar
+	// ------------------------------- Main Menu -------------------------------
+	g_UIPass->begin_menu_bar(frameInfo.width);
+	{
+		// File menu
+		if (g_UIPass->begin_menu("File")) {
+			if (g_UIPass->menu_item("Load Scene")) {
+				std::cout << "Load Scene!\n";
+			}
+
+			g_UIPass->menu_item("Save Scene");
+			g_UIPass->menu_item("Save Scene As");
+		}
+		g_UIPass->end_menu();
+
+		// Edit menu
+		if (g_UIPass->begin_menu("Edit")) {
+			g_UIPass->menu_item("Preferences");
+		}
+		g_UIPass->end_menu();
+
+		// View menu
+		if (g_UIPass->begin_menu("View")) {
+			g_UIPass->menu_item("Renderpasses");
+		}
+		g_UIPass->end_menu();
+	}
+	g_UIPass->end_menu_bar();
 
 	// UI
 	g_UIPass->widget_slider_float("Sun Direction X", &g_Scene->m_SunDirection.x, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Y", &g_Scene->m_SunDirection.y, -1.0f, 1.0f);
 	g_UIPass->widget_slider_float("Sun Direction Z", &g_Scene->m_SunDirection.z, -1.0f, 1.0f);
 
+	// ------------------------- Path Tracing Settings -------------------------
+	// Samples per pixel (stratified sampling)
 	LOCAL_PERSIST uint32_t samplesPerPixelRoot = 1;
 	g_UIPass->widget_text("Path Tracing:");
 
@@ -374,11 +404,14 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 		--samplesPerPixelRoot;
 	}
 	g_UIPass->widget_same_line();
-	g_UIPass->widget_text(std::to_string(samplesPerPixelRoot * samplesPerPixelRoot));
+	g_UIPass->widget_text(std::to_string(samplesPerPixelRoot * samplesPerPixelRoot), 50);
 	g_UIPass->widget_same_line();
 	if (g_UIPass->widget_button(">")) {
 		++samplesPerPixelRoot;
 	}
+
+	g_UIPass->widget_same_line();
+	g_UIPass->widget_text("Samples Per Pixel (stratified)");
 	
 	// Camera settings
 	LOCAL_PERSIST float fov = g_Camera->get_vertical_fov();

@@ -16,6 +16,7 @@ struct DestructionHandler {
 	VkInstance instance = nullptr;
 	uint64_t frameCount = 0;
 
+	std::deque<std::pair<VkAccelerationStructureKHR, uint64_t>> accelerationStructures = {};
 	std::deque<std::pair<VkCommandPool, uint64_t>> commandPools = {};
 	std::deque<std::pair<VkDescriptorPool, uint64_t>> descriptorPools = {};
 	std::deque<std::pair<VkDescriptorSetLayout, uint64_t>> descriptorSetLayouts = {};
@@ -49,63 +50,67 @@ struct DestructionHandler {
 
 		destroy(semaphores, [&](auto& item) {
 			vkDestroySemaphore(device, item, nullptr);
-			});
+		});
 
 		destroy(fences, [&](auto& item) {
 			vkDestroyFence(device, item, nullptr);
-			});
+		});
 
 		destroy(commandPools, [&](auto& item) {
 			vkDestroyCommandPool(device, item, nullptr);
-			});
+		});
 
 		destroy(images, [&](auto& item) {
 			vkDestroyImage(device, item, nullptr);
-			});
+		});
 
 		destroy(imageViews, [&](auto& item) {
 			vkDestroyImageView(device, item, nullptr);
-			});
+		});
 
 		destroy(buffers, [&](auto& item) {
 			vkDestroyBuffer(device, item, nullptr);
-			});
+		});
+
+		destroy(accelerationStructures, [&](auto& item) {
+			vkDestroyAccelerationStructureKHR(device, item, nullptr);
+		});
 
 		destroy(allocations, [&](auto& item) {
 			vkFreeMemory(device, item, nullptr);
-			});
+		});
 
 		destroy(samplers, [&](auto& item) {
 			vkDestroySampler(device, item, nullptr);
-			});
+		});
 
 		destroy(descriptorPools, [&](auto& item) {
 			vkDestroyDescriptorPool(device, item, nullptr);
-			});
+		});
 
 		destroy(descriptorSetLayouts, [&](auto& item) {
 			vkDestroyDescriptorSetLayout(device, item, nullptr);
-			});
+		});
 
 		destroy(shaderModules, [&](auto& item) {
 			vkDestroyShaderModule(device, item, nullptr);
-			});
+		});
 
 		destroy(pipelines, [&](auto& item) {
 			vkDestroyPipeline(device, item, nullptr);
-			});
+		});
 
 		destroy(pipelineLayouts, [&](auto& item) {
 			vkDestroyPipelineLayout(device, item, nullptr);
-			});
+		});
 
 		destroy(swapchains, [&](auto& item) {
 			vkDestroySwapchainKHR(device, item, nullptr);
-			});
+		});
 
 		destroy(surfaces, [&](auto& item) {
 			vkDestroySurfaceKHR(instance, item, nullptr);
-			});
+		});
 
 		this->frameCount = frameCount;
 	}
@@ -114,14 +119,28 @@ struct DestructionHandler {
 // -------------------------------- Ray Tracing --------------------------------
 // TODO: WE ONLY HAVE ONE SHADER GROUP/LIBRARY FOR NOW
 struct RTPipeline_Vulkan {
+	~RTPipeline_Vulkan() {
+		const uint64_t frameCount = destructionHandler->frameCount;
+		destructionHandler->pipelines.push_back({ pso, frameCount });
+		destructionHandler->pipelineLayouts.push_back({ psoLayout, frameCount });
+	}
+
 	RTPipelineInfo info = {};
 
+	DestructionHandler* destructionHandler = nullptr;
 	VkPipeline pso = nullptr;
 	VkPipelineLayout psoLayout = nullptr;
 	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups = {};
 };
 
 struct RTAS_Vulkan {
+	~RTAS_Vulkan() {
+		const uint64_t frameCount = destructionHandler->frameCount;
+		destructionHandler->buffers.push_back({ asBuffer, frameCount });
+		destructionHandler->allocations.push_back({ asBufferMemory, frameCount });
+		destructionHandler->accelerationStructures.push_back({ as, frameCount });
+	}
+
 	RTASInfo info = {};
 
 	DestructionHandler* destructionHandler = nullptr;

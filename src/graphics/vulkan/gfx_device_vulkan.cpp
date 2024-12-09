@@ -1910,6 +1910,7 @@ void GFXDevice_Vulkan::create_sampler(const SamplerInfo& info, Sampler& sampler)
 void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 	auto internalState = std::make_shared<RTAS_Vulkan>();
 	internalState->info = rtasInfo;
+	internalState->destructionHandler = &m_Impl->m_DestructionHandler;
 
 	rtas.internalState = internalState;
 	rtas.info = rtasInfo;
@@ -2080,6 +2081,7 @@ void GFXDevice_Vulkan::create_rt_pipeline(const RTPipelineInfo& info, RTPipeline
 
 	auto internalState = std::make_shared<RTPipeline_Vulkan>();
 	internalState->info = info;
+	internalState->destructionHandler = &m_Impl->m_DestructionHandler;
 
 	pipeline.info = info;
 	pipeline.internalState = internalState;

@@ -120,6 +120,14 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 		m_CaretTimer = 0.0f;
 	}
 
+	// Sort the UI params based on zOrder
+	std::stable_sort(
+		m_UIParamsData.begin(), m_UIParamsData.end(),
+		[](const UIParams& p1, const UIParams& p2) {
+			return p1.zOrder < p2.zOrder;
+		}
+	);
+
 	memcpy(m_UIParamsBuffers[m_GfxDevice.get_frame_index()].mappedData, m_UIParamsData.data(), m_UIParamsData.size() * sizeof(UIParams));
 
 	// Rendering
@@ -141,7 +149,7 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 		if (has_flag(activeState.actions, WidgetAction::CLICKED)) {
 			activeState.actions &= ~WidgetAction::CLICKED;
 
-			if (activeState.type != WidgetType::INPUT_TEXT) {
+			if (activeState.type != WidgetType::INPUT_TEXT && activeState.type != WidgetType::MENU) {
 				m_ActiveWidgetID = 0;
 			}
 		}
@@ -152,16 +160,207 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 	m_CurrentKeyboardCharEvent = UIEvent(UIEventType::None);
 }
 
-void UIPass::widget_text(const std::string& text) {
+void UIPass::begin_menu_bar(int width) {
+	m_CursorOrigin = { 0.0f, 0.0f };
+	draw_rect({ 0, 0 }, width, m_DefaultFont->boundingBoxHeight + UI_PADDING * 2, UI_WIDGET_PRIMARY_COL);
+
+	m_MainMenuActive = true;
+}
+
+bool UIPass::begin_menu(const std::string& text) {
+	assert(m_MainMenuActive);
+	m_ActiveMenuMaxWidth = 0;
+	m_ActiveMenuTotalHeight = 0;
+
+	calc_cursor_origin();
+
+	// Widget ID hash
+	const uint64_t idHash = std::hash<std::string>{}(text);
+	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::MENU);
+	const uint64_t id = widget_hash_combine(idHash, typeHash);
+
+	m_LastBegunMenuID = id;
+
+	const int width = m_DefaultFont->calc_text_width(text) + UI_PADDING * 2;
+	const int height = m_DefaultFont->boundingBoxHeight + UI_PADDING * 2;
+
+	UIWidgetState state = {};
+	state.position = m_CursorOrigin;
+	state.width = width;
+	state.height = height;
+	state.id = id;
+	state.text = text;
+	state.type = WidgetType::MENU;
+
+	const auto& search = m_WidgetStateMap.find(id);
+	const auto& activeSearch = m_WidgetStateMap.find(m_ActiveWidgetID);
+
+	if (search == m_WidgetStateMap.end()) {
+		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
+	}
+	else {
+		UIWidgetState& internalState = search->second;
+		internalState.position = state.position;
+		state = search->second;
+	}
+
+	bool ret = m_ActiveWidgetID == id || (activeSearch != m_WidgetStateMap.end() && activeSearch->second.parentID == id);
+
+	glm::vec4 color = UI_WIDGET_PRIMARY_COL;
+
+	if (has_flag(state.actions, WidgetAction::PRESSED)) {
+		color = UI_WIDGET_PRIMARY_COL_PRESSED;
+	}
+	else if (has_flag(state.actions, WidgetAction::HOVERED)) {
+		color = UI_WIDGET_PRIMARY_COL_HOV;
+	}
+
+	draw_rect(m_CursorOrigin, width, height, color);
+	draw_text(m_CursorOrigin + glm::vec2(width / 2, height / 2), text, UIPosFlag::HCENTER | UIPosFlag::VCENTER);
+
+	m_LastCursorOriginDelta.x = 0;
+	m_LastCursorOriginDelta.y = state.height;
+
+	return ret;
+}
+
+bool UIPass::menu_item(const std::string& text) {
+	assert(m_MainMenuActive);
+	assert(m_LastBegunMenuID != 0);
+
+	calc_cursor_origin();
+
+	const auto parentSearch = m_WidgetStateMap.find(m_LastBegunMenuID);
+
+	if (parentSearch == m_WidgetStateMap.end()) {
+		return false;
+	}
+
+	UIWidgetState parentState = parentSearch->second;
+
+	// Widget ID hash
+	const uint64_t idHash = std::hash<std::string>{}(text);
+	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::MENU_ITEM);
+	const uint64_t id = widget_hash_combine(idHash, typeHash);
+
+	UIWidgetState state = {};
+	state.position = m_CursorOrigin;
+	state.width = m_DefaultFont->calc_text_width(text) + UI_PADDING * 2;
+	state.height = m_DefaultFont->boundingBoxHeight + UI_PADDING * 2;
+	state.id = id;
+	state.parentID = m_LastBegunMenuID;
+	state.text = text;
+	state.type = WidgetType::MENU_ITEM;
+
+	// Calculate parent-menu dimensions
+	if (state.width > m_ActiveMenuMaxWidth) {
+		m_ActiveMenuMaxWidth = state.width;
+	}
+	m_ActiveMenuTotalHeight += state.height;
+
+	const auto& search = m_WidgetStateMap.find(id);
+
+	// This menu item hasn't been created before
+	if (search == m_WidgetStateMap.end()) {
+		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
+	}
+	else {
+		state = search->second;
+	}
+
+	bool ret = has_flag(state.actions, WidgetAction::CLICKED);
+
+	draw_text(m_CursorOrigin + glm::vec2(UI_PADDING, state.height / 2), text, UIPosFlag::VCENTER, 20);
+
+	m_LastCursorOriginDelta.x = 0.0f;
+	m_LastCursorOriginDelta.y = state.height;
+
+	return ret;
+}
+
+void UIPass::end_menu() {
+	assert(m_MainMenuActive);
+
+	const auto search = m_WidgetStateMap.find(m_LastBegunMenuID);
+	assert(search != m_WidgetStateMap.end());
+
+	UIWidgetState state = search->second;
+	m_LastCursorOriginDelta.y = 0;
+	m_CursorOrigin.x += state.width;
+	m_CursorOrigin.y = 0;
+
+	UIWidgetState activeState = {};
+	const auto& activeSearch = m_WidgetStateMap.find(m_ActiveWidgetID);
+
+	if (activeSearch != m_WidgetStateMap.end()) {
+		activeState = activeSearch->second;
+	}
+
+	if (m_ActiveWidgetID == state.id || (activeState.parentID == state.id && state.id != 0)) {
+		draw_rect(
+			state.position + glm::vec2(0, state.height),
+			UI_PADDING + m_ActiveMenuMaxWidth + UI_MENU_RIGHT_PADDING,
+			m_ActiveMenuTotalHeight,
+			UI_WIDGET_PRIMARY_COL,
+			UIPosFlag::NONE,
+			nullptr,
+			10
+		);
+
+		// Draw the hovered menu item (if one is hovered)
+		if (m_HoveredWidgetID != state.id) {
+			// Make sure the hovered widget is a menu item:
+			const auto& hoveredSearch = m_WidgetStateMap.find(m_HoveredWidgetID);
+
+			if (hoveredSearch != m_WidgetStateMap.end()) {
+				UIWidgetState& hoveredState = hoveredSearch->second;
+				
+				if (hoveredState.type != WidgetType::MENU_ITEM || m_ActiveWidgetID != hoveredState.parentID) {
+					return;
+				}
+
+				hoveredState.width = UI_PADDING + m_ActiveMenuMaxWidth + UI_MENU_RIGHT_PADDING;
+
+				draw_rect(
+					hoveredState.position,
+					hoveredState.width,
+					hoveredState.height,
+					UI_WIDGET_PRIMARY_COL_HOV,
+					UIPosFlag::NONE,
+					nullptr,
+					11
+				);
+			}
+		}
+	}
+
+	m_LastBegunMenuID = 0;
+}
+
+void UIPass::end_menu_bar() {
+	assert(m_MainMenuActive);
+
+	m_LastCursorOriginDelta.x = 0;
+	m_LastCursorOriginDelta.y = 0;
+	m_CursorOrigin.x = UI_PADDING;
+	m_CursorOrigin.y += m_DefaultFont->boundingBoxHeight + UI_PADDING * 3;
+
+	m_MainMenuActive = false;
+}
+
+void UIPass::widget_text(const std::string& text, int fixedWidth) {
 	calc_cursor_origin();
 
 	draw_text(m_CursorOrigin, text);
 
-	m_LastCursorOriginDelta.x = m_DefaultFont->calc_text_width(text) + UI_PADDING * 2;
+	m_LastCursorOriginDelta.x = fixedWidth > 0 ? fixedWidth : m_DefaultFont->calc_text_width(text) + UI_PADDING * 2;
 	m_LastCursorOriginDelta.y = m_DefaultFont->boundingBoxHeight + UI_PADDING;
 }
 
 bool UIPass::widget_button(const std::string& text) {
+	//std::cout << "Num Widgets: " << m_WidgetStateMap.size() << '\n';
 	calc_cursor_origin();
 
 	// Widget ID hash
@@ -180,12 +379,15 @@ bool UIPass::widget_button(const std::string& text) {
 	state.text = text;
 	state.type = WidgetType::BUTTON;
 
-	const auto search = m_WidgetStateMap.find(id);
+	const auto& search = m_WidgetStateMap.find(id);
 
 	if (search == m_WidgetStateMap.end()) {
 		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
 	}
 	else {
+		UIWidgetState& internalState = search->second;
+		internalState.position = state.position;
 		state = search->second;
 	}
 
@@ -193,7 +395,7 @@ bool UIPass::widget_button(const std::string& text) {
 	glm::vec4 color = UI_WIDGET_PRIMARY_COL;
 
 	if (has_flag(state.actions, WidgetAction::PRESSED)) {
-		color = UI_WIDGET_PRIMARY_COL_CLK;
+		color = UI_WIDGET_PRIMARY_COL_PRESSED;
 	}
 	else if (has_flag(state.actions, WidgetAction::HOVERED)) {
 		color = UI_WIDGET_PRIMARY_COL_HOV;
@@ -236,6 +438,7 @@ bool UIPass::widget_slider_float(const std::string& text, float* value, float mi
 
 	if (search == m_WidgetStateMap.end()) {
 		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
 	}
 	else {
 		state = search->second;
@@ -301,6 +504,7 @@ void UIPass::widget_text_input(const std::string& label, std::string& buffer) {
 
 	if (search == m_WidgetStateMap.end()) {
 		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
 	}
 	else {
 		state = search->second;
@@ -517,6 +721,7 @@ void UIPass::widget_image(const Texture& texture, int width, int height) {
 
 	if (search == m_WidgetStateMap.end()) {
 		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
 	}
 	else {
 		state = search->second;
@@ -553,8 +758,18 @@ void UIPass::process_event(const UIEvent& event) {
 			const MouseEventData& mouse = event.get_mouse_data();
 
 			bool hitAny = false;
-			for (auto& [id, state] : m_WidgetStateMap) {
+
+			// NOTE: The indices are sorted by z-order, so the elements with
+			// the highest z-order will be hit-tested first.
+			for (size_t i = 0; i < m_WidgetStateMapIndices.size(); ++i) {
+				UIWidgetState& state = m_WidgetStateMap[m_WidgetStateMapIndices[i]];
+				const uint64_t id = state.id;
+
 				if (state.hit_test(mouse.position)) {
+					if (state.type == WidgetType::MENU_ITEM && m_ActiveWidgetID != state.parentID) {
+						continue;
+					}
+
 					hitAny = true;
 					state.actions |= WidgetAction::HOVERED;
 					m_HoveredWidgetID = id;
@@ -606,7 +821,7 @@ void UIPass::process_event(const UIEvent& event) {
 	}
 }
 
-void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags) {
+void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags, uint32_t zOrder) {
 	float textPosX = pos.x;
 	float textPosY = pos.y;
 
@@ -645,13 +860,15 @@ void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag 
 		textParams.texCoords[3] = glyphData.texCoords[3];
 		textParams.texIndex = m_GfxDevice.get_descriptor_index(m_DefaultFont->atlasTexture, SubresourceType::SRV);
 		textParams.uiType = UIType::TEXT;
+		textParams.zOrder = zOrder;
+
 		m_UIParamsData.push_back(textParams);
 
 		textPosX += glyphData.advanceX;
 	}
 }
 
-void UIPass::draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags, const Texture* texture) {
+void UIPass::draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags, const Texture* texture, uint32_t zOrder) {
 	uint32_t texIndex = texture != nullptr ? m_GfxDevice.get_descriptor_index(*texture, SubresourceType::SRV) : 0;
 
 	glm::vec2 rectPos = pos;
@@ -675,6 +892,7 @@ void UIPass::draw_rect(const glm::vec2& pos, int width, int height, const glm::v
 	rectParams.texCoords[3] = { 0.0f, 1.0f };
 	rectParams.texIndex = texIndex;
 	rectParams.uiType = UIType::RECTANGLE;
+	rectParams.zOrder = zOrder;
 
 	m_UIParamsData.push_back(rectParams);
 }
@@ -682,12 +900,13 @@ void UIPass::draw_rect(const glm::vec2& pos, int width, int height, const glm::v
 void UIPass::calc_cursor_origin() {
 	if (m_SameLineWasActive) {
 		m_CursorOrigin.x = m_SameLineCursorOrigin.x;
-
+		m_LastCursorOriginDelta.y = m_SameLineYIncrement;
 		m_SameLineWasActive = false;
 	}
 
 	if (m_SameLineIsActive) {
 		m_CursorOrigin.x += m_LastCursorOriginDelta.x;
+		m_SameLineYIncrement = std::max(m_SameLineYIncrement, (int)m_LastCursorOriginDelta.y);
 
 		m_SameLineIsActive = false;
 		m_SameLineWasActive = true;
@@ -698,5 +917,6 @@ void UIPass::calc_cursor_origin() {
 
 	if (!m_SameLineIsActive && !m_SameLineWasActive) {
 		m_SameLineCursorOrigin = m_CursorOrigin;
+		m_SameLineYIncrement = 0;
 	}
 }

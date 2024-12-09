@@ -121,8 +121,15 @@ public:
 
 	void execute(PassExecuteInfo& executeInfo);
 
+	// Menu
+	void begin_menu_bar(int width);
+	bool begin_menu(const std::string& text);
+	bool menu_item(const std::string& text);
+	void end_menu();
+	void end_menu_bar();
+
 	// Widgets
-	void widget_text(const std::string& text);
+	void widget_text(const std::string& text, int fixedWidth = 0);
 	bool widget_button(const std::string& text);
 	bool widget_slider_float(const std::string& text, float* value, float min, float max);
 	void widget_text_input(const std::string& label, std::string& buffer);
@@ -144,8 +151,9 @@ private:
 	static constexpr glm::vec4 UI_WIDGET_ACCENT_COL = { 1.0f, 0.6f, 0.0f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL = { 0.2f, 0.2f, 0.2f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL_HOV = { 0.4f, 0.4f, 0.4f, 1.0f };
-	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL_CLK = { 0.5f, 0.5f, 0.5f, 1.0f };
+	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL_PRESSED = { 0.5f, 0.5f, 0.5f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_HIGHLIGHT_COL = { 0.039, 0.243, 0.662, 1.0f };
+	static constexpr int UI_MENU_RIGHT_PADDING = 32;
 
 	enum UIType : uint8_t {
 		RECTANGLE = 0,
@@ -157,6 +165,8 @@ private:
 		SLIDER_FLOAT = 1 << 0,
 		IMAGE = 1 << 1,
 		INPUT_TEXT = 1 << 2,
+		MENU = 1 << 3,
+		MENU_ITEM = 1 << 4,
 	};
 
 	struct UIWidgetState { // NOTE: Only used for certain widgets
@@ -167,10 +177,15 @@ private:
 		int height;
 		WidgetAction actions = WidgetAction::NONE;
 		uint64_t id;
+		uint64_t parentID = 0;
+		bool enabled = true;
 
 		inline bool hit_test(glm::vec2 point) {
-			return (point.x >= position.x && point.x < position.x + width &&
-					point.y >= position.y && point.y < position.y + height);
+			return (
+				enabled &&
+				point.x >= position.x && point.x < position.x + width &&
+				point.y >= position.y && point.y < position.y + height
+			);
 		}
 	};
 
@@ -186,12 +201,12 @@ private:
 		glm::vec2 texCoords[4] = {};
 		uint32_t texIndex = 0;
 		uint32_t uiType = 0;
-		uint32_t pad2;
+		uint32_t zOrder = 0; // NOTE: Not used by shader
 		uint32_t pad3;
 	};
 
-	void draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags = UIPosFlag::NONE);
-	void draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags = UIPosFlag::NONE, const Texture* texture = nullptr);
+	void draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags = UIPosFlag::NONE, uint32_t zOrder = 0);
+	void draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags = UIPosFlag::NONE, const Texture* texture = nullptr, uint32_t zOrder = 0);
 	void calc_cursor_origin();
 	inline uint64_t widget_hash_combine(uint64_t hash1, uint64_t hash2) {
 		return hash1 ^ (hash2 + 0x9e3779b97f4a7c15ULL + (hash1 << 6) + (hash1 >> 2));
@@ -208,18 +223,24 @@ private:
 	glm::vec2 m_DefaultCursorOrigin = { UI_PADDING, UI_PADDING };
 	glm::vec2 m_CursorOrigin = m_DefaultCursorOrigin;
 	glm::vec2 m_LastCursorOriginDelta = { 0.0f, 0.0f };
+	int m_SameLineYIncrement = 0;
 
 	glm::vec2 m_SameLineCursorOrigin = m_DefaultCursorOrigin;
-
 	bool m_SameLineIsActive = false;
 	bool m_SameLineWasActive = false;
+	bool m_MainMenuActive = false;
+	int m_ActiveMenuMaxWidth = 0;
+	int m_ActiveMenuTotalHeight = 0;
 
+	MouseEventData m_CurrentMouseData = {};
 	UIEvent m_LastMouseEvent = UIEvent(UIEventType::None);
 	UIEvent m_CurrentMouseEvent = UIEvent(UIEventType::None);
 	UIEvent m_CurrentKeyboardEvent = UIEvent(UIEventType::None);
 	UIEvent m_CurrentKeyboardCharEvent = UIEvent(UIEventType::None);
 
 	std::unordered_map<uint64_t, UIWidgetState> m_WidgetStateMap = {};
+	std::vector<uint64_t> m_WidgetStateMapIndices = {};
+	uint64_t m_LastBegunMenuID = 0;
 	uint64_t m_ActiveWidgetID = 0;
 	uint64_t m_HoveredWidgetID = 0;
 	float m_CaretTimer = 0.0f;
