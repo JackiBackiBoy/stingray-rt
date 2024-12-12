@@ -11,8 +11,6 @@ struct MeshPrimitive {
 	uint32_t numIndices = 0;
 	uint32_t baseVertex = 0;
 	uint32_t baseIndex = 0;
-	uint32_t albedoMapIndex = ~0;
-	uint32_t normalMapIndex = ~0;
 };
 
 struct Mesh {
@@ -24,7 +22,7 @@ struct ModelVertex {
 	glm::vec3 normal = {};
 	glm::vec3 tangent = {};
 	glm::vec2 texCoord = {};
-	float pad1;
+	uint32_t matIndex = 0;
 	float pad2;
 };
 

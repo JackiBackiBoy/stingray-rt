@@ -15,6 +15,7 @@
 #include <stdexcept>
 
 GFXDevice* g_GfxDevice = nullptr;
+MaterialManager* g_MaterialManager = nullptr;
 
 struct AssetInternal {
 	Model model = {};
@@ -44,8 +45,9 @@ namespace assetmanager {
 		{ "ogg", DataType::SOUND },
 	};
 
-	void initialize(GFXDevice& gfxDevice) {
+	void initialize(GFXDevice& gfxDevice, MaterialManager& materialManager) {
 		g_GfxDevice = &gfxDevice;
+		g_MaterialManager = &materialManager;
 	}
 
 	void destroy() {
@@ -270,9 +272,6 @@ namespace assetmanager {
 				translation = glm::translate({ 1.0f }, glm::vec3(translationData[2], translationData[1], translationData[0]));
 			}
 
-			// TODO: We should probably support meshes having more than 1 primitive,
-			// as of right now, we do not...
-
 			for (size_t j = 0; j < mesh.primitives.size(); ++j) {
 				MeshPrimitive& primitive = mesh.primitives[j];
 				primitive.baseVertex = baseVertex;
@@ -285,6 +284,7 @@ namespace assetmanager {
 				const tinygltf::BufferView& posBufferView = gltfModel.bufferViews[posAccessor.bufferView];
 				const tinygltf::Buffer& posBuffer = gltfModel.buffers[posBufferView.buffer];
 
+				assert(posAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 				const float* positions = reinterpret_cast<const float*>(
 					&posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]
 					);
@@ -294,6 +294,7 @@ namespace assetmanager {
 				const tinygltf::BufferView& normalBufferView = gltfModel.bufferViews[normalAccessor.bufferView];
 				const tinygltf::Buffer& normalBuffer = gltfModel.buffers[normalBufferView.buffer];
 
+				assert(normalAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 				const float* normals = reinterpret_cast<const float*>(
 					&posBuffer.data[normalBufferView.byteOffset + normalAccessor.byteOffset]
 					);
@@ -303,6 +304,7 @@ namespace assetmanager {
 				const tinygltf::BufferView& tangentBufferView = gltfModel.bufferViews[tangentAccessor.bufferView];
 				const tinygltf::Buffer& tangentBuffer = gltfModel.buffers[tangentBufferView.buffer];
 
+				assert(tangentAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 				const float* tangents = reinterpret_cast<const float*>(
 					&tangentBuffer.data[tangentBufferView.byteOffset + tangentAccessor.byteOffset]
 					);
@@ -312,6 +314,7 @@ namespace assetmanager {
 				const tinygltf::BufferView& texCoordBufferView = gltfModel.bufferViews[texCoordAccessor.bufferView];
 				const tinygltf::Buffer& texCoordBuffer = gltfModel.buffers[texCoordBufferView.buffer];
 
+				assert(texCoordAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 				const float* texCoords = reinterpret_cast<const float*>(
 					&texCoordBuffer.data[texCoordBufferView.byteOffset + texCoordAccessor.byteOffset]
 					);
@@ -321,10 +324,37 @@ namespace assetmanager {
 				const tinygltf::BufferView& indexBufferView = gltfModel.bufferViews[indicesAccessor.bufferView];
 				const tinygltf::Buffer& indexBuffer = gltfModel.buffers[indexBufferView.buffer];
 
-				//indicesAccessor.componentType;
+				assert(indicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT);
 				const uint16_t* indices = reinterpret_cast<const uint16_t*>(
 					&indexBuffer.data[indexBufferView.byteOffset + indicesAccessor.byteOffset]
 				);
+
+				// Materials
+				// TODO: Read actual material properties such as metallic,
+				// roughness and so on.
+				uint32_t materialIndex = 0;
+
+				if (gltfPrimitive.material != -1) {
+					const tinygltf::Material& gltfMaterial = gltfModel.materials[gltfPrimitive.material];
+
+					Material material = {};
+
+					if (gltfMaterial.pbrMetallicRoughness.baseColorTexture.index != -1) {
+						material.albedoTexIndex = g_GfxDevice->get_descriptor_index(
+							asset->model.materialTextures[gltfModel.textures[gltfMaterial.pbrMetallicRoughness.baseColorTexture.index].source],
+							SubresourceType::SRV
+						);
+					}
+
+					if (gltfMaterial.normalTexture.index != -1) {
+						material.normalTexIndex = g_GfxDevice->get_descriptor_index(
+							asset->model.materialTextures[gltfModel.textures[gltfMaterial.normalTexture.index].source],
+							SubresourceType::SRV
+						);
+					}
+
+					materialIndex = g_MaterialManager->add_material(material);
+				}
 
 				for (size_t k = 0; k < posAccessor.count; ++k) {
 					ModelVertex vertex{};
@@ -354,6 +384,8 @@ namespace assetmanager {
 						texCoords[k * 2 + 1]
 					};
 
+					vertex.matIndex = materialIndex;
+
 					asset->model.vertices.push_back(vertex);
 				}
 
@@ -366,21 +398,6 @@ namespace assetmanager {
 
 				baseVertex += static_cast<uint32_t>(posAccessor.count);
 				baseIndex += static_cast<uint32_t>(indicesAccessor.count);
-
-				// Materials
-				if (gltfPrimitive.material == -1) {
-					continue;
-				}
-
-				const tinygltf::Material& material = gltfModel.materials[gltfPrimitive.material];
-
-				if (material.pbrMetallicRoughness.baseColorTexture.index != -1) {
-					primitive.albedoMapIndex = (uint32_t)gltfModel.textures[material.pbrMetallicRoughness.baseColorTexture.index].source;
-				}
-
-				if (material.normalTexture.index != -1) {
-					primitive.normalMapIndex = (uint32_t)gltfModel.textures[material.normalTexture.index].source;
-				}
 			}
 
 			//baseVertex = static_cast<uint32_t>(asset->model.vertices.size());

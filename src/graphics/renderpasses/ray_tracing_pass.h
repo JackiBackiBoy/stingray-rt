@@ -12,7 +12,7 @@ public:
 	RayTracingPass(GFXDevice& gfxDevice);
 	~RayTracingPass() {}
 
-	void initialize(Scene& scene);
+	void initialize(Scene& scene, const Buffer& materialBuffer);
 	void build_acceleration_structures(const CommandList& cmdList);
 	void execute(PassExecuteInfo& executeInfo, Scene& scene);
 
@@ -51,8 +51,6 @@ private:
 	// TODO: Might have to have a frames-in-flight amount of these buffers
 	Buffer m_SceneDescBuffer = {};
 	std::vector<Object> m_SceneDescBufferData = {};
-	Buffer m_MaterialBuffer = {};
-	std::vector<Material> m_MaterialBufferData = {};
 
 	uint32_t m_SamplesPerPixel = 1;
 	uint32_t m_TotalSamplesPerPixel = m_SamplesPerPixel;

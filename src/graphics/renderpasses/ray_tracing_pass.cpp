@@ -24,7 +24,7 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice) : m_GfxDevice(gfxDevice) {
 	m_GfxDevice.create_rt_pipeline(rtPipelineInfo, m_RTPipeline);
 }
 
-void RayTracingPass::initialize(Scene& scene) {
+void RayTracingPass::initialize(Scene& scene, const Buffer& materialBuffer) {
 	const auto& entities = scene.get_entities();
 
 	// ----------------------------- Create BLASes -----------------------------
@@ -37,26 +37,8 @@ void RayTracingPass::initialize(Scene& scene) {
 
 		for (const auto& mesh : model->meshes) {
 			numBLASes += mesh.primitives.size();
-
-			for (const auto& primitive : mesh.primitives) {
-				// TODO: We need to improve the material system a lot
-				const Material* material = ecs::get_component<Material>(entity);
-				m_MaterialBufferData.push_back(*material);
-			}
 		}
 	}
-
-	// Create material buffer
-	const BufferInfo materialBufferInfo = {
-		.size = static_cast<uint64_t>(m_MaterialBufferData.size()) * sizeof(Material),
-		.stride = sizeof(Material),
-		.usage = Usage::UPLOAD,
-		.bindFlags = BindFlag::SHADER_RESOURCE,
-		.miscFlags = MiscFlag::BUFFER_STRUCTURED,
-		.persistentMap = false
-	};
-
-	m_GfxDevice.create_buffer(materialBufferInfo, m_MaterialBuffer, m_MaterialBufferData.data());
 
 	m_BLASes.reserve(numBLASes);
 	m_Instances.reserve(numBLASes);
@@ -126,7 +108,7 @@ void RayTracingPass::initialize(Scene& scene) {
 				Object& object = m_SceneDescBufferData.emplace_back();
 				object.verticesBDA = m_GfxDevice.get_bda(model->vertexBuffer) + primitive.baseVertex * sizeof(ModelVertex);
 				object.indicesBDA = m_GfxDevice.get_bda(model->indexBuffer) + primitive.baseIndex * sizeof(uint32_t);
-				object.materialsBDA = m_GfxDevice.get_bda(m_MaterialBuffer);
+				object.materialsBDA = m_GfxDevice.get_bda(materialBuffer);
 			}
 		}
 	}

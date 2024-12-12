@@ -61,6 +61,12 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/graphics/render_graph.cpp
 	${SOURCE_DIR}/graphics/render_graph.h
 
+	# Managers
+	${SOURCE_DIR}/managers/asset_manager.cpp
+	${SOURCE_DIR}/managers/asset_manager.h
+	${SOURCE_DIR}/managers/material_manager.cpp
+	${SOURCE_DIR}/managers/material_manager.h
+
 	# Math
 	${SOURCE_DIR}/math/sr_math.h
 
@@ -76,10 +82,6 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/graphics/vulkan/gfx_device_vulkan.cpp
 	${SOURCE_DIR}/graphics/vulkan/gfx_device_vulkan.h
 	${SOURCE_DIR}/graphics/vulkan/gfx_types_vulkan.h
-
-	# Managers
-	${SOURCE_DIR}/managers/asset_manager.cpp
-	${SOURCE_DIR}/managers/asset_manager.h
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCE_FILES})

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "material_manager.h"
 #include "../data/font.h"
 #include "../data/model.h"
 #include "../graphics/gfx_device.h"
@@ -17,7 +18,7 @@ struct Asset {
 };
 
 namespace assetmanager {
-	void initialize(GFXDevice& gfxDevice);
+	void initialize(GFXDevice& gfxDevice, MaterialManager& materialManager);
 	void destroy();
 
 	std::unique_ptr<Model> create_plane(float width, float depth);

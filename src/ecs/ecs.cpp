@@ -35,7 +35,6 @@ namespace ecs {
 	GLOBAL_VARIABLE uint32_t g_LiveEntityCount = 0;
 	GLOBAL_VARIABLE ComponentArray<Transform> g_TransformComponents = {};
 	GLOBAL_VARIABLE ComponentArray<Renderable> g_RenderableComponents = {};
-	GLOBAL_VARIABLE ComponentArray<Material> g_MaterialComponents = {};
 
 	void initialize() {
 		for (entity_id i = 0; i < MAX_ENTITIES; ++i) {
@@ -62,11 +61,6 @@ namespace ecs {
 		g_RenderableComponents.add(entity, component);
 	}
 
-	template <>
-	void add_component<Material>(entity_id entity, const Material& component) {
-		g_MaterialComponents.add(entity, component);
-	}
-
 	template <typename T>
 	T* get_component(entity_id entity) {
 		static_assert(sizeof(T) == 0, "get_component is not implemented for this component type.");
@@ -82,11 +76,6 @@ namespace ecs {
 		return g_RenderableComponents.get(entity);
 	}
 
-	template <>
-	Material* get_component<Material>(entity_id entity) {
-		return g_MaterialComponents.get(entity);
-	}
-
 	entity_id create_entity() {
 		assert(g_LiveEntityCount < MAX_ENTITIES);
 
@@ -96,7 +85,6 @@ namespace ecs {
 
 		// Add default entity components
 		add_component<Transform>(id, Transform{});
-		add_component<Material>(id, Material{});
 
 		return id;
 	}

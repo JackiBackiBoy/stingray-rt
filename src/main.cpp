@@ -14,6 +14,7 @@
 #include "graphics/vulkan/gfx_device_vulkan.h"
 
 #include "managers/asset_manager.h"
+#include "managers/material_manager.h"
 
 #include <glm/glm.hpp>
 
@@ -47,6 +48,7 @@ GLOBAL_VARIABLE std::unique_ptr<RenderGraph> g_RenderGraph = {};
 GLOBAL_VARIABLE SwapChain g_SwapChain = {};
 GLOBAL_VARIABLE Sampler g_DefaultSampler = {};
 
+GLOBAL_VARIABLE std::unique_ptr<MaterialManager> g_MaterialManager = {};
 GLOBAL_VARIABLE Buffer g_PerFrameDataBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
 GLOBAL_VARIABLE PerFrameData g_PerFrameData = {};
 
@@ -247,6 +249,21 @@ INTERNAL void init_gfx() {
 	g_GfxDevice->create_sampler(defaultSamplerInfo, g_DefaultSampler);
 }
 
+INTERNAL void init_objects() {
+	g_MaterialManager = std::make_unique<MaterialManager>(*g_GfxDevice, 1024);
+	assetmanager::initialize(*g_GfxDevice, *g_MaterialManager);
+	ecs::initialize();
+
+	g_Camera = std::make_unique<Camera>(
+		glm::vec3(0, 3.0f, -4.0f),
+		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+		60.0f,
+		(float)g_FrameWidth / g_FrameHeight,
+		0.1f,
+		100.0f
+	);
+}
+
 INTERNAL void init_render_graph() {
 	// Initialize passes
 	g_RayTracingPass = std::make_unique<RayTracingPass>(*g_GfxDevice);
@@ -296,16 +313,16 @@ INTERNAL void create_cornell_scene() {
 	ecs::add_component<Renderable>(light, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
 	ecs::get_component<Transform>(light)->scale = 3.0f * glm::vec3(1.0f);
-	ecs::get_component<Material>(light)->color = 20.0f * glm::vec3(1.0f);
-	ecs::get_component<Material>(light)->type = Material::Type::DIFFUSE_LIGHT;
+	//ecs::get_component<Material>(light)->color = 20.0f * glm::vec3(1.0f);
+	//ecs::get_component<Material>(light)->type = Material::Type::DIFFUSE_LIGHT;
 
 	const entity_id sphere = scene->add_entity("Sphere");
 	ecs::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
 	ecs::get_component<Transform>(sphere)->position = { -2.0f, 1.5f, -2.0f };
-	ecs::get_component<Material>(sphere)->color = { 1.0f, 1.0f, 1.0f };
-	ecs::get_component<Material>(sphere)->roughness = 0.02f;
-	ecs::get_component<Material>(sphere)->metallic = 0.0f;
-	ecs::get_component<Material>(sphere)->albedoTexIndex =
+	//ecs::get_component<Material>(sphere)->color = { 1.0f, 1.0f, 1.0f };
+	//ecs::get_component<Material>(sphere)->roughness = 0.02f;
+	//ecs::get_component<Material>(sphere)->metallic = 0.0f;
+	//ecs::get_component<Material>(sphere)->albedoTexIndex =
 		g_GfxDevice->get_descriptor_index(*g_TestTexture.get_texture(), SubresourceType::SRV);
 
 	const entity_id lucy = scene->add_entity("Lucy");
@@ -313,47 +330,47 @@ INTERNAL void create_cornell_scene() {
 	ecs::get_component<Transform>(lucy)->position = { 1.0f, 0.0f, 2.0f };
 	ecs::get_component<Transform>(lucy)->scale = glm::vec3(2.0f);
 	ecs::get_component<Transform>(lucy)->orientation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	ecs::get_component<Material>(lucy)->color = { 1.0f, 1.0f, 1.0f };
-	ecs::get_component<Material>(lucy)->roughness = 0.3f;
-	ecs::get_component<Material>(lucy)->metallic = 1.0f;
+	//ecs::get_component<Material>(lucy)->color = { 1.0f, 1.0f, 1.0f };
+	//ecs::get_component<Material>(lucy)->roughness = 0.3f;
+	//ecs::get_component<Material>(lucy)->metallic = 1.0f;
 
 	const entity_id floor = scene->add_entity("Floor");
 	ecs::add_component<Renderable>(floor, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(floor)->position = { 0.0f, 0.0f, 0.0f };
 	ecs::get_component<Transform>(floor)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(floor)->color = { 0.5f, 0.5f, 0.5f };
-	ecs::get_component<Material>(floor)->roughness = 0.001f;
+	//ecs::get_component<Material>(floor)->color = { 0.5f, 0.5f, 0.5f };
+	//ecs::get_component<Material>(floor)->roughness = 0.001f;
 
 	const entity_id backWall = scene->add_entity("Back Wall");
 	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
 	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
 	ecs::get_component<Transform>(backWall)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(backWall)->color = { 0.7f, 0.7f, 1.0f };
-	ecs::get_component<Material>(backWall)->roughness = 0.0f;
-	ecs::get_component<Material>(backWall)->metallic = 1.0f;
+	//ecs::get_component<Material>(backWall)->color = { 0.7f, 0.7f, 1.0f };
+	//ecs::get_component<Material>(backWall)->roughness = 0.0f;
+	//ecs::get_component<Material>(backWall)->metallic = 1.0f;
 
 	const entity_id leftWall = scene->add_entity("Left Wall");
 	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(leftWall)->position = { -5.0f, 5.0f, 0.0f };
 	ecs::get_component<Transform>(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
 	ecs::get_component<Transform>(leftWall)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(leftWall)->color = { 0.6f, 0.0f, 0.0f };
+	//ecs::get_component<Material>(leftWall)->color = { 0.6f, 0.0f, 0.0f };
 
 	const entity_id rightWall = scene->add_entity("Right Wall");
 	ecs::add_component<Renderable>(rightWall, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(rightWall)->position = { 5.0f, 5.0f, 0.0f };
 	ecs::get_component<Transform>(rightWall)->orientation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
 	ecs::get_component<Transform>(rightWall)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(rightWall)->color = { 0.0f, 0.6f, 0.0f };
+	//ecs::get_component<Material>(rightWall)->color = { 0.0f, 0.6f, 0.0f };
 
 	const entity_id ceiling = scene->add_entity("Ceiling");
 	ecs::add_component<Renderable>(ceiling, Renderable{ g_PlaneModel.get_model() });
 	ecs::get_component<Transform>(ceiling)->position = { 0.0f, 10.0f, 0.0f };
 	ecs::get_component<Transform>(ceiling)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(ceiling)->color = { 1.0f, 1.0f, 1.0f };
+	//ecs::get_component<Material>(ceiling)->color = { 1.0f, 1.0f, 1.0f };
 
-	g_RayTracingPass->initialize(*scene);
+	g_RayTracingPass->initialize(*scene, g_MaterialManager->get_material_buffer());
 }
 
 INTERNAL void create_sponza_scene() {
@@ -373,24 +390,10 @@ INTERNAL void create_sponza_scene() {
 	const entity_id sponza = scene->add_entity("Sponza");
 	ecs::add_component<Renderable>(sponza, Renderable{ g_SponzaModel.get_model() });
 	ecs::get_component<Transform>(sponza)->position = { 0.0f, 0.0f, 0.0f };
-	ecs::get_component<Material>(sponza)->color = { 1.0f, 1.0f, 1.0f };
-	ecs::get_component<Material>(sponza)->roughness = 0.5f;
 
-	g_RayTracingPass->initialize(*scene);
-}
+	g_MaterialManager->update_gpu_buffer();
 
-INTERNAL void init_objects() {
-	assetmanager::initialize(*g_GfxDevice);
-	ecs::initialize();
-
-	g_Camera = std::make_unique<Camera>(
-		glm::vec3(0, 3.0f, -4.0f),
-		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-		60.0f,
-		(float)g_FrameWidth / g_FrameHeight,
-		0.1f,
-		100.0f
-	);
+	g_RayTracingPass->initialize(*scene, g_MaterialManager->get_material_buffer());
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {

@@ -110,7 +110,7 @@ void main() {
     hitVtx.normal = normalize(vec3(hitVtx.normal * gl_WorldToObjectEXT));
 
     Materials mats = Materials(obj.materialsBDA);
-    Material mat = mats.m[gl_InstanceCustomIndexEXT];
+    Material mat = mats.m[hitVtx.matIndex];
 
     // Scattering
     rayPayload = scatter(mat, gl_WorldRayDirectionEXT, hitVtx.normal, hitVtx.uv, gl_HitTEXT, rayPayload.rngSeed);
