@@ -361,7 +361,7 @@ INTERNAL void create_sponza_scene() {
 	g_ActiveScene = scene;
 
 	assetmanager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
-	assetmanager::load_from_file(g_SponzaModel, "models/sponzab/sponza.gltf");
+	assetmanager::load_from_file(g_SponzaModel, "models/sponza/sponza.gltf");
 
 	//const entity_id light = scene->add_entity("Light");
 	//ecs::add_component<Renderable>(light, Renderable{ g_PlaneModel.get_model() });
@@ -375,37 +375,6 @@ INTERNAL void create_sponza_scene() {
 	ecs::get_component<Transform>(sponza)->position = { 0.0f, 0.0f, 0.0f };
 	ecs::get_component<Material>(sponza)->color = { 1.0f, 1.0f, 1.0f };
 	ecs::get_component<Material>(sponza)->roughness = 0.5f;
-
-	g_RayTracingPass->initialize(*scene);
-}
-
-INTERNAL void create_test_scene() {
-	Scene* scene = new Scene("Sponza", *g_GfxDevice);
-	g_ActiveScene = scene;
-
-	assetmanager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
-	g_FlatPlaneModel = assetmanager::create_plane(3.0f, 3.0f);
-
-	const entity_id light = scene->add_entity("Light");
-	ecs::add_component<Renderable>(light, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
-	ecs::get_component<Transform>(light)->scale = 3.0f * glm::vec3(1.0f);
-	ecs::get_component<Material>(light)->color = 20.0f * glm::vec3(1.0f);
-	ecs::get_component<Material>(light)->type = Material::Type::DIFFUSE_LIGHT;
-
-	const entity_id floor = scene->add_entity("Floor");
-	ecs::add_component<Renderable>(floor, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(floor)->position = { 0.0f, 0.0f, 0.0f };
-	ecs::get_component<Transform>(floor)->scale = glm::vec3(10.0f);
-	ecs::get_component<Material>(floor)->color = { 0.5f, 0.5f, 0.5f };
-	ecs::get_component<Material>(floor)->roughness = 0.001f;
-
-	const entity_id plane = scene->add_entity("Plane");
-	ecs::add_component<Renderable>(plane, Renderable{ g_FlatPlaneModel.get() });
-	ecs::get_component<Transform>(plane)->position = { 0.0f, 3.0f, 0.0f };
-	ecs::get_component<Transform>(plane)->scale = glm::vec3(1.0f);
-	ecs::get_component<Material>(plane)->color = { 0.9f, 0.0f, 0.0f };
-	ecs::get_component<Material>(plane)->roughness = 0.5f;
 
 	g_RayTracingPass->initialize(*scene);
 }
@@ -570,7 +539,6 @@ int main() {
 	init_render_graph();
 	//create_cornell_scene();
 	create_sponza_scene();
-	//create_test_scene();
 
 	g_FrameInfo.camera = g_Camera.get();
 
