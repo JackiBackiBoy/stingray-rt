@@ -67,10 +67,6 @@ set(SOURCE_FILES
 	# Renderpasses
 	${SOURCE_DIR}/graphics/renderpasses/fullscreen_tri_pass.cpp
 	${SOURCE_DIR}/graphics/renderpasses/fullscreen_tri_pass.h
-	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.cpp
-	${SOURCE_DIR}/graphics/renderpasses/gbuffer_pass.h
-	${SOURCE_DIR}/graphics/renderpasses/lighting_pass.cpp
-	${SOURCE_DIR}/graphics/renderpasses/lighting_pass.h
 	${SOURCE_DIR}/graphics/renderpasses/ray_tracing_pass.cpp
 	${SOURCE_DIR}/graphics/renderpasses/ray_tracing_pass.h
 	${SOURCE_DIR}/graphics/renderpasses/ui_pass.cpp

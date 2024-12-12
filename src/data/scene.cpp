@@ -2,7 +2,8 @@
 
 #include <cassert>
 
-Scene::Scene(GFXDevice& gfxDevice) : m_GfxDevice(gfxDevice) {
+Scene::Scene(const std::string& name, GFXDevice& gfxDevice) :
+	m_Name(name), m_GfxDevice(gfxDevice) {
 
 }
 

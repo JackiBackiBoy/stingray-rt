@@ -9,9 +9,10 @@
 
 class RayTracingPass {
 public:
-	RayTracingPass(GFXDevice& gfxDevice, Scene& scene);
+	RayTracingPass(GFXDevice& gfxDevice);
 	~RayTracingPass() {}
 
+	void initialize(Scene& scene);
 	void build_acceleration_structures(const CommandList& cmdList);
 	void execute(PassExecuteInfo& executeInfo, Scene& scene);
 
@@ -29,6 +30,7 @@ private:
 		uint64_t verticesBDA = 0;
 		uint64_t indicesBDA = 0;
 		uint64_t materialsBDA = 0;
+		uint64_t pad1 = 0;
 	};
 
 	GFXDevice& m_GfxDevice;

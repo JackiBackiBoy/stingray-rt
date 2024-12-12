@@ -31,7 +31,7 @@ void main() {
     const float stratumSize = 1.0 / float(stratumDim);
 
     vec3 color = vec3(0.0);
-    for (uint sy = 0; sy < stratumDim; sy++) {
+    for (uint sy = 0; sy < 1; sy++) {
         for (uint sx = 0; sx < stratumDim; sx++) {
             const vec2 jitter = vec2(RandomFloat(rngSeed), RandomFloat(rngSeed)) * stratumSize;
             const vec2 stratumCoord = pixelCoord + stratumSize * vec2(sx, sy) + jitter;
@@ -54,7 +54,7 @@ void main() {
                     break;
                 }
 
-                uint rayFlags = gl_RayFlagsOpaqueEXT;
+                uint rayFlags = gl_RayFlagsNoneEXT;
                 traceRayEXT(
                     g_TLAS,         // acceleration structure
                     rayFlags,       // rayFlags

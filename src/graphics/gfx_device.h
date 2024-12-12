@@ -63,7 +63,7 @@ public:
 	static constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 1024;
 	static constexpr uint32_t MAX_RW_TEXTURE_DESCRIPTORS = 16;
 	static constexpr uint32_t MAX_SAMPLER_DESCRIPTORS = 16;
-	static constexpr uint32_t MAX_STORAGE_BUFFERS = 32;
+	static constexpr uint32_t MAX_STORAGE_BUFFERS = 256;
 	static constexpr uint32_t MAX_RAY_TRACING_TLASES = 1;
 
 protected:

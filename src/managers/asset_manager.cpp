@@ -98,7 +98,9 @@ namespace assetmanager {
 		primitive.baseVertex = 0;
 		primitive.baseIndex = 0;
 
-		Mesh mesh = { .primitives = { primitive } };
+		Mesh mesh = {
+			.primitives = { primitive }
+		};
 		model->meshes.push_back(mesh);
 
 		// TODO: This is hacky, where every single model will use RAY_TRACING flag
@@ -270,7 +272,8 @@ namespace assetmanager {
 
 			// TODO: We should probably support meshes having more than 1 primitive,
 			// as of right now, we do not...
-			for (size_t j = 0; j < gltfMesh.primitives.size(); ++j) {
+
+			for (size_t j = 0; j < mesh.primitives.size(); ++j) {
 				MeshPrimitive& primitive = mesh.primitives[j];
 				primitive.baseVertex = baseVertex;
 				primitive.baseIndex = baseIndex;
@@ -318,9 +321,10 @@ namespace assetmanager {
 				const tinygltf::BufferView& indexBufferView = gltfModel.bufferViews[indicesAccessor.bufferView];
 				const tinygltf::Buffer& indexBuffer = gltfModel.buffers[indexBufferView.buffer];
 
+				//indicesAccessor.componentType;
 				const uint16_t* indices = reinterpret_cast<const uint16_t*>(
 					&indexBuffer.data[indexBufferView.byteOffset + indicesAccessor.byteOffset]
-					);
+				);
 
 				for (size_t k = 0; k < posAccessor.count; ++k) {
 					ModelVertex vertex{};
@@ -359,6 +363,7 @@ namespace assetmanager {
 
 				primitive.numVertices = static_cast<uint32_t>(posAccessor.count);
 				primitive.numIndices = static_cast<uint32_t>(indicesAccessor.count);
+
 				baseVertex += static_cast<uint32_t>(posAccessor.count);
 				baseIndex += static_cast<uint32_t>(indicesAccessor.count);
 
@@ -380,7 +385,6 @@ namespace assetmanager {
 
 			//baseVertex = static_cast<uint32_t>(asset->model.vertices.size());
 			//baseIndex = static_cast<uint32_t>(asset->model.indices.size());
-
 		}
 
 		// Create related buffers for the GPU

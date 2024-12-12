@@ -15,6 +15,7 @@ struct Object {
 	uint64_t verticesBDA;
 	uint64_t indicesBDA;
 	uint64_t materialsBDA;
+    uint64_t pad1;
 };
 
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
@@ -55,6 +56,10 @@ RayPayload scatter_combined(Material mat, vec3 dir, vec3 normal, vec2 uv, float 
 
     bool isSpecular = RandomFloat(rngSeed) < fresnel;
     vec3 scatterDir = isSpecular ? mix(reflectDir, diffuseDir, mat.roughness) : diffuseDir;
+
+    // if (cosTheta < 0) {
+    //     scatterDir = -scatterDir;
+    // }
 
     vec3 albedoTexColor = texture(sampler2D(g_Textures[mat.albedoTexIndex], g_Samplers[0]), uv).rgb;
 
@@ -109,4 +114,5 @@ void main() {
 
     // Scattering
     rayPayload = scatter(mat, gl_WorldRayDirectionEXT, hitVtx.normal, hitVtx.uv, gl_HitTEXT, rayPayload.rngSeed);
+    //rayPayload.color = hitVtx.normal;
 }

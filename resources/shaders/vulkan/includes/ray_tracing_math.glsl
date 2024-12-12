@@ -90,6 +90,7 @@ Vertex barycentric_lerp(Vertex v0, Vertex v1, Vertex v2, vec3 barycentrics) {
     vtx.normal = normalize(barycentric_lerp(v0.normal, v1.normal, v2.normal, barycentrics));
     vtx.tangent = normalize(barycentric_lerp(v0.tangent, v1.tangent, v2.tangent, barycentrics));
     vtx.uv = barycentric_lerp(v0.uv, v1.uv, v2.uv, barycentrics);
+	//vtx.matIndex = v0.matIndex;
 
     return vtx;
 }

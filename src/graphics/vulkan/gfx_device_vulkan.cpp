@@ -1919,7 +1919,7 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 	// Geometry info
 	VkAccelerationStructureBuildGeometryInfoKHR& buildInfo = internalState->buildInfo;
 	buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-	buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 
 	switch (rtasInfo.type) {
 	case RTASType::BLAS:
@@ -1933,6 +1933,7 @@ void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 				vkGeometry = {};
 				vkGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 				vkGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR; // TODO: For now we only support triangles as the geometry type
+				//vkGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 
 				// Triangle geometry
 				auto& vkTriangles = vkGeometry.geometry.triangles;

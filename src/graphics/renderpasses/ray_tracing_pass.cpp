@@ -3,10 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice(gfxDevice) {
-
-	const auto& entities = scene.get_entities();
-
+RayTracingPass::RayTracingPass(GFXDevice& gfxDevice) : m_GfxDevice(gfxDevice) {
 	// ---------------------- Create Ray-Tracing Pipeline ----------------------
 	m_GfxDevice.create_shader(ShaderStage::RAYGEN, "shaders/vulkan/rt_raygen.rgen.spv", m_RayGenShader);
 	m_GfxDevice.create_shader(ShaderStage::MISS, "shaders/vulkan/rt_miss.rmiss.spv", m_MissShader);
@@ -25,10 +22,14 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 	};
 
 	m_GfxDevice.create_rt_pipeline(rtPipelineInfo, m_RTPipeline);
+}
+
+void RayTracingPass::initialize(Scene& scene) {
+	const auto& entities = scene.get_entities();
 
 	// ----------------------------- Create BLASes -----------------------------
 	size_t numBLASes = 0;
-	
+
 	// Count number of BLASes required
 	for (const auto& entity : entities) {
 		const Renderable* renderable = ecs::get_component<Renderable>(entity);
@@ -123,8 +124,8 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice, Scene& scene) : m_GfxDevice
 
 				// Create object for scene desc
 				Object& object = m_SceneDescBufferData.emplace_back();
-				object.verticesBDA = m_GfxDevice.get_bda(model->vertexBuffer);
-				object.indicesBDA = m_GfxDevice.get_bda(model->indexBuffer);
+				object.verticesBDA = m_GfxDevice.get_bda(model->vertexBuffer) + primitive.baseVertex * sizeof(ModelVertex);
+				object.indicesBDA = m_GfxDevice.get_bda(model->indexBuffer) + primitive.baseIndex * sizeof(uint32_t);
 				object.materialsBDA = m_GfxDevice.get_bda(m_MaterialBuffer);
 			}
 		}

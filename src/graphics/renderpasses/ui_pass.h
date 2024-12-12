@@ -4,6 +4,7 @@
 #include "../render_graph.h"
 #include "../../enum_flags.h"
 #include "../../data/font.h"
+#include "../../managers/asset_manager.h"
 
 #include <GLFW/glfw3.h>
 #include <cassert>
@@ -152,6 +153,7 @@ private:
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL = { 0.2f, 0.2f, 0.2f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL_HOV = { 0.4f, 0.4f, 0.4f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL_PRESSED = { 0.5f, 0.5f, 0.5f, 1.0f };
+	static constexpr glm::vec4 UI_WIDGET_SECONDARY_COL = { 0.3f, 0.3f, 0.3f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_HIGHLIGHT_COL = { 0.039, 0.243, 0.662, 1.0f };
 	static constexpr int UI_MENU_RIGHT_PADDING = 32;
 
@@ -207,6 +209,7 @@ private:
 
 	void draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags = UIPosFlag::NONE, uint32_t zOrder = 0);
 	void draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags = UIPosFlag::NONE, const Texture* texture = nullptr, uint32_t zOrder = 0);
+	//void draw_triangle(const glm::vec2& a, const glm::vec2& b, const glm::vec2& c, const glm::vec4& col, uint32_t zOrder = 0);
 	void calc_cursor_origin();
 	inline uint64_t widget_hash_combine(uint64_t hash1, uint64_t hash2) {
 		return hash1 ^ (hash2 + 0x9e3779b97f4a7c15ULL + (hash1 << 6) + (hash1 >> 2));
@@ -218,6 +221,7 @@ private:
 	Pipeline m_Pipeline = {};
 	Buffer m_UIParamsBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
 	Font* m_DefaultFont = {};
+	Asset m_RightArrowIcon = {};
 
 	std::vector<UIParams> m_UIParamsData = {};
 	glm::vec2 m_DefaultCursorOrigin = { UI_PADDING, UI_PADDING };
@@ -229,8 +233,8 @@ private:
 	bool m_SameLineIsActive = false;
 	bool m_SameLineWasActive = false;
 	bool m_MainMenuActive = false;
-	int m_ActiveMenuMaxWidth = 0;
-	int m_ActiveMenuTotalHeight = 0;
+	//int m_ActiveMenuMaxWidth = 0;
+	//int m_ActiveMenuTotalHeight = 0;
 
 	MouseEventData m_CurrentMouseData = {};
 	UIEvent m_LastMouseEvent = UIEvent(UIEventType::None);
@@ -240,9 +244,13 @@ private:
 
 	std::unordered_map<uint64_t, UIWidgetState> m_WidgetStateMap = {};
 	std::vector<uint64_t> m_WidgetStateMapIndices = {};
+	std::unordered_map<uint64_t, glm::vec2> m_LastMenuDimensions = {};
+	std::unordered_map<uint64_t, glm::vec2> m_MenuDimensions = {};
 	uint64_t m_LastBegunMenuID = 0;
 	uint64_t m_ActiveWidgetID = 0;
 	uint64_t m_HoveredWidgetID = 0;
+	uint64_t m_LastHoveredWidgetID = 0;
+	uint64_t m_LastHoveredNonRootMenuID = 0;
 	float m_CaretTimer = 0.0f;
 
 	GLFWwindow* m_Window = nullptr;

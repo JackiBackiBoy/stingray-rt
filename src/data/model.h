@@ -24,6 +24,8 @@ struct ModelVertex {
 	glm::vec3 normal = {};
 	glm::vec3 tangent = {};
 	glm::vec2 texCoord = {};
+	float pad1;
+	float pad2;
 };
 
 struct Model {

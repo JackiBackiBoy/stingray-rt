@@ -17,7 +17,7 @@ layout(location = 0) out vec4 fsOutColor;
 
 void main() {
     if (fsInUIType == UI_TYPE_RECTANGLE) {
-        fsOutColor = fsInColor * vec4(texture(sampler2D(g_Textures[fsInTexIndex], g_Samplers[0]), fsInTexCoord).rgb, 1.0f);
+        fsOutColor = fsInColor * vec4(texture(sampler2D(g_Textures[fsInTexIndex], g_Samplers[0]), fsInTexCoord).rgba);
     }
     else if (fsInUIType == UI_TYPE_TEXT) {
         fsOutColor = fsInColor * vec4(1.0f, 1.0f, 1.0f, texture(sampler2D(g_Textures[fsInTexIndex], g_Samplers[0]), fsInTexCoord).r);
