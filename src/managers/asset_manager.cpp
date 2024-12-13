@@ -287,7 +287,7 @@ namespace assetmanager {
 				assert(posAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 				const float* positions = reinterpret_cast<const float*>(
 					&posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]
-					);
+				);
 
 				// Normals
 				const tinygltf::Accessor& normalAccessor = gltfModel.accessors[gltfPrimitive.attributes["NORMAL"]];
@@ -297,7 +297,7 @@ namespace assetmanager {
 				assert(normalAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 				const float* normals = reinterpret_cast<const float*>(
 					&posBuffer.data[normalBufferView.byteOffset + normalAccessor.byteOffset]
-					);
+				);
 
 				// Tangents
 				const tinygltf::Accessor& tangentAccessor = gltfModel.accessors[gltfPrimitive.attributes["TANGENT"]];
@@ -307,7 +307,7 @@ namespace assetmanager {
 				assert(tangentAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 				const float* tangents = reinterpret_cast<const float*>(
 					&tangentBuffer.data[tangentBufferView.byteOffset + tangentAccessor.byteOffset]
-					);
+				);
 
 				// Texture coordinates
 				const tinygltf::Accessor& texCoordAccessor = gltfModel.accessors[gltfPrimitive.attributes["TEXCOORD_0"]];
@@ -317,7 +317,7 @@ namespace assetmanager {
 				assert(texCoordAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
 				const float* texCoords = reinterpret_cast<const float*>(
 					&texCoordBuffer.data[texCoordBufferView.byteOffset + texCoordAccessor.byteOffset]
-					);
+				);
 
 				// Indices
 				const tinygltf::Accessor& indicesAccessor = gltfModel.accessors[gltfPrimitive.indices];
@@ -399,9 +399,6 @@ namespace assetmanager {
 				baseVertex += static_cast<uint32_t>(posAccessor.count);
 				baseIndex += static_cast<uint32_t>(indicesAccessor.count);
 			}
-
-			//baseVertex = static_cast<uint32_t>(asset->model.vertices.size());
-			//baseIndex = static_cast<uint32_t>(asset->model.indices.size());
 		}
 
 		// Create related buffers for the GPU
