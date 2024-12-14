@@ -13,6 +13,7 @@
 #include <optional>
 #include <stdexcept>
 #include <iostream>
+#include <queue>
 #include <set>
 #include <vector>
 
@@ -22,7 +23,8 @@ struct GFXDevice_Vulkan::Impl {
 	~Impl();
 
 	struct Descriptor {
-		uint32_t index = 0;
+		static constexpr uint32_t INVALID_DESCRIPTOR_INDEX = ~0U;
+		uint32_t index = INVALID_DESCRIPTOR_INDEX;
 
 		void init_ubo(Impl* impl, VkBuffer buffer);
 		void init_texture(Impl* impl, VkImageView imageView, VkImageLayout layout);
@@ -40,12 +42,28 @@ struct GFXDevice_Vulkan::Impl {
 	public:
 		DescriptorHeap(uint32_t capacity) : m_Capacity(capacity) {}
 
-		inline uint32_t getCurrentDescriptorHandle() const { return m_CurrentDescriptorHandle; }
-		inline void offsetCurrentDescriptorHandle(uint32_t offset) { m_CurrentDescriptorHandle += offset; }
+		inline void free_handle(Descriptor& descriptor) {
+			assert(descriptor.index < m_Size && descriptor.index < m_Capacity);
+			m_FreeList.push(descriptor.index);
+			descriptor.index = Descriptor::INVALID_DESCRIPTOR_INDEX;
+		}
+		inline uint32_t get_next_handle() {
+			if (!m_FreeList.empty()) {
+				const uint32_t handle = m_FreeList.front();
+				m_FreeList.pop();
+
+				return handle;
+			}
+
+			assert(m_Size < m_Capacity);
+			return m_Size++;
+		}
 
 	private:
 		uint32_t m_CurrentDescriptorHandle = 0;
 		uint32_t m_Capacity = 0;
+		uint32_t m_Size = 0;
+		std::queue<uint32_t> m_FreeList = {};
 	};
 
 	struct Buffer_Vulkan {
@@ -150,6 +168,7 @@ struct GFXDevice_Vulkan::Impl {
 	VkCommandPool m_CommandPool = nullptr;
 	std::vector<std::unique_ptr<CommandList_Vulkan>> m_CmdLists = {};
 	size_t m_CmdListCounter = 0;
+	bool m_ResizeRequested = false;
 
 	// Ray Tracing
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_RTProperties = {
@@ -208,9 +227,7 @@ void GFXDevice_Vulkan::Impl::Descriptor::init_ubo(Impl* impl, VkBuffer buffer) {
 		.range = VK_WHOLE_SIZE
 	};
 
-	// TODO: Perhaps accumulate descriptor writes instead of one at a time?
-	index = impl->m_UBODescriptorHeap.getCurrentDescriptorHandle();
-	impl->m_UBODescriptorHeap.offsetCurrentDescriptorHandle(1);
+	index = impl->m_UBODescriptorHeap.get_next_handle();
 
 	const VkWriteDescriptorSet descriptorWrite = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -232,8 +249,7 @@ void GFXDevice_Vulkan::Impl::Descriptor::init_texture(Impl* impl, VkImageView im
 		.imageLayout = layout
 	};
 
-	index = impl->m_TextureDescriptorHeap.getCurrentDescriptorHandle();
-	impl->m_TextureDescriptorHeap.offsetCurrentDescriptorHandle(1);
+	index = impl->m_TextureDescriptorHeap.get_next_handle();
 
 	const VkWriteDescriptorSet descriptorWrite = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -255,8 +271,7 @@ void GFXDevice_Vulkan::Impl::Descriptor::init_rw_texture(Impl* impl, VkImageView
 		.imageLayout = layout
 	};
 
-	index = impl->m_RWTextureDescriptorHeap.getCurrentDescriptorHandle();
-	impl->m_RWTextureDescriptorHeap.offsetCurrentDescriptorHandle(1);
+	index = impl->m_RWTextureDescriptorHeap.get_next_handle();
 
 	const VkWriteDescriptorSet descriptorWrite = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -278,8 +293,7 @@ void GFXDevice_Vulkan::Impl::Descriptor::init_storage_buffer(Impl* impl, VkBuffe
 		.range = VK_WHOLE_SIZE
 	};
 
-	index = impl->m_StorageBufferDescriptorHeap.getCurrentDescriptorHandle();
-	impl->m_StorageBufferDescriptorHeap.offsetCurrentDescriptorHandle(1);
+	index = impl->m_StorageBufferDescriptorHeap.get_next_handle();
 
 	const VkWriteDescriptorSet descriptorWrite = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -874,7 +888,7 @@ void GFXDevice_Vulkan::Impl::create_internal_swapchain(SwapChain_Vulkan* interna
 	// image actually is a call that does nothing because of some vendor stuff,
 	// so it's not enough to rely on the swapchain being invalidated.
 	if (oldSwapchain != VK_NULL_HANDLE) {
-		//waitForGPU();
+		vkDeviceWaitIdle(m_Device);
 	}
 
 	if (vkCreateSwapchainKHR(m_Device, &createInfo, nullptr, &internalState->swapChain) != VK_SUCCESS) {
@@ -1023,6 +1037,7 @@ GFXDevice_Vulkan::~GFXDevice_Vulkan() {
 
 void GFXDevice_Vulkan::create_swapchain(const SwapChainInfo& info, SwapChain& swapChain) {
 	if (swapChain.internalState != nullptr) { // recreation of swapchain detected
+		swapChain.info = info;
 		m_Impl->create_internal_swapchain((SwapChain_Vulkan*)swapChain.internalState.get());
 		return;
 	}
@@ -1467,6 +1482,20 @@ void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture,
 	auto internalState = std::make_shared<Impl::Texture_Vulkan>();
 	internalState->destructionHandler = &m_Impl->m_DestructionHandler;
 
+	// Free descriptors if internal state already exists
+	// NOTE: The prior internal state will be automatically destroyed when it's
+	// not used, but the old descriptor handles need to be freed manually here.
+	if (texture.internalState != nullptr) {
+		auto oldInternalState = (Impl::Texture_Vulkan*)texture.internalState.get();
+
+		if (oldInternalState->descriptor.index != Impl::Descriptor::INVALID_DESCRIPTOR_INDEX) {
+			m_Impl->m_TextureDescriptorHeap.free_handle(oldInternalState->descriptor);
+		}
+		if (oldInternalState->uavDescriptor.index != Impl::Descriptor::INVALID_DESCRIPTOR_INDEX) {
+			m_Impl->m_RWTextureDescriptorHeap.free_handle(oldInternalState->uavDescriptor);
+		}
+	}
+
 	texture.internalState = internalState;
 	texture.info = info;
 	texture.type = Resource::Type::TEXTURE;
@@ -1904,6 +1933,35 @@ void GFXDevice_Vulkan::create_sampler(const SamplerInfo& info, Sampler& sampler)
 		0,
 		nullptr
 	);
+}
+
+void GFXDevice_Vulkan::destroy_resource(const Resource& resource) {
+	switch (resource.type) {
+	case Resource::Type::TEXTURE:
+		{
+			auto internalTexture = (Impl::Texture_Vulkan*)resource.internalState.get();
+			assert(internalTexture != nullptr);
+
+			// Immediate destruction
+			if (internalTexture->imageView != nullptr) {
+				vkDestroyImageView(m_Impl->m_Device, internalTexture->imageView, nullptr);
+				internalTexture->imageView = nullptr;
+			}
+
+			if (internalTexture->image != nullptr) {
+				vkDestroyImage(m_Impl->m_Device, internalTexture->image, nullptr);
+				internalTexture->image = nullptr;
+			}
+
+			if (internalTexture->imageMemory != nullptr) {
+				vkFreeMemory(m_Impl->m_Device, internalTexture->imageMemory, nullptr);
+				internalTexture->imageMemory = nullptr;
+			}
+		}
+		break;
+	default:
+		break;
+	}
 }
 
 // -------------------------------- Ray Tracing --------------------------------
@@ -2634,6 +2692,11 @@ void GFXDevice_Vulkan::begin_render_pass(const SwapChain& swapChain, const PassI
 			&m_CurrentImageIndex
 		);
 
+		//if (res == VK_ERROR_OUT_OF_DATE_KHR) {
+		//	m_Impl->m_ResizeRequested = true;
+		//	return;
+		//}
+
 		if (res != VK_SUCCESS) {
 			throw std::runtime_error("VULKAN ERROR: Failed to acquire next image!");
 		}
@@ -2841,6 +2904,10 @@ void GFXDevice_Vulkan::submit_command_lists(const SwapChain& swapChain) {
 
 		const VkResult res = vkQueuePresentKHR(m_Impl->m_PresentQueue, &presentInfo);
 
+		//if (res == VK_ERROR_OUT_OF_DATE_KHR) {
+		//	m_Impl->m_ResizeRequested = true;
+		//}
+
 		if (res != VK_SUCCESS) {
 			throw std::runtime_error("VULKAN ERROR: Failed to queue present KHR!");
 		}
@@ -2898,14 +2965,17 @@ uint32_t GFXDevice_Vulkan::get_descriptor_index(const Resource& resource, Subres
 		// TODO: Handle subresource types BETTER
 		switch (type) {
 		case SubresourceType::SRV:
+			assert(internalTexture->descriptor.index != Impl::Descriptor::INVALID_DESCRIPTOR_INDEX);
 			return internalTexture->descriptor.index;
 		case SubresourceType::UAV:
+			assert(internalTexture->uavDescriptor.index != Impl::Descriptor::INVALID_DESCRIPTOR_INDEX);
 			return internalTexture->uavDescriptor.index;
 		}
 	}
 	else if (resource.type == Resource::Type::BUFFER) {
 		auto internalBuffer = (Impl::Buffer_Vulkan*)resource.internalState.get();
 
+		assert(internalBuffer->descriptor.index != Impl::Descriptor::INVALID_DESCRIPTOR_INDEX);
 		return internalBuffer->descriptor.index;
 	}
 }

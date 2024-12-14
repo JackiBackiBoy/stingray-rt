@@ -3,6 +3,7 @@
 namespace input {
 	struct KeyboardState {
 		bool buttons[512] = { false };
+		bool downOnceButtons[512] = { false };
 	};
 
 	struct MouseState {
@@ -21,5 +22,6 @@ namespace input {
 	void update(); // NOTE: Should ideally be called once every frame
 
 	bool is_key_down(int keyCode);
+	bool is_key_down_once(int keyCode);
 	bool is_mouse_down(int button);
 }

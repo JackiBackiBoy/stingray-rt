@@ -31,9 +31,9 @@ namespace assetmanager {
 		SOUND,
 	};
 
-	GLOBAL_VARIABLE std::unordered_map<std::string, std::weak_ptr<AssetInternal>> g_Assets = {};
-	GLOBAL_VARIABLE std::unordered_map<std::string, Font*> g_Fonts = {};
-	GLOBAL_VARIABLE tinygltf::TinyGLTF g_GltfLoader = {};
+	GLOBAL std::unordered_map<std::string, std::weak_ptr<AssetInternal>> g_Assets = {};
+	GLOBAL std::unordered_map<std::string, Font*> g_Fonts = {};
+	GLOBAL tinygltf::TinyGLTF g_GltfLoader = {};
 
 	static const std::unordered_map<std::string, DataType> g_Types = {
 		{ "jpg", DataType::IMAGE },

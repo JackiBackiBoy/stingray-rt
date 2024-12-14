@@ -6,24 +6,26 @@
 #include "data/scene.h"
 #include "ecs/ecs.h"
 #include "input/input.h"
-
 #include "graphics/render_graph.h"
 #include "graphics/renderpasses/fullscreen_tri_pass.h"
 #include "graphics/renderpasses/ray_tracing_pass.h"
 #include "graphics/renderpasses/ui_pass.h"
 #include "graphics/vulkan/gfx_device_vulkan.h"
-
 #include "managers/asset_manager.h"
 #include "managers/material_manager.h"
 
 #include <glm/glm.hpp>
-
 #include <chrono>
 #include <cstdint>
 #include <format>
 #include <iostream>
 #include <memory>
 #include <vector>
+
+enum class UIState {
+	HIDDEN,
+	VISIBLE
+};
 
 struct PerFrameData {
 	glm::mat4 projectionMatrix = { 1.0f };
@@ -33,57 +35,90 @@ struct PerFrameData {
 	uint32_t pad1 = 0;
 };
 
-GLOBAL_VARIABLE GraphicsAPI g_API = GraphicsAPI::VULKAN;
-GLOBAL_VARIABLE int g_FrameWidth = 1920;
-GLOBAL_VARIABLE int g_FrameHeight = 1080;
-GLOBAL_VARIABLE GLFWwindow* g_Window = nullptr;
-GLOBAL_VARIABLE UIEvent g_MouseEvent = UIEvent(UIEventType::None);
-GLOBAL_VARIABLE UIEvent g_KeyboardEvent = UIEvent(UIEventType::None);
+GLOBAL GraphicsAPI g_API = GraphicsAPI::VULKAN;
+GLOBAL int g_FrameWidth = 1920;
+GLOBAL int g_FrameHeight = 1080;
+GLOBAL GLFWwindow* g_Window = nullptr;
+GLOBAL UIEvent g_MouseEvent = UIEvent(UIEventType::None);
+GLOBAL UIEvent g_KeyboardEvent = UIEvent(UIEventType::None);
+GLOBAL UIState g_UIState = UIState::VISIBLE;
 
-GLOBAL_VARIABLE std::unique_ptr<GFXDevice> g_GfxDevice = {};
-GLOBAL_VARIABLE std::unique_ptr<FullscreenTriPass> g_FullscreenTriPass = {};
-GLOBAL_VARIABLE std::unique_ptr<RayTracingPass> g_RayTracingPass = {};
-GLOBAL_VARIABLE std::unique_ptr<UIPass> g_UIPass = {};
-GLOBAL_VARIABLE std::unique_ptr<RenderGraph> g_RenderGraph = {};
-GLOBAL_VARIABLE SwapChain g_SwapChain = {};
-GLOBAL_VARIABLE Sampler g_DefaultSampler = {};
+GLOBAL std::unique_ptr<GFXDevice> g_GfxDevice = {};
+GLOBAL std::unique_ptr<FullscreenTriPass> g_FullscreenTriPass = {};
+GLOBAL std::unique_ptr<RayTracingPass> g_RayTracingPass = {};
+GLOBAL std::unique_ptr<UIPass> g_UIPass = {};
+GLOBAL std::unique_ptr<RenderGraph> g_RenderGraph = {};
+GLOBAL SwapChain g_SwapChain = {};
+GLOBAL Sampler g_DefaultSampler = {};
 
-GLOBAL_VARIABLE std::unique_ptr<MaterialManager> g_MaterialManager = {};
-GLOBAL_VARIABLE Buffer g_PerFrameDataBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
-GLOBAL_VARIABLE PerFrameData g_PerFrameData = {};
+GLOBAL std::unique_ptr<MaterialManager> g_MaterialManager = {};
+GLOBAL Buffer g_PerFrameDataBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
+GLOBAL PerFrameData g_PerFrameData = {};
 
-GLOBAL_VARIABLE std::unique_ptr<Camera> g_Camera = {};
-GLOBAL_VARIABLE FrameInfo g_FrameInfo = {};
-GLOBAL_VARIABLE uint64_t g_LastFrameCount = 0;
-GLOBAL_VARIABLE uint64_t g_CurrentFPS = 0;
-GLOBAL_VARIABLE std::chrono::high_resolution_clock::time_point g_FPSStartTime = {};
-GLOBAL_VARIABLE Scene* g_ActiveScene = nullptr;
+GLOBAL std::unique_ptr<Camera> g_Camera = {};
+GLOBAL FrameInfo g_FrameInfo = {};
+GLOBAL uint64_t g_LastFrameCount = 0;
+GLOBAL uint64_t g_CurrentFPS = 0;
+GLOBAL std::chrono::high_resolution_clock::time_point g_FPSStartTime = {};
+GLOBAL Scene* g_ActiveScene = nullptr;
 
 // Resources
-GLOBAL_VARIABLE Texture g_DefaultAlbedoMap = {};
-GLOBAL_VARIABLE Texture g_DefaultNormalMap = {};
-GLOBAL_VARIABLE Asset g_TestTexture = {};
-GLOBAL_VARIABLE Asset g_PlaneModel = {};
-GLOBAL_VARIABLE Asset g_LucyModel = {};
-GLOBAL_VARIABLE Asset g_SponzaModel = {};
-GLOBAL_VARIABLE std::unique_ptr<Model> g_FlatPlaneModel = {};
-GLOBAL_VARIABLE std::unique_ptr<Model> g_Sphere = {};
+GLOBAL Texture g_DefaultAlbedoMap = {};
+GLOBAL Texture g_DefaultNormalMap = {};
+GLOBAL Asset g_TestTexture = {};
+GLOBAL Asset g_PlaneModel = {};
+GLOBAL Asset g_LucyModel = {};
+GLOBAL Asset g_SponzaModel = {};
+GLOBAL std::unique_ptr<Model> g_FlatPlaneModel = {};
+GLOBAL std::unique_ptr<Model> g_Sphere = {};
 
 // Callbacks
 INTERNAL void resize_callback(GLFWwindow* window, int width, int height) {
 	g_FrameWidth = width;
 	g_FrameHeight = height;
+
+	const SwapChainInfo swapChainInfo = {
+		.width = static_cast<uint32_t>(width),
+		.height = static_cast<uint32_t>(height),
+		.bufferCount = 3,
+		.format = Format::R8G8B8A8_UNORM,
+		.vsync = true
+	};
+
+	// Recreate swapchain
+	g_GfxDevice->create_swapchain(swapChainInfo, g_SwapChain);
+
+	// Recreate resources with new sizes
+	auto rtOutput = g_RenderGraph->get_attachment("RTOutput");
+	auto rtAccumulation = g_RenderGraph->get_attachment("RTAccumulation");
+
+	TextureInfo newRtOutputTexInfo = rtOutput->texture.info;
+	newRtOutputTexInfo.width = static_cast<uint32_t>(width);
+	newRtOutputTexInfo.height = static_cast<uint32_t>(height);
+
+	TextureInfo newRtAccumulationTexInfo = rtAccumulation->texture.info;
+	newRtAccumulationTexInfo.width = static_cast<uint32_t>(width);
+	newRtAccumulationTexInfo.height = static_cast<uint32_t>(height);
+
+	g_GfxDevice->create_texture(newRtOutputTexInfo, rtOutput->texture, nullptr);
+	g_GfxDevice->create_texture(newRtAccumulationTexInfo, rtAccumulation->texture, nullptr);
+
+	// Update the attachment infos in the render graph
+	rtOutput->info.width = width;
+	rtOutput->currentState = ResourceState::UNORDERED_ACCESS;
+	rtAccumulation->info.height = height;
+	rtAccumulation->currentState = ResourceState::UNORDERED_ACCESS;
 }
 
-INTERNAL void mouse_position_callback(GLFWwindow* window, double xpos, double ypos) {
-	input::process_mouse_position(xpos, ypos);
+INTERNAL void mouse_position_callback(GLFWwindow* window, double x, double y) {
+	input::process_mouse_position(x, y);
 
 	if (g_UIPass != nullptr) {
 		g_MouseEvent.set_type(UIEventType::MouseMove);
 
 		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
-		mouse.position.x = xpos;
-		mouse.position.y = ypos;
+		mouse.position.x = x;
+		mouse.position.y = y;
 
 		g_UIPass->process_event(g_MouseEvent);
 	}
@@ -92,7 +127,7 @@ INTERNAL void mouse_position_callback(GLFWwindow* window, double xpos, double yp
 INTERNAL void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
 	input::process_mouse_event(button, action, mods);
 
-	if (g_UIPass != nullptr) {
+	if (g_UIPass != nullptr && g_UIState == UIState::VISIBLE) {
 		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
 		g_MouseEvent.set_type(action == GLFW_PRESS ? UIEventType::MouseDown : UIEventType::MouseUp);
 
@@ -117,7 +152,7 @@ INTERNAL void key_callback(GLFWwindow* window, int key, int scancode, int action
 
 	input::process_key_event(key, scancode, action, mods);
 	
-	if (g_UIPass != nullptr) {
+	if (g_UIPass != nullptr && g_UIState == UIState::VISIBLE) {
 		if (action == GLFW_PRESS) {
 			g_KeyboardEvent.set_type(UIEventType::KeyboardDown);
 		}
@@ -293,7 +328,9 @@ INTERNAL void init_render_graph() {
 
 	auto uiPass = g_RenderGraph->add_pass("UIPass");
 	uiPass->set_execute_callback([&](PassExecuteInfo& executeInfo) {
-		g_UIPass->execute(executeInfo);
+		if (g_UIState == UIState::VISIBLE) {
+			g_UIPass->execute(executeInfo);
+		}
 	});
 
 	g_RenderGraph->build();
@@ -512,6 +549,15 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 		newPosition.y -= cameraMoveSpeed * frameInfo.dt;
 	}
 
+	if (input::is_key_down_once(GLFW_KEY_F11)) {
+		if (g_UIState == UIState::VISIBLE) {
+			g_UIState = UIState::HIDDEN;
+		}
+		else if (g_UIState == UIState::HIDDEN) {
+			g_UIState = UIState::VISIBLE;
+		}
+	}
+
 	camera.set_position(newPosition);
 
 	const float aspectRatio = static_cast<float>(g_FrameWidth) / g_FrameHeight;
@@ -536,6 +582,7 @@ int main() {
 	glfwSetMouseButtonCallback(g_Window, mouse_button_callback);
 	glfwSetKeyCallback(g_Window, key_callback);
 	glfwSetCharCallback(g_Window, key_char_callback);
+	glfwSetWindowSizeCallback(g_Window, resize_callback);
 
 	init_gfx();
 	init_objects();

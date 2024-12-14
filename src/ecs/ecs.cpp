@@ -31,10 +31,10 @@ namespace ecs {
 		size_t size = 0;
 	};
 
-	GLOBAL_VARIABLE std::queue<entity_id> g_AvailableEntityIDs = {};
-	GLOBAL_VARIABLE uint32_t g_LiveEntityCount = 0;
-	GLOBAL_VARIABLE ComponentArray<Transform> g_TransformComponents = {};
-	GLOBAL_VARIABLE ComponentArray<Renderable> g_RenderableComponents = {};
+	GLOBAL std::queue<entity_id> g_AvailableEntityIDs = {};
+	GLOBAL uint32_t g_LiveEntityCount = 0;
+	GLOBAL ComponentArray<Transform> g_TransformComponents = {};
+	GLOBAL ComponentArray<Renderable> g_RenderableComponents = {};
 
 	void initialize() {
 		for (entity_id i = 0; i < MAX_ENTITIES; ++i) {

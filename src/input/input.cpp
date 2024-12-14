@@ -62,6 +62,19 @@ namespace input {
 		return g_CurrentKeyboard.buttons[(size_t)keyCode];
 	}
 
+	bool is_key_down_once(int keyCode) {
+		if (is_key_down(keyCode) && !g_CurrentKeyboard.downOnceButtons[(uint16_t)keyCode]) {
+			g_WorkingKeyboard.downOnceButtons[(uint16_t)keyCode] = true;
+			return true;
+		}
+
+		if (!is_key_down(keyCode) && g_CurrentKeyboard.downOnceButtons[(uint16_t)keyCode]) {
+			g_WorkingKeyboard.downOnceButtons[(uint16_t)keyCode] = false;
+		}
+
+		return false;
+	}
+
 	bool is_mouse_down(int button) {
 		return g_CurrentMouse.buttons[(size_t)button];
 	}

@@ -78,6 +78,13 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/graphics/renderpasses/ui_pass.cpp
 	${SOURCE_DIR}/graphics/renderpasses/ui_pass.h
 
+	# Vendor
+	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModel.c
+	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModel.h
+	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModelData_CIEXYZ.h
+	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModelData_RGB.h
+	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModelData_Spectral.h
+
 	# Vulkan
 	${SOURCE_DIR}/graphics/vulkan/gfx_device_vulkan.cpp
 	${SOURCE_DIR}/graphics/vulkan/gfx_device_vulkan.h

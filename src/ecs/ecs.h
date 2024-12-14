@@ -15,5 +15,5 @@ namespace ecs {
 
 	entity_id create_entity();
 
-	GLOBAL_VARIABLE constexpr entity_id MAX_ENTITIES = 16384;
+	GLOBAL constexpr entity_id MAX_ENTITIES = 16384;
 }
