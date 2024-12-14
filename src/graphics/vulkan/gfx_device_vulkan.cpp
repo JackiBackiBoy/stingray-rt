@@ -1935,35 +1935,6 @@ void GFXDevice_Vulkan::create_sampler(const SamplerInfo& info, Sampler& sampler)
 	);
 }
 
-void GFXDevice_Vulkan::destroy_resource(const Resource& resource) {
-	switch (resource.type) {
-	case Resource::Type::TEXTURE:
-		{
-			auto internalTexture = (Impl::Texture_Vulkan*)resource.internalState.get();
-			assert(internalTexture != nullptr);
-
-			// Immediate destruction
-			if (internalTexture->imageView != nullptr) {
-				vkDestroyImageView(m_Impl->m_Device, internalTexture->imageView, nullptr);
-				internalTexture->imageView = nullptr;
-			}
-
-			if (internalTexture->image != nullptr) {
-				vkDestroyImage(m_Impl->m_Device, internalTexture->image, nullptr);
-				internalTexture->image = nullptr;
-			}
-
-			if (internalTexture->imageMemory != nullptr) {
-				vkFreeMemory(m_Impl->m_Device, internalTexture->imageMemory, nullptr);
-				internalTexture->imageMemory = nullptr;
-			}
-		}
-		break;
-	default:
-		break;
-	}
-}
-
 // -------------------------------- Ray Tracing --------------------------------
 void GFXDevice_Vulkan::create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) {
 	auto internalState = std::make_shared<RTAS_Vulkan>();

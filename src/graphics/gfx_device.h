@@ -20,7 +20,6 @@ public:
 	virtual void create_shader(ShaderStage stage, const std::string& path, Shader& shader) = 0;
 	virtual void create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) = 0;
 	virtual void create_sampler(const SamplerInfo& info, Sampler& sampler) = 0;
-	virtual void destroy_resource(const Resource& resource) = 0;
 
 	// ------------------------------ Ray Tracing ------------------------------
 	virtual void create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) = 0;

@@ -14,7 +14,6 @@ public:
 	void create_shader(ShaderStage stage, const std::string& path, Shader& shader) override;
 	void create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) override;
 	void create_sampler(const SamplerInfo& info, Sampler& sampler) override;
-	void destroy_resource(const Resource& resource) override;
 
 	// ------------------------------ Ray Tracing ------------------------------
 	void create_rtas(const RTASInfo& rtasInfo, RTAS& rtas) override;
