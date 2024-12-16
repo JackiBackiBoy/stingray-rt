@@ -13,6 +13,9 @@ namespace ecs {
 	template <typename T>
 	T* get_component(entity_id entity);
 
+	template <typename T>
+	bool has_component(entity_id entity);
+
 	entity_id create_entity();
 
 	GLOBAL constexpr entity_id MAX_ENTITIES = 16384;

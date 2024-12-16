@@ -24,8 +24,9 @@ RayTracingPass::RayTracingPass(GFXDevice& gfxDevice) : m_GfxDevice(gfxDevice) {
 	m_GfxDevice.create_rt_pipeline(rtPipelineInfo, m_RTPipeline);
 }
 
-void RayTracingPass::initialize(Scene& scene, const Buffer& materialBuffer) {
+void RayTracingPass::initialize(Scene& scene, MaterialManager& materialManager) {
 	const auto& entities = scene.get_entities();
+	const Buffer& materialBuffer = materialManager.get_material_buffer();
 
 	// ----------------------------- Create BLASes -----------------------------
 	size_t numBLASes = 0;
@@ -49,7 +50,10 @@ void RayTracingPass::initialize(Scene& scene, const Buffer& materialBuffer) {
 	for (const auto& entity : entities) {
 		const Renderable* renderable = ecs::get_component<Renderable>(entity);
 		const Transform* transform = ecs::get_component<Transform>(entity);
+		const Material* material = ecs::get_component<Material>(entity);
 		const Model* model = renderable->model;
+
+		uint32_t matIndexOverride = material != nullptr ? materialManager.add_material(*material) : 0;
 
 		for (const auto& mesh : model->meshes) {
 			for (const auto& primitive : mesh.primitives) {
@@ -109,9 +113,13 @@ void RayTracingPass::initialize(Scene& scene, const Buffer& materialBuffer) {
 				object.verticesBDA = m_GfxDevice.get_bda(model->vertexBuffer) + primitive.baseVertex * sizeof(ModelVertex);
 				object.indicesBDA = m_GfxDevice.get_bda(model->indexBuffer) + primitive.baseIndex * sizeof(uint32_t);
 				object.materialsBDA = m_GfxDevice.get_bda(materialBuffer);
+				object.matIndexOverride = matIndexOverride;
 			}
 		}
 	}
+
+	materialManager.update_gpu_buffer();
+
 
 	// ------------------------------ Create TLAS ------------------------------
 	const RTASInfo tlasInfo = {

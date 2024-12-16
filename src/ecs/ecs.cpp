@@ -20,7 +20,9 @@ namespace ecs {
 		}
 
 		T* get(entity_id entity) {
-			assert(entityToIndexLUT.find(entity) != entityToIndexLUT.end());
+			if (entityToIndexLUT.find(entity) == entityToIndexLUT.end()) {
+				return nullptr;
+			}
 
 			return &components[entityToIndexLUT[entity]];
 		}
@@ -35,6 +37,7 @@ namespace ecs {
 	GLOBAL uint32_t g_LiveEntityCount = 0;
 	GLOBAL ComponentArray<Transform> g_TransformComponents = {};
 	GLOBAL ComponentArray<Renderable> g_RenderableComponents = {};
+	GLOBAL ComponentArray<Material> g_MaterialComponents = {};
 
 	void initialize() {
 		for (entity_id i = 0; i < MAX_ENTITIES; ++i) {
@@ -61,6 +64,11 @@ namespace ecs {
 		g_RenderableComponents.add(entity, component);
 	}
 
+	template <>
+	void add_component<Material>(entity_id entity, const Material& component) {
+		g_MaterialComponents.add(entity, component);
+	}
+
 	template <typename T>
 	T* get_component(entity_id entity) {
 		static_assert(sizeof(T) == 0, "get_component is not implemented for this component type.");
@@ -74,6 +82,16 @@ namespace ecs {
 	template <>
 	Renderable* get_component<Renderable>(entity_id entity) {
 		return g_RenderableComponents.get(entity);
+	}
+
+	template <>
+	Material* get_component<Material>(entity_id entity) {
+		return g_MaterialComponents.get(entity);
+	}
+
+	template <>
+	bool has_component<Material>(entity_id entity) {
+		return g_MaterialComponents.get(entity) != nullptr;
 	}
 
 	entity_id create_entity() {

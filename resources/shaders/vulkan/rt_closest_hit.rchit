@@ -15,7 +15,8 @@ struct Object {
 	uint64_t verticesBDA;
 	uint64_t indicesBDA;
 	uint64_t materialsBDA;
-    uint64_t pad1;
+    uint matIndexOverride;
+    uint pad1;
 };
 
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
@@ -114,6 +115,10 @@ void main() {
 
     Materials mats = Materials(obj.materialsBDA);
     Material mat = mats.m[hitVtx.matIndex];
+
+    if (obj.matIndexOverride != 0) {
+        mat = mats.m[uint(obj.matIndexOverride)];
+    }
 
     // Normal mapping
     if (g_PushConstants.useNormalMaps != 0) {

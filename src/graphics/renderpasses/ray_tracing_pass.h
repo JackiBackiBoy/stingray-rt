@@ -4,6 +4,7 @@
 #include "../render_graph.h"
 #include "../../data/scene.h"
 #include "../../ecs/ecs.h"
+#include "../../managers/material_manager.h"
 
 #include <vector>
 
@@ -12,14 +13,14 @@ public:
 	RayTracingPass(GFXDevice& gfxDevice);
 	~RayTracingPass() {}
 
-	void initialize(Scene& scene, const Buffer& materialBuffer);
+	void initialize(Scene& scene, MaterialManager& materialManager);
 	void build_acceleration_structures(const CommandList& cmdList);
 	void execute(PassExecuteInfo& executeInfo, Scene& scene);
 	
 	uint32_t m_RayBounces = 8;
 	uint32_t m_SamplesPerPixel = 1;
 	bool m_UseNormalMaps = true;
-	bool m_UseSkybox = false;
+	bool m_UseSkybox = true;
 
 private:
 	struct PushConstant {
@@ -38,7 +39,7 @@ private:
 		uint64_t verticesBDA = 0;
 		uint64_t indicesBDA = 0;
 		uint64_t materialsBDA = 0;
-		uint64_t pad1 = 0;
+		uint64_t matIndexOverride = 0;
 	};
 
 	GFXDevice& m_GfxDevice;
