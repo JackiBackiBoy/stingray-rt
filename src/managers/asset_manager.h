@@ -22,7 +22,7 @@ namespace assetmanager {
 	void destroy();
 
 	std::unique_ptr<Model> create_plane(float width, float depth);
-	std::unique_ptr<Model> create_sphere(float radius, int latitudeSplits, int longitudeSplits);
+	std::unique_ptr<Model> create_sphere(float radius, int latitudeSplits, int longitudeSplits, const Material* material);
 
 	void load_from_file(Asset& outAsset, const std::string& path);
 	Font* load_font_from_file(const std::string& path, int ptSize);

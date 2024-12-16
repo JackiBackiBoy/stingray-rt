@@ -16,11 +16,12 @@ layout (push_constant) uniform constants {
     uint rtAccumulationIndex;
     uint rtImageIndex;
     uint sceneDescBufferIndex;
+    uint rayBounces;
     uint samplesPerPixel;
     uint totalSamplesPerPixel;
+    uint useNormalMaps;
+    uint useSkybox;
 } g_PushConstants;
-
-const uint RAY_BOUNCES = 16;
 
 void main() {
     const vec2 pixelCoord = vec2(gl_LaunchIDEXT.xy);
@@ -48,8 +49,8 @@ void main() {
             vec3 rayDir = normalize(rayEnd.xyz - rayOrigin.xyz);
             vec3 rayColor = vec3(1.0);
 
-            for (uint j = 0; j <= RAY_BOUNCES; j++) {
-                if (j == RAY_BOUNCES) {
+            for (uint j = 0; j <= g_PushConstants.rayBounces; j++) {
+                if (j == g_PushConstants.rayBounces) {
                     rayColor = vec3(0.0);
                     break;
                 }

@@ -15,6 +15,11 @@ public:
 	void initialize(Scene& scene, const Buffer& materialBuffer);
 	void build_acceleration_structures(const CommandList& cmdList);
 	void execute(PassExecuteInfo& executeInfo, Scene& scene);
+	
+	uint32_t m_RayBounces = 8;
+	uint32_t m_SamplesPerPixel = 1;
+	bool m_UseNormalMaps = true;
+	bool m_UseSkybox = false;
 
 private:
 	struct PushConstant {
@@ -22,8 +27,11 @@ private:
 		uint32_t rtAccumulationIndex;
 		uint32_t rtImageIndex;
 		uint32_t sceneDescBufferIndex;
+		uint32_t rayBounces;
 		uint32_t samplesPerPixel;
 		uint32_t totalSamplesPerPixel;
+		uint32_t useNormalMaps;
+		uint32_t useSkybox;
 	} m_PushConstant = {};
 
 	struct Object {
@@ -43,15 +51,12 @@ private:
 	ShaderBindingTable m_MissSBT = {};
 	ShaderBindingTable m_HitSBT = {};
 
-	std::vector<RTAS> m_BLASes = {}; // NOTE: One per mesh
+	std::vector<RTAS> m_BLASes = {};
 	RTAS m_TLAS = {};
 	std::vector<RTTLAS::BLASInstance> m_Instances = {};
 	Buffer m_InstanceBuffer = {};
-
-	// TODO: Might have to have a frames-in-flight amount of these buffers
 	Buffer m_SceneDescBuffer = {};
 	std::vector<Object> m_SceneDescBufferData = {};
 
-	uint32_t m_SamplesPerPixel = 1;
 	uint32_t m_TotalSamplesPerPixel = m_SamplesPerPixel;
 };

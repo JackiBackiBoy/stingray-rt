@@ -8,6 +8,7 @@ public:
 	~GFXDevice_Vulkan();
 
 	// TODO: Destroy shader modules when not needed
+	// --------------------------- Resource Creation ---------------------------
 	void create_swapchain(const SwapChainInfo& info, SwapChain& swapChain) override;
 	void create_pipeline(const PipelineInfo& info, Pipeline& pipeline) override;
 	void create_buffer(const BufferInfo& info, Buffer& buffer, const void* data) override;
@@ -26,15 +27,16 @@ public:
 	void push_rt_constants(const void* data, uint32_t size, const RTPipeline& pipeline, const CommandList& cmdList) override;
 	void dispatch_rays(const DispatchRaysInfo& info, const CommandList& cmdList) override;
 
+	// ------------------- Pipeline State & Resource Binding -------------------
 	void bind_pipeline(const Pipeline& pipeline, const CommandList& cmdList) override;
 	void bind_viewport(const Viewport& viewport, const CommandList& cmdList) override;
 	void bind_uniform_buffer(const Buffer& uniformBuffer, uint32_t slot) override;
 	void bind_vertex_buffer(const Buffer& vertexBuffer, const CommandList& cmdList) override;
 	void bind_index_buffer(const Buffer& indexBuffer, const CommandList& cmdList) override;
-	void bind_resource(const Resource& resource, uint32_t slot) override;
 	void push_constants(const void* data, uint32_t size, const CommandList& cmdList) override;
 	void barrier(const GPUBarrier& barrier, const CommandList& cmdList) override;
 
+	// ------------------------ Commands & Renderpasses ------------------------
 	CommandList begin_command_list(QueueType queue) override;
 	void begin_render_pass(const SwapChain& swapChain, const PassInfo& passInfo, const CommandList& cmdList, bool clear) override;
 	void begin_render_pass(const PassInfo& passInfo, const CommandList& cmdList) override;
@@ -42,12 +44,12 @@ public:
 	void end_render_pass(const CommandList& cmdList) override;
 	void submit_command_lists(const SwapChain& swapChain) override;
 
-	void update_buffer(const Buffer& buffer, const void* data) override;
-
+	// ----------------------------- Draw Commands -----------------------------
 	void draw(uint32_t vertexCount, uint32_t startVertex, const CommandList& cmdList) override;
 	void draw_indexed(uint32_t indexCount, uint32_t startIndex, uint32_t baseVertex, const CommandList& cmdList) override;
 	void draw_instanced(uint32_t vertexCount, uint32_t instanceCount, uint32_t startVertex, uint32_t startInstance, const CommandList& cmdList) override;
 
+	// ----------------------------- Miscellaneous -----------------------------
 	uint32_t get_descriptor_index(const Resource& resource, SubresourceType type) override;
 	uint64_t get_bda(const Buffer& buffer) override;
 	void wait_for_gpu() override;

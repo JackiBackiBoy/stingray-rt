@@ -30,8 +30,11 @@ layout (push_constant) uniform constants {
     uint rtAccumulationIndex;
     uint rtImageIndex;
     uint sceneDescBufferIndex;
+    uint rayBounces;
     uint samplesPerPixel;
     uint totalSamplesPerPixel;
+    uint useNormalMaps;
+    uint useSkybox;
 } g_PushConstants;
 
 layout (location = 0) rayPayloadInEXT RayPayload rayPayload;
@@ -113,13 +116,15 @@ void main() {
     Material mat = mats.m[hitVtx.matIndex];
 
     // Normal mapping
-    vec3 T = normalize(vec3(hitVtx.tangent * gl_WorldToObjectEXT));
-    vec3 N = hitVtx.normal;
-    vec3 B = cross(N, T);
-    mat3 TBN = mat3(T, B, N);
-    hitVtx.normal = TBN * normalize(
-        texture(sampler2D(g_Textures[mat.normalTexIndex], g_Samplers[0]), hitVtx.uv).rgb * 2.0 - 1.0
-    );
+    if (g_PushConstants.useNormalMaps != 0) {
+        vec3 T = normalize(vec3(hitVtx.tangent * gl_WorldToObjectEXT));
+        vec3 N = hitVtx.normal;
+        vec3 B = cross(N, T);
+        mat3 TBN = mat3(T, B, N);
+        hitVtx.normal = TBN * normalize(
+            texture(sampler2D(g_Textures[mat.normalTexIndex], g_Samplers[0]), hitVtx.uv).rgb * 2.0 - 1.0
+        );
+    }
 
     // Scattering
     rayPayload = scatter(mat, gl_WorldRayDirectionEXT, hitVtx.normal, hitVtx.uv, gl_HitTEXT, rayPayload.rngSeed);

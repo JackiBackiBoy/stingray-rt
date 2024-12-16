@@ -44,6 +44,18 @@ enum class UIEventType : uint32_t {
 	FocusLost = 0x1000,
 };
 
+enum class UIDataType {
+	S8,       // signed char / char (with sensible compilers)
+	U8,       // unsigned char
+	S16,      // short
+	U16,      // unsigned short
+	S32,      // int
+	U32,      // unsigned int
+	S64,      // long long / __int64
+	U64,      // unsigned long long / unsigned __int64
+	DOUBLE,   // double
+};
+
 struct KeyboardEventData {
 	int key;
 	int action;
@@ -132,8 +144,10 @@ public:
 	// Widgets
 	void widget_text(const std::string& text, int fixedWidth = 0);
 	bool widget_button(const std::string& text);
+	bool widget_checkbox(const std::string& text, bool* value);
 	bool widget_slider_float(const std::string& text, float* value, float min, float max);
 	void widget_text_input(const std::string& label, std::string& buffer);
+	void widget_input_scalar(const std::string& label, void* scalar, UIDataType type);
 	void widget_image(const Texture& texture, int width, int height);
 
 	// Widget behavior
@@ -156,19 +170,21 @@ private:
 	static constexpr glm::vec4 UI_WIDGET_SECONDARY_COL = { 0.3f, 0.3f, 0.3f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_HIGHLIGHT_COL = { 0.039, 0.243, 0.662, 1.0f };
 	static constexpr int UI_MENU_RIGHT_PADDING = 32;
+	static constexpr int UI_WIDGET_CHECKBOX_SIZE = 24;
 
 	enum UIType : uint8_t {
 		RECTANGLE = 0,
 		TEXT = 1 << 0,
 	};
 
-	enum class WidgetType : uint32_t {
-		BUTTON = 0,
-		SLIDER_FLOAT = 1 << 0,
-		IMAGE = 1 << 1,
-		INPUT_TEXT = 1 << 2,
-		MENU = 1 << 3,
-		MENU_ITEM = 1 << 4,
+	enum class WidgetType : uint8_t {
+		BUTTON,
+		CHECKBOX,
+		SLIDER_FLOAT,
+		IMAGE,
+		INPUT_TEXT,
+		MENU,
+		MENU_ITEM,
 	};
 
 	struct UIWidgetState { // NOTE: Only used for certain widgets
@@ -222,6 +238,7 @@ private:
 	Buffer m_UIParamsBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
 	Font* m_DefaultFont = {};
 	Asset m_RightArrowIcon = {};
+	Asset m_CheckIcon = {};
 
 	std::vector<UIParams> m_UIParamsData = {};
 	glm::vec2 m_DefaultCursorOrigin = { UI_PADDING, UI_PADDING };

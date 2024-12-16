@@ -128,7 +128,7 @@ namespace assetmanager {
 		return model;
 	}
 
-	std::unique_ptr<Model> create_sphere(float radius, int latitudes, int longitudes) {
+	std::unique_ptr<Model> create_sphere(float radius, int latitudes, int longitudes, const Material* material) {
 		std::unique_ptr<Model> model = std::make_unique<Model>();
 		model->vertices.reserve(static_cast<size_t>((latitudes + 1) * (longitudes + 1)));
 		model->indices.reserve(static_cast<size_t>(6 * (longitudes) * (latitudes - 1)));
@@ -138,6 +138,12 @@ namespace assetmanager {
 		float latAng;
 		float lonAng;
 		float rCosLatAng;
+
+		uint32_t matIndex = 0;
+
+		if (material != nullptr) {
+			matIndex = g_MaterialManager->add_material(*material);
+		}
 
 		// Vertices
 		for (int lon = 0; lon <= longitudes; ++lon) {
@@ -155,6 +161,7 @@ namespace assetmanager {
 				vertex.tangent = glm::normalize(glm::cross(vertex.normal, glm::vec3(0.0f, 1.0f, 0.0f)));
 				vertex.texCoord.x = (float)lon / longitudes;
 				vertex.texCoord.y = (float)lat / latitudes;
+				vertex.matIndex = matIndex;
 
 				model->vertices.push_back(vertex);
 			}

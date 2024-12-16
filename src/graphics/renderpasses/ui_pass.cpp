@@ -88,6 +88,7 @@ UIPass::UIPass(GFXDevice& gfxDevice, GLFWwindow* window) :
 	// Load resources
 	m_DefaultFont = assetmanager::load_font_from_file("fonts/consola.ttf", 16);
 	assetmanager::load_from_file(m_RightArrowIcon, "textures/right_arrow.png");
+	assetmanager::load_from_file(m_CheckIcon, "textures/check.png");
 
 	for (size_t i = 0; i < GFXDevice::FRAMES_IN_FLIGHT; ++i) {
 		m_GfxDevice.create_buffer(uiParamsBufferInfo, m_UIParamsBuffers[i], m_UIParamsData.data());
@@ -327,9 +328,9 @@ bool UIPass::menu_item(const std::string& text) {
 	UIWidgetState parentState = parentSearch->second;
 
 	// Widget ID hash
-	const uint64_t idHash = std::hash<std::string>{}(text);
+	const uint64_t textHash = std::hash<std::string>{}(text);
 	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::MENU_ITEM);
-	const uint64_t id = widget_hash_combine(idHash, typeHash);
+	const uint64_t id = widget_hash_combine(textHash, typeHash);
 
 	UIWidgetState state = {};
 	state.position = m_CursorOrigin;
@@ -529,9 +530,9 @@ bool UIPass::widget_button(const std::string& text) {
 	calc_cursor_origin();
 
 	// Widget ID hash
-	const uint64_t idHash = std::hash<std::string>{}(text);
+	const uint64_t textHash = std::hash<std::string>{}(text);
 	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::BUTTON);
-	const uint64_t id = widget_hash_combine(idHash, typeHash);
+	const uint64_t id = widget_hash_combine(textHash, typeHash);
 
 	const int width = m_DefaultFont->calc_text_width(text) + UI_PADDING * 2;
 	const int height = m_DefaultFont->boundingBoxHeight + UI_PADDING * 2;
@@ -575,6 +576,78 @@ bool UIPass::widget_button(const std::string& text) {
 	return ret;
 }
 
+bool UIPass::widget_checkbox(const std::string& text, bool* value) {
+	assert(value != nullptr);
+
+	const uint64_t textHash = std::hash<std::string>{}(text);
+	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::CHECKBOX);
+	const uint64_t id = widget_hash_combine(textHash, typeHash);
+
+	calc_cursor_origin();
+
+	UIWidgetState state = {};
+	state.position = m_CursorOrigin;
+	state.width = UI_WIDGET_CHECKBOX_SIZE;
+	state.height = UI_WIDGET_CHECKBOX_SIZE;
+	state.id = id;
+	state.text = text;
+	state.type = WidgetType::CHECKBOX;
+
+	const auto search = m_WidgetStateMap.find(id);
+	if (search == m_WidgetStateMap.end()) {
+		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
+	}
+	else {
+		state = search->second;
+	}
+
+	bool ret = false;
+	glm::vec4 backgroundColor = UI_WIDGET_PRIMARY_COL;
+
+	if (has_flag(state.actions, WidgetAction::CLICKED)) {
+		ret = true;
+		*value = !*value;
+	}
+	else if (has_flag(state.actions, WidgetAction::PRESSED)) {
+		backgroundColor = UI_WIDGET_PRIMARY_COL_PRESSED;
+	}
+	else if (has_flag(state.actions, WidgetAction::HOVERED)) {
+		backgroundColor = UI_WIDGET_PRIMARY_COL_HOV;
+	}
+
+	// Checkbox background
+	draw_rect(
+		m_CursorOrigin,
+		UI_WIDGET_CHECKBOX_SIZE,
+		UI_WIDGET_CHECKBOX_SIZE,
+		backgroundColor
+	);
+
+	// Checkbox icon
+	if (*value) {
+		draw_rect(
+			m_CursorOrigin,
+			UI_WIDGET_CHECKBOX_SIZE,
+			UI_WIDGET_CHECKBOX_SIZE,
+			UI_WIDGET_ACCENT_COL,
+			UIPosFlag::NONE,
+			m_CheckIcon.get_texture()
+		);
+	}
+
+	draw_text(
+		m_CursorOrigin + glm::vec2(UI_WIDGET_CHECKBOX_SIZE + UI_PADDING, UI_WIDGET_CHECKBOX_SIZE / 2),
+		text,
+		UIPosFlag::VCENTER
+	);
+
+	m_LastCursorOriginDelta.x = state.width + UI_PADDING;
+	m_LastCursorOriginDelta.y = state.height + UI_PADDING;
+
+	return ret;
+}
+
 bool UIPass::widget_slider_float(const std::string& text, float* value, float min, float max) {
 	assert(value != nullptr);
 	assert(min < max);
@@ -588,8 +661,7 @@ bool UIPass::widget_slider_float(const std::string& text, float* value, float mi
 
 	const uint64_t textHash = std::hash<std::string>{}(text);
 	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::SLIDER_FLOAT);
-	const uint64_t pValHash = std::hash<float*>{}(value);
-	const uint64_t id = widget_hash_combine(widget_hash_combine(textHash, typeHash), pValHash);
+	const uint64_t id = widget_hash_combine(textHash, typeHash);
 
 	UIWidgetState state = {};
 	state.position = m_CursorOrigin;
@@ -653,9 +725,9 @@ void UIPass::widget_text_input(const std::string& label, std::string& buffer) {
 	const int caretHeight = boxHeight - UI_PADDING;
 	const glm::vec2 textOrigin = m_CursorOrigin + glm::vec2(UI_PADDING, boxHeight / 2);
 
-	const uint64_t idHash = std::hash<std::string>{}(label);
+	const uint64_t textHash = std::hash<std::string>{}(label);
 	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::INPUT_TEXT);
-	const uint64_t id = widget_hash_combine(idHash, typeHash);
+	const uint64_t id = widget_hash_combine(textHash, typeHash);
 
 	UIWidgetState state = {};
 	state.position = m_CursorOrigin;
@@ -861,6 +933,40 @@ void UIPass::widget_text_input(const std::string& label, std::string& buffer) {
 
 	// Text
 	draw_text(textOrigin, buffer, UIPosFlag::VCENTER);
+
+	m_LastCursorOriginDelta.x = state.width + UI_PADDING;
+	m_LastCursorOriginDelta.y = state.height + UI_PADDING;
+}
+
+void UIPass::widget_input_scalar(const std::string& label, void* scalar, UIDataType type) {
+	assert(scalar != nullptr);
+
+	const uint64_t textHash = std::hash<std::string>{}(label);
+	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::CHECKBOX);
+	const uint64_t id = widget_hash_combine(textHash, typeHash);
+
+	calc_cursor_origin();
+
+	UIWidgetState state = {};
+	state.position = m_CursorOrigin;
+	state.width = UI_WIDGET_CHECKBOX_SIZE;
+	state.height = UI_WIDGET_CHECKBOX_SIZE;
+	state.id = id;
+	state.text = label;
+	state.type = WidgetType::CHECKBOX;
+
+	const auto search = m_WidgetStateMap.find(id);
+	if (search == m_WidgetStateMap.end()) {
+		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
+	}
+	else {
+		state = search->second;
+	}
+
+	bool ret = false;
+
+	// TODO: Implement
 
 	m_LastCursorOriginDelta.x = state.width + UI_PADDING;
 	m_LastCursorOriginDelta.y = state.height + UI_PADDING;

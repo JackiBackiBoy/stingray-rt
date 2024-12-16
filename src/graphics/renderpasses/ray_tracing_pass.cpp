@@ -43,7 +43,7 @@ void RayTracingPass::initialize(Scene& scene, const Buffer& materialBuffer) {
 	m_BLASes.reserve(numBLASes);
 	m_Instances.reserve(numBLASes);
 	m_SceneDescBufferData.reserve(numBLASes);
-	m_GfxDevice.create_rt_instance_buffer(m_InstanceBuffer, numBLASes);
+	m_GfxDevice.create_rt_instance_buffer(m_InstanceBuffer, static_cast<uint32_t>(numBLASes));
 
 	// TODO: Rename MeshPrimitive to just "Mesh", GLTF terminology is confusing
 	for (const auto& entity : entities) {
@@ -175,8 +175,11 @@ void RayTracingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 	m_PushConstant.rtAccumulationIndex = m_GfxDevice.get_descriptor_index(rtAccumulation->texture, SubresourceType::UAV);
 	m_PushConstant.rtImageIndex = m_GfxDevice.get_descriptor_index(rtOutput->texture, SubresourceType::UAV);
 	m_PushConstant.sceneDescBufferIndex = m_GfxDevice.get_descriptor_index(m_SceneDescBuffer, SubresourceType::SRV);
+	m_PushConstant.rayBounces = m_RayBounces;
 	m_PushConstant.samplesPerPixel = m_SamplesPerPixel;
 	m_PushConstant.totalSamplesPerPixel = m_TotalSamplesPerPixel;
+	m_PushConstant.useNormalMaps = m_UseNormalMaps ? 1 : 0;
+	m_PushConstant.useSkybox = m_UseSkybox ? 1 : 0;
 
 	m_GfxDevice.bind_rt_pipeline(m_RTPipeline, cmdList);
 	m_GfxDevice.push_rt_constants(&m_PushConstant, sizeof(m_PushConstant), m_RTPipeline, cmdList);

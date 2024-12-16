@@ -1477,8 +1477,6 @@ void GFXDevice_Vulkan::create_shader(ShaderStage stage, const std::string& path,
 }
 
 void GFXDevice_Vulkan::create_texture(const TextureInfo& info, Texture& texture, const SubresourceData* data) {
-	//assert(data != nullptr);
-
 	auto internalState = std::make_shared<Impl::Texture_Vulkan>();
 	internalState->destructionHandler = &m_Impl->m_DestructionHandler;
 
@@ -2546,10 +2544,6 @@ void GFXDevice_Vulkan::bind_index_buffer(const Buffer& indexBuffer, const Comman
 	vkCmdBindIndexBuffer(currVkCommandBuffer, internalIndexBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void GFXDevice_Vulkan::bind_resource(const Resource& resource, uint32_t slot) {
-
-}
-
 void GFXDevice_Vulkan::push_constants(const void* data, uint32_t size, const CommandList& cmdList) {
 	assert(data != nullptr);
 	assert(size <= 128); 
@@ -2894,10 +2888,6 @@ void GFXDevice_Vulkan::submit_command_lists(const SwapChain& swapChain) {
 	m_Impl->m_DestructionHandler.update(m_FrameCount, FRAMES_IN_FLIGHT);
 }
 
-void GFXDevice_Vulkan::update_buffer(const Buffer& buffer, const void* data) {
-
-}
-
 void GFXDevice_Vulkan::draw(uint32_t vertexCount, uint32_t startVertex, const CommandList& cmdList) {
 	auto internalCommandBuffer = to_internal(cmdList);
 
@@ -2949,6 +2939,8 @@ uint32_t GFXDevice_Vulkan::get_descriptor_index(const Resource& resource, Subres
 		assert(internalBuffer->descriptor.index != Impl::Descriptor::INVALID_DESCRIPTOR_INDEX);
 		return internalBuffer->descriptor.index;
 	}
+
+	return 0;
 }
 
 uint64_t GFXDevice_Vulkan::get_bda(const Buffer& buffer) {

@@ -117,8 +117,8 @@ INTERNAL void mouse_position_callback(GLFWwindow* window, double x, double y) {
 		g_MouseEvent.set_type(UIEventType::MouseMove);
 
 		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
-		mouse.position.x = x;
-		mouse.position.y = y;
+		mouse.position.x = static_cast<float>(x);
+		mouse.position.y = static_cast<float>(y);
 
 		g_UIPass->process_event(g_MouseEvent);
 	}
@@ -340,7 +340,7 @@ INTERNAL void init_render_graph() {
 INTERNAL void create_cornell_scene() {
 	assetmanager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
 	assetmanager::load_from_file(g_LucyModel, "models/lucy/lucy.gltf");
-	g_Sphere = assetmanager::create_sphere(1.5f, 32, 64);
+	//g_Sphere = assetmanager::create_sphere(1.5f, 32, 64);
 	assetmanager::load_from_file(g_TestTexture, "textures/earth.jpg");
 
 	Scene* scene = new Scene("Cornell Box", *g_GfxDevice);
@@ -414,92 +414,26 @@ INTERNAL void create_sponza_scene() {
 	Scene* scene = new Scene("Sponza", *g_GfxDevice);
 	g_ActiveScene = scene;
 
-	assetmanager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
 	assetmanager::load_from_file(g_SponzaModel, "models/sponza/sponza.gltf");
 
+	//Material lightMaterial = {};
+	//lightMaterial.color = 11.0f * glm::vec3(1.0f);
+	//lightMaterial.type = Material::Type::DIFFUSE_LIGHT;
+	//g_Sphere = assetmanager::create_sphere(0.5f, 32, 64, &lightMaterial);
+
 	//const entity_id light = scene->add_entity("Light");
-	//ecs::add_component<Renderable>(light, Renderable{ g_PlaneModel.get_model() });
-	//ecs::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
-	//ecs::get_component<Transform>(light)->scale = 3.0f * glm::vec3(1.0f);
-	//ecs::get_component<Material>(light)->color = 20.0f * glm::vec3(1.0f);
-	//ecs::get_component<Material>(light)->type = Material::Type::DIFFUSE_LIGHT;
+	//ecs::add_component<Renderable>(light, Renderable{ g_Sphere.get() });
+	//ecs::get_component<Transform>(light)->position = { 0.0f, 5.0f, 0.0f };
 
 	const entity_id sponza = scene->add_entity("Sponza");
 	ecs::add_component<Renderable>(sponza, Renderable{ g_SponzaModel.get_model() });
 	ecs::get_component<Transform>(sponza)->position = { 0.0f, 0.0f, 0.0f };
 
 	g_MaterialManager->update_gpu_buffer();
-
 	g_RayTracingPass->initialize(*scene, g_MaterialManager->get_material_buffer());
 }
 
 INTERNAL void on_update(FrameInfo& frameInfo) {
-	// ------------------------------- Main Menu -------------------------------
-	g_UIPass->begin_menu_bar(frameInfo.width);
-	{
-		// File menu
-		if (g_UIPass->begin_menu("File")) {
-			if (g_UIPass->begin_menu("New")) {
-				g_UIPass->menu_item("Scene");
-			}
-			g_UIPass->end_menu();
-
-			if (g_UIPass->begin_menu("Load Demo Scene")) {
-				if (g_UIPass->menu_item("Cornell Box")) {
-					if (g_ActiveScene == nullptr ||
-						g_ActiveScene->get_name() != "Cornell Box") {
-
-						std::cout << "Loading Cornell Box...\n";
-						create_cornell_scene();
-					}
-				}
-				g_UIPass->menu_item("Pool Table");
-			}
-			g_UIPass->end_menu();
-
-			g_UIPass->menu_item("Save Scene");
-			g_UIPass->menu_item("Save Scene As");
-		}
-		g_UIPass->end_menu();
-
-		// Edit menu
-		if (g_UIPass->begin_menu("Edit")) {
-			g_UIPass->menu_item("Preferences");
-		}
-		g_UIPass->end_menu();
-
-		// View menu
-		if (g_UIPass->begin_menu("View")) {
-			g_UIPass->menu_item("Renderpasses");
-		}
-		g_UIPass->end_menu();
-	}
-	g_UIPass->end_menu_bar();
-
-	// ------------------------- Path Tracing Settings -------------------------
-	// Samples per pixel (stratified sampling)
-	LOCAL_PERSIST uint32_t samplesPerPixelRoot = 1;
-	g_UIPass->widget_text("Path Tracing:");
-
-	if (g_UIPass->widget_button("<") && samplesPerPixelRoot > 1) {
-		--samplesPerPixelRoot;
-	}
-	g_UIPass->widget_same_line();
-	g_UIPass->widget_text(std::to_string(samplesPerPixelRoot * samplesPerPixelRoot), 50);
-	g_UIPass->widget_same_line();
-	if (g_UIPass->widget_button(">")) {
-		++samplesPerPixelRoot;
-	}
-
-	g_UIPass->widget_same_line();
-	g_UIPass->widget_text("Samples Per Pixel (stratified)");
-	
-	// Camera settings
-	LOCAL_PERSIST float fov = g_Camera->get_vertical_fov();
-	if (g_UIPass->widget_slider_float("FOV", &fov, 10.0f, 110.0f)) {
-		g_Camera->set_vertical_fov(fov);
-	}
-
 	// Input
 	input::update();
 	input::MouseState mouse = {};
@@ -571,6 +505,82 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 	g_PerFrameData.cameraPosition = camera.get_position();
 
 	std::memcpy(g_PerFrameDataBuffers[g_GfxDevice->get_frame_index()].mappedData, &g_PerFrameData, sizeof(g_PerFrameData));
+
+	// User interface
+	if (g_UIState == UIState::VISIBLE) {
+		// ------------------------------- Main Menu -------------------------------
+		g_UIPass->begin_menu_bar(frameInfo.width);
+		{
+			// File menu
+			if (g_UIPass->begin_menu("File")) {
+				if (g_UIPass->begin_menu("New")) {
+					g_UIPass->menu_item("Scene");
+				}
+				g_UIPass->end_menu();
+
+				if (g_UIPass->begin_menu("Load Demo Scene")) {
+					if (g_UIPass->menu_item("Cornell Box")) {
+						if (g_ActiveScene == nullptr ||
+							g_ActiveScene->get_name() != "Cornell Box") {
+
+							std::cout << "Loading Cornell Box...\n";
+							create_cornell_scene();
+						}
+					}
+					g_UIPass->menu_item("Pool Table");
+				}
+				g_UIPass->end_menu();
+
+				g_UIPass->menu_item("Save Scene");
+				g_UIPass->menu_item("Save Scene As");
+			}
+			g_UIPass->end_menu();
+
+			// Edit menu
+			if (g_UIPass->begin_menu("Edit")) {
+				g_UIPass->menu_item("Preferences");
+			}
+			g_UIPass->end_menu();
+
+			// View menu
+			if (g_UIPass->begin_menu("View")) {
+				g_UIPass->menu_item("Renderpasses");
+			}
+			g_UIPass->end_menu();
+		}
+		g_UIPass->end_menu_bar();
+
+		// ------------------------- Path Tracing Settings -------------------------
+		g_UIPass->widget_text("Path Tracing:");
+		g_UIPass->widget_checkbox("Use normal maps", &g_RayTracingPass->m_UseNormalMaps);
+		g_UIPass->widget_checkbox("Use skybox", &g_RayTracingPass->m_UseSkybox);
+
+		// Samples per pixel (stratified sampling)
+		LOCAL_PERSIST uint32_t samplesPerPixelRoot = 1;
+		samplesPerPixelRoot = sqrt(g_RayTracingPass->m_SamplesPerPixel);
+		if (g_UIPass->widget_button("<") && samplesPerPixelRoot > 1) {
+			--samplesPerPixelRoot;
+		}
+		g_UIPass->widget_same_line();
+		g_UIPass->widget_text(std::to_string(samplesPerPixelRoot * samplesPerPixelRoot), 50);
+		g_UIPass->widget_same_line();
+		if (g_UIPass->widget_button(">")) {
+			++samplesPerPixelRoot;
+		}
+
+		g_UIPass->widget_same_line();
+		g_UIPass->widget_text("Samples Per Pixel (stratified)");
+
+		g_RayTracingPass->m_SamplesPerPixel = samplesPerPixelRoot * samplesPerPixelRoot;
+
+		// Camera settings
+		LOCAL_PERSIST float fov = g_Camera->get_vertical_fov();
+		if (g_UIPass->widget_slider_float("FOV", &fov, 10.0f, 110.0f)) {
+			g_Camera->set_vertical_fov(fov);
+		}
+
+		g_UIPass->widget_text(std::format("FPS: {}", g_CurrentFPS));
+	}
 }
 
 int main() {
@@ -614,8 +624,6 @@ int main() {
 		g_FrameInfo.width = g_FrameWidth;
 		g_FrameInfo.height = g_FrameHeight;
 		on_update(g_FrameInfo);
-
-		g_UIPass->widget_text(std::format("FPS: {}", g_CurrentFPS));
 
 		// Rendering
 		CommandList cmdList = g_GfxDevice->begin_command_list(QueueType::DIRECT);
