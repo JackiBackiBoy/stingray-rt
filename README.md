@@ -47,6 +47,13 @@ stingray project and select the option "Set as Startup Project".
 
 You should now be able to run the program!
 
+# Controls
+- W/A/S/D - Move forward, left, back and right.
+- Space - Move upwards.
+- Left Control - Move downwards.
+- Middle Mouse Button (Mouse3) - Hold down and move the mouse to pan the camera.
+- F11 - Enable/Disable the UI overlay.
+
 # Dependencies
 - [glfw](https://github.com/glfw/glfw) - Window management and input handling.
 - [glm](https://github.com/g-truc/glm) - Math operations.
@@ -62,4 +69,4 @@ You should now be able to run the program!
 
 # Acknowledgements
 - Pharr, Jakob, and Humphreys, *Physically Based Rendering - From Theory to Implementation*, 4th edn.
-- Peter Shirley, Trevor David Black, and Steve Hollasch, *Ray Tracing in One Weekend*
+- Peter Shirley, Trevor David Black, and Steve Hollasch, *Ray Tracing in One Weekend*.
