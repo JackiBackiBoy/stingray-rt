@@ -14,6 +14,35 @@ Stingray is a real-time path tracer leveraging the Vulkan ray tracing pipeline. 
 # Gallery
 ![Simple Cornell box](https://github.com/JackiBackiBoy/stingray-rt/blob/main/gallery/simple_cornell_box.png)
 
+# Building
+## Prerequisites
+- [Vulkan SDK](https://vulkan.lunarg.com/sdk/home) version 1.3 or higher.
+- [CMake](https://cmake.org/) version 3.6 or higher.
+- Windows 10 or higher.
+- Microsoft Visual Studio.
+- GPU with hardware ray tracing support.
+
+## Build Instructions
+In order for all dependencies to be downloaded with the project, you must recursively clone this repo via:
+```
+git clone --recursive https://github.com/JackiBackiBoy/stingray-rt 
+```
+
+Once downloaded, run the `build.bat` script which will automatically create a `build` directory. Or alternatively run:
+```
+mkdir build
+cd build
+cmake -S ../ -B .
+cd ..
+```
+
+You will also need to compile the Vulkan shaders, which are not automatically compiled. Run the `compile_vk_shaders.bat` script.
+You can now open the `.sln` project file located in the `build` directory with Microsoft Visual Studio. Also remember to set
+`stingray` as the "Startup Project" in Visual Studio. This can be done by right-clicking the
+stingray project and select the option "Set as Startup Project".
+
+You should now be able to run the program!
+
 # Dependencies
 - [glfw](https://github.com/glfw/glfw) - Window management and input handling.
 - [glm](https://github.com/g-truc/glm) - Math operations.
@@ -22,7 +51,6 @@ Stingray is a real-time path tracer leveraging the Vulkan ray tracing pipeline. 
 - [volk](https://github.com/zeux/volk) - Meta-loader for Vulkan.
 
 # Roadmap
-- Improve material system.
 - Support for real-time denoising.
 - Dynamic scene support with rebuildable TLAS/BLAS.
 - Additional primitive support for path-traced scenes.
@@ -31,4 +59,3 @@ Stingray is a real-time path tracer leveraging the Vulkan ray tracing pipeline. 
 # Acknowledgements
 - Pharr, Jakob, and Humphreys, *Physically Based Rendering - From Theory to Implementation*, 4th edn.
 - Peter Shirley, Trevor David Black, and Steve Hollasch, *Ray Tracing in One Weekend*
-
