@@ -423,6 +423,7 @@ INTERNAL void create_cornell_scene() {
 		.color = { 1.0f, 1.0f, 1.0f }
 	});
 
+	g_RayTracingPass->m_UseSkybox = false;
 	g_RayTracingPass->initialize(*scene, *g_MaterialManager);
 }
 
@@ -445,6 +446,7 @@ INTERNAL void create_sponza_scene() {
 	ecs::add_component<Renderable>(sponza, Renderable{ g_SponzaModel.get_model() });
 	ecs::get_component<Transform>(sponza)->position = { 0.0f, 0.0f, 0.0f };
 
+	g_RayTracingPass->m_UseSkybox = true;
 	g_RayTracingPass->initialize(*scene, *g_MaterialManager);
 }
 
@@ -612,8 +614,8 @@ int main() {
 	init_gfx();
 	init_objects();
 	init_render_graph();
-	create_cornell_scene();
-	//create_sponza_scene();
+	//create_cornell_scene();
+	create_sponza_scene();
 
 	g_FrameInfo.camera = g_Camera.get();
 
