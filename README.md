@@ -12,6 +12,10 @@ Stingray is a real-time path tracer leveraging the Vulkan ray tracing pipeline. 
 - **Automatic GPU synchronization:** Stingray utilizes a render graph to manage resource barriers between passes, ensuring efficient execution.
 
 # Gallery
+![Sponza](https://github.com/JackiBackiBoy/stingray-rt/blob/main/gallery/sponza.png)
+![Sponza balcony](https://github.com/JackiBackiBoy/stingray-rt/blob/main/gallery/sponza_balcony.png)
+![Cornell box with Fresnel](https://github.com/JackiBackiBoy/stingray-rt/blob/main/gallery/cornell_box_fresnel.png)
+![Cornell box with Fresnel 2](https://github.com/JackiBackiBoy/stingray-rt/blob/main/gallery/cornell_box_fresnel_2.png)
 ![Simple Cornell box](https://github.com/JackiBackiBoy/stingray-rt/blob/main/gallery/simple_cornell_box.png)
 
 # Building
