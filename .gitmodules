@@ -1,15 +1,12 @@
-[submodule "dependencies/glfw"]
-	path = dependencies/glfw
-	url = https://github.com/glfw/glfw
-[submodule "dependencies/glm"]
-	path = dependencies/glm
-	url = https://github.com/g-truc/glm
-[submodule "dependencies/tinygltf"]
-	path = dependencies/tinygltf
-	url = https://github.com/syoyo/tinygltf
-[submodule "dependencies/freetype"]
-	path = dependencies/freetype
+[submodule "Dependencies/FreeType"]
+	path = Dependencies/FreeType
 	url = https://github.com/freetype/freetype
-[submodule "dependencies/volk"]
-	path = dependencies/volk
+[submodule "Dependencies/GLM"]
+	path = Dependencies/GLM
+	url = https://github.com/g-truc/glm
+[submodule "Dependencies/TinyGLTF"]
+	path = Dependencies/TinyGLTF
+	url = https://github.com/syoyo/tinygltf
+[submodule "Dependencies/Volk"]
+	path = Dependencies/Volk
 	url = https://github.com/zeux/volk

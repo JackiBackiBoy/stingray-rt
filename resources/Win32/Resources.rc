@@ -1,0 +1,37 @@
+#include "Resource.h"
+#include "windows.h"
+
+IDI_APP_ICON ICON "Stingray.ico"
+
+VS_VERSION_INFO VERSIONINFO
+    FILEVERSION 1,0,0,0
+    PRODUCTVERSION 1,0,0,0
+    FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+    FILEFLAGS VS_FF_DEBUG
+#else
+    FILEFLAGS 0x0L
+#endif
+    FILEOS VOS_NT_WINDOWS32
+    FILETYPE VFT_APP
+    FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0" // Language (US English) and code page (Unicode)
+        BEGIN
+            VALUE "CompanyName", "Jack Henrikson\0"
+            VALUE "FileDescription", "Stingray\0"
+            VALUE "FileVersion", "1.0.0.0\0"
+            VALUE "InternalName", "Stingray.exe\0"
+            VALUE "LegalCopyright", "Copyright (C) 2024-2025 Jack Henrikson."
+            VALUE "OriginalFilename", "Stingray.exe\0"
+            VALUE "ProductName", "Stingray\0"
+            VALUE "ProductVersion", "1.0.0.0\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200 // US English, Unicode
+    END
+END

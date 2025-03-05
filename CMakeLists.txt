@@ -1,117 +1,199 @@
-cmake_minimum_required(VERSION 3.6.0)
+cmake_minimum_required(VERSION 3.10)
 project(stingray)
 
 # -------------------------------- Build Options -------------------------------
 option(BUILD_VULKAN "Build Vulkan" ON)
+option(BUILD_DX12 "Build D3D12" OFF) # TODO: D3D12 backend not yet implemented
 
 # ---------------------------------- Settings ----------------------------------
 set(DCMAKE_GENERATOR_PLATFORM "x64")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Lib)
+SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Bin)
+
 if(MSVC)
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /fp:fast")
+	set(CMAKE_CXX_FLAGS_RELEASE "/O2 /fp:fast")
 else()
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -ffast-math")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3 -ffast-math")
 endif()
 
 # -------------------------------- Dependencies --------------------------------
-set(DEPENDENCY_DIR ${CMAKE_HOME_DIRECTORY}/dependencies)
-set(FREETYPE_INCLUDE_DIR ${DEPENDENCY_DIR}/freetype/include/)
-set(GLFW_INCLUDE_DIR ${DEPENDENCY_DIR}/glfw/include)
-set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/glm/)
-set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/tinygltf/)
+set(DEPENDENCY_DIR ${CMAKE_SOURCE_DIR}/Dependencies)
+set(FREETYPE_INCLUDE_DIR ${DEPENDENCY_DIR}/FreeType/include/)
+set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/GLM/)
+set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/TinyGLTF/)
 
-add_subdirectory(dependencies/freetype)
-add_subdirectory(dependencies/tinygltf)
-add_subdirectory(dependencies/volk)
-add_subdirectory(dependencies/glfw)
+add_subdirectory(Dependencies/FreeType)
+add_subdirectory(Dependencies/TinyGLTF)
+set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
+add_subdirectory(Dependencies/Volk)
 
 # -------------------------------- Source Files --------------------------------
-set(SOURCE_DIR ${CMAKE_HOME_DIRECTORY}/src)
+set(SOURCE_DIR ${CMAKE_SOURCE_DIR}/Source)
 set(SOURCE_FILES
-	${SOURCE_DIR}/enum_flags.h
-    ${SOURCE_DIR}/main.cpp
-    ${SOURCE_DIR}/platform.h
-	${SOURCE_DIR}/frame_info.h
+	${SOURCE_DIR}/main.cpp
+
+	# Core
+	${SOURCE_DIR}/Core/EnumFlags.h
+	${SOURCE_DIR}/Core/Platform.h
+	${SOURCE_DIR}/Core/FrameInfo.h
+	${SOURCE_DIR}/Core/Window.h
+	${SOURCE_DIR}/Core/WindowWin32.cpp
 
 	# Data
-	${SOURCE_DIR}/data/camera.cpp
-	${SOURCE_DIR}/data/camera.h
-	${SOURCE_DIR}/data/font.cpp
-	${SOURCE_DIR}/data/font.h
-	${SOURCE_DIR}/data/model.h
-	${SOURCE_DIR}/data/scene.cpp
-	${SOURCE_DIR}/data/scene.h
+	${SOURCE_DIR}/Data/Camera.cpp
+	${SOURCE_DIR}/Data/Camera.h
+	${SOURCE_DIR}/Data/Font.cpp
+	${SOURCE_DIR}/Data/Font.h
+	${SOURCE_DIR}/Data/Model.h
+	${SOURCE_DIR}/Data/Scene.cpp
+	${SOURCE_DIR}/Data/Scene.h
 
 	# Entity Component System (ECS)
-	${SOURCE_DIR}/ecs/components.h
-	${SOURCE_DIR}/ecs/ecs.cpp
-	${SOURCE_DIR}/ecs/ecs.h
+	${SOURCE_DIR}/ECS/Components.h
+	${SOURCE_DIR}/ECS/ECS.cpp
+	${SOURCE_DIR}/ECS/ECS.h
+
+	# Graphics
+	${SOURCE_DIR}/Graphics/GraphicsDevice.h
+	${SOURCE_DIR}/Graphics/GraphicsTypes.h
+	${SOURCE_DIR}/Graphics/RenderGraph.cpp
+	${SOURCE_DIR}/Graphics/RenderGraph.h
+	
+	# Graphics/Renderpasses
+	${SOURCE_DIR}/Graphics/Renderpasses/FullscreenTriPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/FullscreenTriPass.h
+	${SOURCE_DIR}/Graphics/Renderpasses/RayTracingPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/RayTracingPass.h
+	${SOURCE_DIR}/Graphics/Renderpasses/UIPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/UIPass.h
+
+	# Graphics/Vulkan
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDeviceVulkan.cpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDeviceVulkan.h
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypesVulkan.h
 
 	# Input
-	${SOURCE_DIR}/input/input.cpp
-	${SOURCE_DIR}/input/input.h
-
-    # Graphics
-    ${SOURCE_DIR}/graphics/gfx_device.h
-    ${SOURCE_DIR}/graphics/gfx_types.h
-	${SOURCE_DIR}/graphics/render_graph.cpp
-	${SOURCE_DIR}/graphics/render_graph.h
+	${SOURCE_DIR}/Input/Input.cpp
+	${SOURCE_DIR}/Input/Input.h
 
 	# Managers
-	${SOURCE_DIR}/managers/asset_manager.cpp
-	${SOURCE_DIR}/managers/asset_manager.h
-	${SOURCE_DIR}/managers/material_manager.cpp
-	${SOURCE_DIR}/managers/material_manager.h
+	${SOURCE_DIR}/Managers/AssetManager.cpp
+	${SOURCE_DIR}/Managers/AssetManager.h
+	${SOURCE_DIR}/Managers/MaterialManager.cpp
+	${SOURCE_DIR}/Managers/MaterialManager.h
 
 	# Math
-	${SOURCE_DIR}/math/sr_math.h
-
-	# Renderpasses
-	${SOURCE_DIR}/graphics/renderpasses/fullscreen_tri_pass.cpp
-	${SOURCE_DIR}/graphics/renderpasses/fullscreen_tri_pass.h
-	${SOURCE_DIR}/graphics/renderpasses/ray_tracing_pass.cpp
-	${SOURCE_DIR}/graphics/renderpasses/ray_tracing_pass.h
-	${SOURCE_DIR}/graphics/renderpasses/ui_pass.cpp
-	${SOURCE_DIR}/graphics/renderpasses/ui_pass.h
-
-	# Vendor
-	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModel.c
-	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModel.h
-	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModelData_CIEXYZ.h
-	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModelData_RGB.h
-	${SOURCE_DIR}/vendor/hoseksky/ArHosekSkyModelData_Spectral.h
-
-	# Vulkan
-	${SOURCE_DIR}/graphics/vulkan/gfx_device_vulkan.cpp
-	${SOURCE_DIR}/graphics/vulkan/gfx_device_vulkan.h
-	${SOURCE_DIR}/graphics/vulkan/gfx_types_vulkan.h
+	${SOURCE_DIR}/Math/SRMath.h
 )
 
-add_executable(${CMAKE_PROJECT_NAME} ${SOURCE_FILES})
+# ------------------------------ Source Groupings ------------------------------
+source_group("" FILES
+	${SOURCE_DIR}/main.cpp
+)
 
-if (MSVC)
-	set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
-		VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)/"
-	)
-endif()
+source_group("Core" FILES
+	${SOURCE_DIR}/Core/EnumFlags.h
+	${SOURCE_DIR}/Core/Platform.h
+	${SOURCE_DIR}/Core/FrameInfo.h
+	${SOURCE_DIR}/Core/Window.h
+	${SOURCE_DIR}/Core/WindowWin32.cpp
+)
+
+source_group("Data" FILES
+	${SOURCE_DIR}/Data/Camera.cpp
+	${SOURCE_DIR}/Data/Camera.h
+	${SOURCE_DIR}/Data/Font.cpp
+	${SOURCE_DIR}/Data/Font.h
+	${SOURCE_DIR}/Data/Model.h
+	${SOURCE_DIR}/Data/Scene.cpp
+	${SOURCE_DIR}/Data/Scene.h
+)
+
+source_group("ECS" FILES
+	${SOURCE_DIR}/ECS/Components.h
+	${SOURCE_DIR}/ECS/ECS.cpp
+	${SOURCE_DIR}/ECS/ECS.h
+)
+
+source_group("Graphics" FILES
+	${SOURCE_DIR}/Graphics/GraphicsDevice.h
+	${SOURCE_DIR}/Graphics/GraphicsTypes.h
+	${SOURCE_DIR}/Graphics/RenderGraph.cpp
+	${SOURCE_DIR}/Graphics/RenderGraph.h
+)
+
+source_group("Graphics/Renderpasses" FILES
+	${SOURCE_DIR}/Graphics/Renderpasses/FullscreenTriPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/FullscreenTriPass.h
+	${SOURCE_DIR}/Graphics/Renderpasses/RayTracingPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/RayTracingPass.h
+	${SOURCE_DIR}/Graphics/Renderpasses/UIPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/UIPass.h
+)
+
+source_group("Graphics/Vulkan" FILES
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDeviceVulkan.cpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDeviceVulkan.h
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypesVulkan.h
+)
+
+source_group("Input" FILES
+	${SOURCE_DIR}/Input/Input.cpp
+	${SOURCE_DIR}/Input/Input.h
+)
+
+source_group("Managers" FILES
+	${SOURCE_DIR}/Managers/AssetManager.cpp
+	${SOURCE_DIR}/Managers/AssetManager.h
+	${SOURCE_DIR}/Managers/MaterialManager.cpp
+	${SOURCE_DIR}/Managers/MaterialManager.h
+)
+
+source_group("Math" FILES
+	${SOURCE_DIR}/Math/SRMath.h
+)
+
+# ----------------------------- Compile Executable -----------------------------
+add_executable(
+	${CMAKE_PROJECT_NAME}
+	${SOURCE_FILES}
+)
+
+# Win32 resource file and application manifest
+set_source_files_properties(Resources/Win32/Resources.rc PROPERTIES LANGUAGE RC)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+	Resources/Win32/app.manifest
+	Resources/Win32/Resources.rc
+)
+
+set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
+	VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/Bin/$(Configuration)/"
+)
 
 # Preprocessor definitions
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 	GLM_FORCE_LEFT_HANDED
 	GLM_FORCE_RADIANS
 	GLM_FORCE_DEPTH_ZERO_TO_ONE
-	ENGINE_BASE_DIR="${CMAKE_HOME_DIRECTORY}/"
-	ENGINE_RES_DIR="${CMAKE_HOME_DIRECTORY}/resources/"
+	ENGINE_BASE_DIR="${CMAKE_SOURCE_DIR}/"
+	ENGINE_RES_DIR="${CMAKE_SOURCE_DIR}/Resources/"
+
+	NOMINMAX
+	UNICODE
+	_UNICODE
+	WIN32_LEAN_AND_MEAN
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+	${SOURCE_DIR}
 	${FREETYPE_INCLUDE_DIR}
-    ${GLFW_INCLUDE_DIR}
-    ${GLM_INCLUDE_DIR}
+	${GLM_INCLUDE_DIR}
+	Resources/Win32/
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
@@ -120,6 +202,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
 	PRIVATE
 	freetype
-    glfw
 	tinygltf
 )
