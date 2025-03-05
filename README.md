@@ -55,7 +55,6 @@ You should now be able to run the program!
 - F11 - Enable/Disable the UI overlay.
 
 # Dependencies
-- [glfw](https://github.com/glfw/glfw) - Window management and input handling.
 - [glm](https://github.com/g-truc/glm) - Math operations.
 - [freetype](https://github.com/freetype/freetype) - Font loading and font atlas creation.
 - [tinygltf](https://github.com/syoyo/tinygltf) - GLTF model loader.
