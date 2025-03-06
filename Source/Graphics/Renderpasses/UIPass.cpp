@@ -84,9 +84,12 @@ UIPass::UIPass(GFXDevice& gfxDevice, SR::Window& window) :
 	};
 
 	// Load resources
-	m_DefaultFont = assetmanager::load_font_from_file("fonts/consola.ttf", 16);
+	m_DefaultFont = assetmanager::load_font_from_file("fonts/SegoeUI.ttf", 14);
 	assetmanager::load_from_file(m_RightArrowIcon, "textures/right_arrow.png");
 	assetmanager::load_from_file(m_CheckIcon, "textures/check.png");
+	assetmanager::load_from_file(m_MinimizeIcon, "textures/minimize.png");
+	assetmanager::load_from_file(m_MaximizeIcon, "textures/maximize.png");
+	assetmanager::load_from_file(m_CloseIcon, "textures/close.png");
 
 	for (size_t i = 0; i < GFXDevice::FRAMES_IN_FLIGHT; ++i) {
 		m_GfxDevice.create_buffer(uiParamsBufferInfo, m_UIParamsBuffers[i], m_UIParamsData.data());
@@ -130,6 +133,16 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 			return p1.zOrder < p2.zOrder;
 		}
 	);
+
+	// Titlebar
+	const int clientWidth = m_Window.get_client_width();
+	draw_rect({ 0, 0 }, clientWidth, 31, UI_PRIMARY_BACKGROUND_COL);
+	draw_rect({ 0, 31 }, clientWidth, 1, UI_PRIMARY_BORDER_COL);
+	draw_text({ clientWidth / 2, 31 / 2 }, "Stingray (Vulkan)", UIPosFlag::HCENTER | UIPosFlag::VCENTER);
+
+	draw_rect({ clientWidth - 44 * 3, 0 }, 44, 31, glm::vec4(1.0f), UIPosFlag::NONE, m_MinimizeIcon.get_texture());
+	draw_rect({ clientWidth - 44 * 2, 0 }, 44, 31, glm::vec4(1.0f), UIPosFlag::NONE, m_MaximizeIcon.get_texture());
+	draw_rect({ clientWidth - 44, 0 }, 44, 31, glm::vec4(1.0f), UIPosFlag::NONE, m_CloseIcon.get_texture());
 
 	memcpy(m_UIParamsBuffers[m_GfxDevice.get_frame_index()].mappedData, m_UIParamsData.data(), m_UIParamsData.size() * sizeof(UIParams));
 

@@ -4,12 +4,12 @@
 #include "Data/Camera.h"
 #include "Data/Scene.h"
 #include "ECS/ECS.h"
-#include "Input/Input.h"
 #include "Graphics/RenderGraph.h"
 #include "Graphics/Renderpasses/FullscreenTriPass.h"
 #include "Graphics/renderpasses/RayTracingPass.h"
 #include "Graphics/renderpasses/UIPass.h"
 #include "Graphics/Vulkan/GraphicsDeviceVulkan.h"
+#include "Input/Input.h"
 #include "Managers/AssetManager.h"
 #include "Managers/MaterialManager.h"
 
@@ -37,8 +37,6 @@ struct PerFrameData {
 };
 
 GLOBAL GraphicsAPI g_API = GraphicsAPI::VULKAN;
-GLOBAL int g_FrameWidth = 1920;
-GLOBAL int g_FrameHeight = 1080;
 GLOBAL UIEvent g_MouseEvent = UIEvent(UIEventType::None);
 GLOBAL UIEvent g_KeyboardEvent = UIEvent(UIEventType::None);
 GLOBAL UIState g_UIState = UIState::VISIBLE;
@@ -75,9 +73,6 @@ GLOBAL std::unique_ptr<Model> g_Sphere = {};
 
 // Callbacks
 INTERNAL void resize_callback(int width, int height) {
-	g_FrameWidth = width;
-	g_FrameHeight = height;
-
 	const SwapChainInfo swapChainInfo = {
 		.width = static_cast<uint32_t>(width),
 		.height = static_cast<uint32_t>(height),
@@ -188,8 +183,8 @@ INTERNAL void init_gfx() {
 	}
 
 	const SwapChainInfo swapChainInfo = {
-		.width = static_cast<uint32_t>(g_FrameWidth),
-		.height = static_cast<uint32_t>(g_FrameHeight),
+		.width = static_cast<uint32_t>(g_Window->get_client_width()),
+		.height = static_cast<uint32_t>(g_Window->get_client_height()),
 		.bufferCount = 3,
 		.format = Format::R8G8B8A8_UNORM,
 		.vsync = true
@@ -241,7 +236,7 @@ INTERNAL void init_objects() {
 		glm::vec3(0, 3.0f, -4.0f),
 		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
 		60.0f,
-		(float)g_FrameWidth / g_FrameHeight,
+		(float)g_Window->get_client_width() / g_Window->get_client_height(),
 		0.1f,
 		100.0f
 	);
@@ -254,8 +249,8 @@ INTERNAL void init_render_graph() {
 	g_UIPass = std::make_unique<UIPass>(*g_GfxDevice, *g_Window);
 
 	// Create render graph
-	const uint32_t uWidth = static_cast<uint32_t>(g_FrameWidth);
-	const uint32_t uHeight = static_cast<uint32_t>(g_FrameHeight);
+	const uint32_t uWidth = static_cast<uint32_t>(g_Window->get_client_width());
+	const uint32_t uHeight = static_cast<uint32_t>(g_Window->get_client_height());
 
 	g_RenderGraph = std::make_unique<RenderGraph>(*g_GfxDevice);
 
@@ -457,10 +452,7 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 	//}
 
 	camera.set_position(newPosition);
-
-	const float aspectRatio = static_cast<float>(g_FrameWidth) / g_FrameHeight;
-	camera.set_aspect_ratio(aspectRatio);
-
+	camera.set_aspect_ratio(g_Window->get_client_aspect_ratio());
 	camera.update();
 
 	g_PerFrameData.projectionMatrix = camera.get_proj_matrix();
@@ -472,48 +464,6 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 
 	// User interface
 	if (g_UIState == UIState::VISIBLE) {
-		// ------------------------------- Main Menu -------------------------------
-		g_UIPass->begin_menu_bar(frameInfo.width);
-		{
-			// File menu
-			if (g_UIPass->begin_menu("File")) {
-				if (g_UIPass->begin_menu("New")) {
-					g_UIPass->menu_item("Scene");
-				}
-				g_UIPass->end_menu();
-
-				if (g_UIPass->begin_menu("Load Demo Scene")) {
-					if (g_UIPass->menu_item("Cornell Box")) {
-						if (g_ActiveScene == nullptr ||
-							g_ActiveScene->get_name() != "Cornell Box") {
-
-							std::cout << "Loading Cornell Box...\n";
-							create_cornell_scene();
-						}
-					}
-					g_UIPass->menu_item("Pool Table");
-				}
-				g_UIPass->end_menu();
-
-				g_UIPass->menu_item("Save Scene");
-				g_UIPass->menu_item("Save Scene As");
-			}
-			g_UIPass->end_menu();
-
-			// Edit menu
-			if (g_UIPass->begin_menu("Edit")) {
-				g_UIPass->menu_item("Preferences");
-			}
-			g_UIPass->end_menu();
-
-			// View menu
-			if (g_UIPass->begin_menu("View")) {
-				g_UIPass->menu_item("Renderpasses");
-			}
-			g_UIPass->end_menu();
-		}
-		g_UIPass->end_menu_bar();
-
 		// ------------------------- Path Tracing Settings -------------------------
 		g_UIPass->widget_text("Path Tracing:");
 		g_UIPass->widget_checkbox("Use normal maps", &g_RayTracingPass->m_UseNormalMaps);
@@ -552,7 +502,7 @@ int main() {
 		"Stingray",
 		1920,
 		1080,
-		WindowFlag::SIZE_IS_CLIENT_AREA | WindowFlag::CENTER
+		WindowFlag::CENTER | WindowFlag::SIZE_IS_CLIENT_AREA | WindowFlag::NO_TITLEBAR
 	);
 	g_Window->set_resize_callback(resize_callback);
 	g_Window->set_mouse_pos_callback(mouse_position_callback);
@@ -561,8 +511,8 @@ int main() {
 	init_gfx();
 	init_objects();
 	init_render_graph();
-	//create_cornell_scene();
-	create_sponza_scene();
+	create_cornell_scene();
+	//create_sponza_scene();
 
 	g_FrameInfo.camera = g_Camera.get();
 
@@ -590,9 +540,8 @@ int main() {
 		
 		// Update
 		g_FrameInfo.dt = dt;
-		// TODO: Make dynamic
-		g_FrameInfo.width = g_FrameWidth;
-		g_FrameInfo.height = g_FrameHeight;
+		g_FrameInfo.width = g_Window->get_client_width();
+		g_FrameInfo.height = g_Window->get_client_height();
 		on_update(g_FrameInfo);
 
 		// Rendering

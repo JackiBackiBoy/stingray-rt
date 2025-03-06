@@ -1,17 +1,18 @@
 #include "Window.h"
 #include "Platform.h"
-#include "../Input/Input.h"
+#include "Input/Input.h"
 
-#include <stdio.h>
 #include <Windows.h>
 #include <windowsx.h>
 #include "Resource.h"
 
 #include <chrono>
 #include <format>
+#include <iostream>
 
 namespace SR {
-	inline std::wstring to_wide_string(const std::string& str) {
+	// Helpers
+	INTERNAL inline std::wstring to_wide_string(const std::string& str) {
 		std::wstring wstr;
 		size_t size;
 		wstr.resize(str.length());
@@ -20,14 +21,13 @@ namespace SR {
 		return wstr;
 	}
 
-	// Helpers
 	INTERNAL constexpr Key convert_key(WPARAM wParam, LPARAM lParam) {
 		switch (wParam) {
 		case VK_CONTROL:
 			return (lParam & 0x01000000) ? Key::RIGHT_CONTROL : Key::LEFT_CONTROL;
 		case VK_SHIFT:
 		{
-			UINT scancode = (lParam & 0x00ff0000) >> 16;
+			const UINT scancode = (lParam & 0x00ff0000) >> 16;
 			return (MapVirtualKey(scancode, MAPVK_VSC_TO_VK_EX) == VK_RSHIFT)
 				? Key::RIGHT_SHIFT
 				: Key::LEFT_SHIFT;
@@ -161,7 +161,7 @@ namespace SR {
 	LRESULT CALLBACK Window::Impl::WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
 		Window::Impl* pWindow = reinterpret_cast<Window::Impl*>(
 			GetWindowLongPtr(window, GWLP_USERDATA)
-			);
+		);
 
 		switch (message) {
 		case WM_NCCREATE:
@@ -171,6 +171,128 @@ namespace SR {
 			SetWindowLongPtr(window, GWLP_USERDATA, (LONG_PTR)pWindow);
 		}
 		break;
+		case WM_NCCALCSIZE:
+			{
+				if (pWindow != nullptr && !has_flag(pWindow->m_Flags, WindowFlag::NO_TITLEBAR)) {
+					break;
+				}
+
+				const UINT dpi = GetDpiForWindow(window);
+				const int frameX = GetSystemMetricsForDpi(SM_CXFRAME, dpi);
+				const int frameY = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
+				const int padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+
+				NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)lParam;
+				RECT* requestedClientRect = params->rgrc;
+
+				bool isMaximized = false;
+				WINDOWPLACEMENT placement = { 0 };
+				placement.length = sizeof(WINDOWPLACEMENT);
+				if (GetWindowPlacement(window, &placement)) {
+					isMaximized = placement.showCmd == SW_SHOWMAXIMIZED;
+				}
+
+				if (isMaximized) {
+					const int sizeFrameY = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi);
+					requestedClientRect->right -= frameY + padding;
+					requestedClientRect->left += frameX + padding;
+					requestedClientRect->top += sizeFrameY + padding;
+					requestedClientRect->bottom -= frameY + padding;
+				}
+				else {
+					// ------ Hack to remove the title bar (non-client) area ------
+					// In order to hide the standard title bar we must change
+					// the NCCALCSIZE_PARAMS, which dictates the title bar area.
+					//
+					// In Windows 10 we can set the top component to '0', which
+					// in effect hides the default title bar.
+					// However, for unknown reasons this does not work in
+					// Windows 11, instead we are required to set the top
+					// component to '1' in order to get the same effect.
+					//
+					// Thus, we must first check the Windows version before
+					// altering the NCCALCSIZE_PARAMS structure.
+					const int cxBorder = 1;
+					const int cyBorder = 1;
+					InflateRect((LPRECT)lParam, -cxBorder, -cyBorder);
+				}
+
+				return 0;
+			}
+			break;
+		case WM_NCHITTEST:
+			{
+				if (!has_flag(pWindow->m_Flags, WindowFlag::NO_TITLEBAR)) {
+					break;
+				}
+
+				const POINT ptMouse = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+
+				RECT rcWindow;
+				GetWindowRect(window, &rcWindow);
+				// NOTE: GetWindowRect does not really give us the coords for
+				// bottom-right corner, in fact the bottom-right corner is
+				// calculated as (rcWindow.right - 1, rcWindow.bottom - 1).
+				// For convenience in the checks below, we update the rcWindow
+				// bottom-right members for this reason.
+				rcWindow.right -= 1;
+				rcWindow.bottom -= 1;
+
+				const bool insideWindow = (
+					ptMouse.x >= rcWindow.left && ptMouse.x <= rcWindow.right &&
+					ptMouse.y >= rcWindow.top && ptMouse.y <= rcWindow.bottom
+				);
+
+				const int sizingBorder = 8; // TODO: Perhaps make dynamic
+				const int titlebarHeight = 31; // TODO: Perhaps make dynamic
+				const int sysButtonWidth = 44; // TODO: Will break for dynamic DPI
+				const bool top = ptMouse.y >= rcWindow.top && ptMouse.y < rcWindow.top + sizingBorder;
+				const bool left = ptMouse.x >= rcWindow.left && ptMouse.x < rcWindow.left + sizingBorder;
+				const bool bottom = ptMouse.y <= rcWindow.bottom && ptMouse.y > rcWindow.bottom - sizingBorder;
+				const bool right = ptMouse.x <= rcWindow.right && ptMouse.x > rcWindow.right - sizingBorder;
+				const bool caption = ptMouse.y <= rcWindow.top + titlebarHeight;
+
+				if (caption) {
+					// Guaranteed to be in the sys-button area
+					if (ptMouse.x >= rcWindow.right - sysButtonWidth * 3 &&
+						ptMouse.x < rcWindow.right &&
+						ptMouse.y > rcWindow.top
+					) {
+						if (ptMouse.x >= rcWindow.right - sysButtonWidth) {
+							return HTCLOSE;
+						}
+						if (ptMouse.x >= rcWindow.right - sysButtonWidth * 2) {
+							return HTMAXBUTTON;
+						}
+
+						return HTMINBUTTON;
+					}
+
+					// If this is reached, we know that we are in the caption
+					// area, but not inside the sys-button area. I.e. we can
+					// ignore the check for bottom, bottom-left and bottom-right
+					if (top && left) { return HTTOPLEFT; }
+					if (top && right) { return HTTOPRIGHT; }
+					if (top) { return HTTOP; }
+					if (left) { return HTLEFT; }
+					if (right) { return HTRIGHT; }
+
+					return HTCAPTION;
+				}
+
+				// If this is reached, we can ignore the check for top, top-left
+				// and top-right. That is already handled above.
+				if (bottom && left) { return HTBOTTOMLEFT; }
+				if (bottom && right) { return HTBOTTOMRIGHT; }
+				if (left) { return HTLEFT; }
+				if (right) { return HTRIGHT; }
+				if (bottom) { return HTBOTTOM; }
+
+				// If this is reached, we know that the cursor is not on the
+				// border, and must therefore be in the client area.
+				return HTCLIENT;
+			}
+			break;
 		case WM_ERASEBKGND:
 			return TRUE;
 		case WM_SIZE:
@@ -306,11 +428,28 @@ namespace SR {
 			windowPosition.y = monitorInfo.rcMonitor.top + monitorHeight / 2 - windowHeight / 2;
 		}
 
+		// NOTE: For windows without a native title bar, there's a couple of
+		// tricks that need to be employed. First of all, WS_SYSMENU style must
+		// be removed, this is because this style influences how mouse position
+		// is reported in some Windows messages. For example, the lParam in
+		// WM_NCHITTEST gives us the relative mouse position. However, when
+		// WS_SYSMENU is a present window-style, the reported mouse position
+		// will be incorrect in the sys-button area.
+		//
+		// More specifically, when the mouse is in the sys-button area, we will
+		// never get mouse.y == windowRect.top or mouse.x == windowRect.right as
+		// a reported mouse position. This makes it impossible to properly check
+		// if the mouse is positioned on the border in this area.
+		// This is of course only the case for non-titlebar windows, and this
+		// issue is a direct result of how we handle WM_NCCALCSIZE.
+		// See WM_NCCALCSIZE code for further details.
+		// Thus, in order to get correct mouse-position reporting, we simply
+		// disable the WS_SYSMENU windows style.
 		m_Impl->m_Handle = CreateWindowEx(
 			WS_EX_APPWINDOW,
 			windowClass.lpszClassName,
 			windowClass.lpszClassName,
-			WS_OVERLAPPEDWINDOW,
+			WS_OVERLAPPEDWINDOW & (~WS_SYSMENU),
 			static_cast<int>(windowPosition.x),
 			static_cast<int>(windowPosition.y),
 			windowWidth,
@@ -355,6 +494,10 @@ namespace SR {
 
 	int Window::get_client_height() const {
 		return m_Impl->m_ClientHeight;
+	}
+
+	float Window::get_client_aspect_ratio() const {
+		return static_cast<float>(m_Impl->m_ClientWidth) / m_Impl->m_ClientHeight;
 	}
 
 	void* Window::get_internal_object() {

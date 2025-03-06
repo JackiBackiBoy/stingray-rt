@@ -32,6 +32,7 @@ namespace SR {
 
 		int get_client_width() const;
 		int get_client_height() const;
+		float get_client_aspect_ratio() const;
 		void* get_internal_object();
 		void set_resize_callback(window_resize_callback callback);
 		void set_mouse_pos_callback(window_mouse_pos_callback callback);

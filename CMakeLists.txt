@@ -11,8 +11,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Lib)
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Lib)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Bin)
 
 if(MSVC)
@@ -27,10 +28,19 @@ set(FREETYPE_INCLUDE_DIR ${DEPENDENCY_DIR}/FreeType/include/)
 set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/GLM/)
 set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/TinyGLTF/)
 
+# 1. FreeType
 add_subdirectory(Dependencies/FreeType)
+set_property(TARGET freetype PROPERTY FOLDER "Dependencies")
+
+# 2. TinyGLTF
+set(TINYGLTF_BUILD_LOADER_EXAMPLE OFF CACHE INTERNAL "Enable loader example")
 add_subdirectory(Dependencies/TinyGLTF)
+set_property(TARGET tinygltf PROPERTY FOLDER "Dependencies")
+
+# 3. Volk
 set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
 add_subdirectory(Dependencies/Volk)
+set_property(TARGET volk PROPERTY FOLDER "Dependencies")
 
 # -------------------------------- Source Files --------------------------------
 set(SOURCE_DIR ${CMAKE_SOURCE_DIR}/Source)
@@ -165,10 +175,11 @@ add_executable(
 )
 
 # Win32 resource file and application manifest
-set_source_files_properties(Resources/Win32/Resources.rc PROPERTIES LANGUAGE RC)
+set(WIN32_RES_DIR ${CMAKE_SOURCE_DIR}/Resources/Win32/)
+set_source_files_properties(${WIN32_RES_DIR}Resources.rc PROPERTIES LANGUAGE RC)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-	Resources/Win32/app.manifest
-	Resources/Win32/Resources.rc
+	${WIN32_RES_DIR}app.manifest
+	${WIN32_RES_DIR}Resources.rc
 )
 
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
@@ -193,7 +204,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 	${SOURCE_DIR}
 	${FREETYPE_INCLUDE_DIR}
 	${GLM_INCLUDE_DIR}
-	Resources/Win32/
+	${WIN32_RES_DIR}
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}

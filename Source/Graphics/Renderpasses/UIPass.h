@@ -162,6 +162,12 @@ private:
 	static constexpr int UI_WIDGET_TEXT_INPUT_WIDTH = 300;
 	static constexpr float UI_WIDGET_TEXT_INPUT_CARET_BLINK_RATE = 0.5f;
 
+	static inline glm::vec4 rgb_to_norm(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) {
+		return (1.0f / 255.0f) * glm::vec4((float)r, (float)g, (float)b, (float)a);
+	}
+
+	static constexpr glm::vec4 UI_PRIMARY_BACKGROUND_COL = { 0.094f, 0.094f, 0.094f, 1.0f };
+	static constexpr glm::vec4 UI_PRIMARY_BORDER_COL = { 0.168f, 0.168f, 0.168f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_ACCENT_COL = { 1.0f, 0.6f, 0.0f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL = { 0.2f, 0.2f, 0.2f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL_HOV = { 0.4f, 0.4f, 0.4f, 1.0f };
@@ -238,6 +244,9 @@ private:
 	Font* m_DefaultFont = {};
 	Asset m_RightArrowIcon = {};
 	Asset m_CheckIcon = {};
+	Asset m_MinimizeIcon = {};
+	Asset m_MaximizeIcon = {};
+	Asset m_CloseIcon = {};
 
 	std::vector<UIParams> m_UIParamsData = {};
 	glm::vec2 m_DefaultCursorOrigin = { UI_PADDING, UI_PADDING };
