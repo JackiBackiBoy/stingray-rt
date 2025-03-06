@@ -1,8 +1,11 @@
 <h1 align="center">stingray</h1>
-<p align="center">GPU-accelerated real-time path tracer powered by Vulkan® and C++.</p>
-<h1 align="center"></h1>
 
+![stingray_banner](https://github.com/user-attachments/assets/ffd7f1a5-304c-4f32-9294-5878dccd206d)
+
+<p align="center">GPU-accelerated real-time path tracer powered by Vulkan and C++.</p>
+<h1 align="center"></h1>
 Stingray is a real-time path tracer leveraging the Vulkan ray tracing pipeline. Delivering high-fidelity graphics with a minimalistic and efficient design philosophy in mind.
+
 
 # Features
 - **Fully bindless resources:** Buffers, images, and acceleration structures are efficiently managed without the constraints of fixed bindings, enabling maximum flexibility in rendering pipelines.
@@ -51,7 +54,8 @@ You should now be able to run the program!
 - W/A/S/D - Move forward, left, back and right.
 - Space - Move upwards.
 - Left Control - Move downwards.
-- Middle Mouse Button (Mouse3) - Hold down and move the mouse to pan the camera.
+- Middle Mouse Button
+Mouse3) - Hold down and move the mouse to pan the camera.
 - F11 - Enable/Disable the UI overlay.
 
 # Dependencies
