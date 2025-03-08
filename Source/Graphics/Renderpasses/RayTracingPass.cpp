@@ -196,8 +196,8 @@ void RayTracingPass::execute(PassExecuteInfo& executeInfo, Scene& scene) {
 		.rayGenTable = &m_RayGenSBT,
 		.missTable = &m_MissSBT,
 		.hitGroupTable = &m_HitSBT,
-		.width = static_cast<uint32_t>(executeInfo.frameInfo->width),
-		.height = static_cast<uint32_t>(executeInfo.frameInfo->height)
+		.width = rtOutput->texture.info.width,
+		.height = rtOutput->texture.info.height
 	};
 
 	m_GfxDevice.dispatch_rays(dispatchInfo, cmdList);

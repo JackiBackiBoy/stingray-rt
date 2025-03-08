@@ -140,6 +140,11 @@ public:
 	void end_menu();
 	void end_menu_bar();
 
+	void begin_split(const std::string& text);
+	void begin_panel(const std::string& text, float percentage);
+	void end_panel();
+	void end_split();
+
 	// Widgets
 	void widget_text(const std::string& text, int fixedWidth = 0);
 	bool widget_button(const std::string& text);
@@ -148,32 +153,31 @@ public:
 	void widget_text_input(const std::string& label, std::string& buffer);
 	void widget_input_scalar(const std::string& label, void* scalar, UIDataType type);
 	void widget_image(const Texture& texture, int width, int height);
-
-	// Widget behavior
 	void widget_same_line();
 
 	void process_event(const UIEvent& event);
 
-private:
-	static constexpr uint32_t MAX_UI_PARAMS = 2048;
 	static constexpr int UI_PADDING = 8;
-	static constexpr int UI_WIDGET_SLIDER_WIDTH = 300; // TODO: Should be a percentage instead
-	static constexpr int UI_WIDGET_SLIDER_HANDLE_WIDTH = 20;
-	static constexpr int UI_WIDGET_TEXT_INPUT_WIDTH = 300;
-	static constexpr float UI_WIDGET_TEXT_INPUT_CARET_BLINK_RATE = 0.5f;
 
+private:
 	static inline glm::vec4 rgb_to_norm(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) {
 		return (1.0f / 255.0f) * glm::vec4((float)r, (float)g, (float)b, (float)a);
 	}
 
+	static constexpr uint32_t MAX_UI_PARAMS = 2048;
+	static constexpr int UI_WIDGET_SLIDER_WIDTH = 300; // TODO: Should be a percentage instead
+	static constexpr int UI_WIDGET_SLIDER_HANDLE_WIDTH = 20;
+	static constexpr int UI_WIDGET_TEXT_INPUT_WIDTH = 300;
+	static constexpr float UI_WIDGET_TEXT_INPUT_CARET_BLINK_RATE = 0.5f;
+	static constexpr int UI_TITLEBAR_HEIGHT = 31;
 	static constexpr glm::vec4 UI_PRIMARY_BACKGROUND_COL = { 0.094f, 0.094f, 0.094f, 1.0f };
 	static constexpr glm::vec4 UI_PRIMARY_BORDER_COL = { 0.168f, 0.168f, 0.168f, 1.0f };
-	static constexpr glm::vec4 UI_WIDGET_ACCENT_COL = { 1.0f, 0.6f, 0.0f, 1.0f };
+	static constexpr glm::vec4 UI_WIDGET_ACCENT_COL = { 0.0f, 0.470f, 0.831f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL = { 0.2f, 0.2f, 0.2f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL_HOV = { 0.4f, 0.4f, 0.4f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_PRIMARY_COL_PRESSED = { 0.5f, 0.5f, 0.5f, 1.0f };
 	static constexpr glm::vec4 UI_WIDGET_SECONDARY_COL = { 0.3f, 0.3f, 0.3f, 1.0f };
-	static constexpr glm::vec4 UI_WIDGET_HIGHLIGHT_COL = { 0.039, 0.243, 0.662, 1.0f };
+	static constexpr glm::vec4 UI_WIDGET_HIGHLIGHT_COL = { 0.0f, 0.470f, 0.831f, 1.0f };
 	static constexpr int UI_MENU_RIGHT_PADDING = 32;
 	static constexpr int UI_WIDGET_CHECKBOX_SIZE = 24;
 
@@ -190,18 +194,20 @@ private:
 		INPUT_TEXT,
 		MENU,
 		MENU_ITEM,
+		SPLIT,
+		PANEL,
 	};
 
 	struct UIWidgetState { // NOTE: Only used for certain widgets
 		WidgetType type;
+		WidgetAction actions = WidgetAction::NONE;
+		bool enabled = true;
 		std::string text;
 		glm::vec2 position;
 		int width;
 		int height;
-		WidgetAction actions = WidgetAction::NONE;
 		uint64_t id;
 		uint64_t parentID = 0;
-		bool enabled = true;
 
 		inline bool hit_test(glm::vec2 point) {
 			return (
@@ -228,7 +234,7 @@ private:
 		uint32_t pad3;
 	};
 
-	void draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags = UIPosFlag::NONE, uint32_t zOrder = 0);
+	void draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags = UIPosFlag::NONE, const Font* font = nullptr, uint32_t zOrder = 0);
 	void draw_rect(const glm::vec2& pos, int width, int height, const glm::vec4& col, UIPosFlag posFlags = UIPosFlag::NONE, const Texture* texture = nullptr, uint32_t zOrder = 0);
 	//void draw_triangle(const glm::vec2& a, const glm::vec2& b, const glm::vec2& c, const glm::vec4& col, uint32_t zOrder = 0);
 	void calc_cursor_origin();
@@ -242,14 +248,16 @@ private:
 	Pipeline m_Pipeline = {};
 	Buffer m_UIParamsBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
 	Font* m_DefaultFont = {};
+	Font* m_DefaultBoldFont = {};
 	Asset m_RightArrowIcon = {};
 	Asset m_CheckIcon = {};
+	Asset m_WindowIcon = {};
 	Asset m_MinimizeIcon = {};
 	Asset m_MaximizeIcon = {};
 	Asset m_CloseIcon = {};
 
 	std::vector<UIParams> m_UIParamsData = {};
-	glm::vec2 m_DefaultCursorOrigin = { UI_PADDING, UI_PADDING };
+	glm::vec2 m_DefaultCursorOrigin = { UI_PADDING, UI_TITLEBAR_HEIGHT + UI_PADDING };
 	glm::vec2 m_CursorOrigin = m_DefaultCursorOrigin;
 	glm::vec2 m_LastCursorOriginDelta = { 0.0f, 0.0f };
 	int m_SameLineYIncrement = 0;
@@ -258,8 +266,6 @@ private:
 	bool m_SameLineIsActive = false;
 	bool m_SameLineWasActive = false;
 	bool m_MainMenuActive = false;
-	//int m_ActiveMenuMaxWidth = 0;
-	//int m_ActiveMenuTotalHeight = 0;
 
 	MouseEventData m_CurrentMouseData = {};
 	UIEvent m_LastMouseEvent = UIEvent(UIEventType::None);
@@ -271,11 +277,13 @@ private:
 	std::vector<uint64_t> m_WidgetStateMapIndices = {};
 	std::unordered_map<uint64_t, glm::vec2> m_LastMenuDimensions = {};
 	std::unordered_map<uint64_t, glm::vec2> m_MenuDimensions = {};
+	std::vector<uint64_t> m_ActiveSplitIDs = {};
 	uint64_t m_LastBegunMenuID = 0;
 	uint64_t m_ActiveWidgetID = 0;
 	uint64_t m_HoveredWidgetID = 0;
 	uint64_t m_LastHoveredWidgetID = 0;
 	uint64_t m_LastHoveredNonRootMenuID = 0;
+	uint64_t m_ActivePanelID = 0;
 	float m_CaretTimer = 0.0f;
 
 	SR::Window& m_Window;

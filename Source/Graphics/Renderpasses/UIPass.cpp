@@ -85,8 +85,10 @@ UIPass::UIPass(GFXDevice& gfxDevice, SR::Window& window) :
 
 	// Load resources
 	m_DefaultFont = assetmanager::load_font_from_file("fonts/SegoeUI.ttf", 14);
+	m_DefaultBoldFont = assetmanager::load_font_from_file("Fonts/SegoeUIBold.ttf", 14);
 	assetmanager::load_from_file(m_RightArrowIcon, "textures/right_arrow.png");
 	assetmanager::load_from_file(m_CheckIcon, "textures/check.png");
+	assetmanager::load_from_file(m_WindowIcon, "Textures/StingrayIcon24x24.png");
 	assetmanager::load_from_file(m_MinimizeIcon, "textures/minimize.png");
 	assetmanager::load_from_file(m_MaximizeIcon, "textures/maximize.png");
 	assetmanager::load_from_file(m_CloseIcon, "textures/close.png");
@@ -119,27 +121,14 @@ void UIPass::execute(PassExecuteInfo& executeInfo) {
 		m_CaretTimer = 0.0f;
 	}
 
-	// TEMPORARY: Debug information for UI system itself
-	widget_text("UI Pass Debug Information:");
-	widget_text(std::format("Hovered Widget ID: {}", m_HoveredWidgetID));
-	widget_text(std::format("Last Hovered Widget ID: {}", m_LastHoveredWidgetID));
-	widget_text(std::format("Active Widget ID: {}", m_ActiveWidgetID));
-	widget_text(std::format("Last Hovered Non-Root Menu ID: {}", m_LastHoveredNonRootMenuID));
-
-	// Sort the UI params based on zOrder
-	std::stable_sort(
-		m_UIParamsData.begin(), m_UIParamsData.end(),
-		[](const UIParams& p1, const UIParams& p2) {
-			return p1.zOrder < p2.zOrder;
-		}
-	);
-
 	// Titlebar
 	const int clientWidth = m_Window.get_client_width();
 	draw_rect({ 0, 0 }, clientWidth, 31, UI_PRIMARY_BACKGROUND_COL);
 	draw_rect({ 0, 31 }, clientWidth, 1, UI_PRIMARY_BORDER_COL);
-	draw_text({ clientWidth / 2, 31 / 2 }, "Stingray (Vulkan)", UIPosFlag::HCENTER | UIPosFlag::VCENTER);
 
+	const Texture* iconTex = m_WindowIcon.get_texture();
+	draw_rect({ 8, 31 / 2 }, iconTex->info.width, iconTex->info.height, glm::vec4(1.0f), UIPosFlag::VCENTER, iconTex);
+	draw_text({ clientWidth / 2, 31 / 2 }, "Stingray (Vulkan)", UIPosFlag::HCENTER | UIPosFlag::VCENTER);
 	draw_rect({ clientWidth - 44 * 3, 0 }, 44, 31, glm::vec4(1.0f), UIPosFlag::NONE, m_MinimizeIcon.get_texture());
 	draw_rect({ clientWidth - 44 * 2, 0 }, 44, 31, glm::vec4(1.0f), UIPosFlag::NONE, m_MaximizeIcon.get_texture());
 	draw_rect({ clientWidth - 44, 0 }, 44, 31, glm::vec4(1.0f), UIPosFlag::NONE, m_CloseIcon.get_texture());
@@ -310,7 +299,7 @@ bool UIPass::begin_menu(const std::string& text) {
 		draw_rect(m_CursorOrigin, width, height, color, UIPosFlag::NONE, nullptr, 25);
 	}
 
-	draw_text(m_CursorOrigin + glm::vec2(width / 2, height / 2), text, UIPosFlag::HCENTER | UIPosFlag::VCENTER, 30);
+	draw_text(m_CursorOrigin + glm::vec2(width / 2, height / 2), text, UIPosFlag::HCENTER | UIPosFlag::VCENTER, nullptr, 30);
 
 	if (state.parentID != 0) {
 		m_CursorOrigin.x += state.width;
@@ -384,7 +373,7 @@ bool UIPass::menu_item(const std::string& text) {
 
 	}
 
-	draw_text(m_CursorOrigin + glm::vec2(UI_PADDING, state.height / 2), text, UIPosFlag::VCENTER, 20);
+	draw_text(m_CursorOrigin + glm::vec2(UI_PADDING, state.height / 2), text, UIPosFlag::VCENTER, nullptr, 20);
 
 	m_LastCursorOriginDelta.x = 0.0f;
 	m_LastCursorOriginDelta.y = state.height;
@@ -525,6 +514,109 @@ void UIPass::end_menu_bar() {
 	m_CursorOrigin.y += m_DefaultFont->boundingBoxHeight + UI_PADDING * 3;
 
 	m_MainMenuActive = false;
+}
+
+void UIPass::begin_split(const std::string& text) {
+	calc_cursor_origin();
+
+	const uint64_t textHash = std::hash<std::string>{}(text);
+	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::SPLIT);
+	const uint64_t id = widget_hash_combine(textHash, typeHash);
+
+	int width;
+	int height;
+
+	if (m_ActiveSplitIDs.empty()) {
+		width = m_Window.get_client_width();
+		height = m_Window.get_client_height() - UI_TITLEBAR_HEIGHT;
+	}
+	else {
+		const uint64_t currSplitID = m_ActiveSplitIDs.back();
+		const UIWidgetState& currSplitWidget = m_WidgetStateMap[currSplitID];
+		width = 0; // TODO: Fix
+		height = 0; // TODO: Fix
+	}
+
+	UIWidgetState state = {};
+	state.position = m_CursorOrigin;
+	state.id = id;
+	state.width = width;
+	state.height = height;
+	state.text = text;
+	state.type = WidgetType::SPLIT;
+
+	const auto& search = m_WidgetStateMap.find(id);
+
+	if (search == m_WidgetStateMap.end()) {
+		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
+	}
+	else {
+		UIWidgetState& internalState = search->second;
+		internalState.position = state.position;
+		internalState.width = width;
+		internalState.height = height;
+		state = search->second;
+	}
+
+	m_ActiveSplitIDs.push_back(id);
+}
+
+void UIPass::begin_panel(const std::string& text, float percentage) {
+	assert(!m_ActiveSplitIDs.empty());
+
+	const uint64_t currSplitID = m_ActiveSplitIDs.back();
+	const UIWidgetState& currSplitWidget = m_WidgetStateMap[currSplitID];
+
+	calc_cursor_origin();
+	const uint64_t textHash = std::hash<std::string>{}(text);
+	const uint64_t typeHash = std::hash<WidgetType>{}(WidgetType::PANEL);
+	const uint64_t id = widget_hash_combine(textHash, typeHash);
+	m_ActivePanelID = id;
+
+	UIWidgetState state = {};
+	state.position = m_CursorOrigin;
+	state.id = id;
+	state.width = static_cast<int>(percentage * currSplitWidget.width);
+	state.height = currSplitWidget.height; // TODO: Fix
+	state.text = text;
+	state.type = WidgetType::PANEL;
+
+	const auto& search = m_WidgetStateMap.find(id);
+
+	if (search == m_WidgetStateMap.end()) {
+		m_WidgetStateMap.insert({ id, state });
+		m_WidgetStateMapIndices.push_back(id);
+	}
+	else {
+		UIWidgetState& internalState = search->second;
+		internalState.position = state.position;
+		internalState.width = static_cast<int>(percentage * currSplitWidget.width);
+		internalState.height = currSplitWidget.height; // TODO: Fix
+		state = search->second;
+	}
+
+	// Drawing
+	draw_rect(m_CursorOrigin - glm::vec2(UI_PADDING), state.width - 1, state.height, UI_PRIMARY_BACKGROUND_COL);
+	draw_rect(m_CursorOrigin - glm::vec2(UI_PADDING) + glm::vec2(state.width - 1, 0), 1, state.height, UI_PRIMARY_BORDER_COL);
+	draw_text(m_CursorOrigin, text, UIPosFlag::NONE, m_DefaultBoldFont);
+
+	m_LastCursorOriginDelta.x = 0;
+	m_LastCursorOriginDelta.y = m_DefaultFont->boundingBoxHeight + UI_PADDING;
+}
+
+void UIPass::end_panel() {
+	assert(m_ActivePanelID != 0);
+	m_LastCursorOriginDelta.x = 0;
+	m_LastCursorOriginDelta.y = 0;
+	m_CursorOrigin.x += m_WidgetStateMap[m_ActivePanelID].width;
+	m_CursorOrigin.y = m_DefaultCursorOrigin.y;
+	m_ActivePanelID = 0;
+}
+
+void UIPass::end_split() {
+	assert(!m_ActiveSplitIDs.empty());
+	m_ActiveSplitIDs.pop_back();
 }
 
 void UIPass::widget_text(const std::string& text, int fixedWidth) {
@@ -1137,7 +1229,11 @@ void UIPass::process_event(const UIEvent& event) {
 	}
 }
 
-void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags, uint32_t zOrder) {
+void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag posFlags, const Font* font, uint32_t zOrder) {
+	if (font == nullptr) {
+		font = m_DefaultFont;
+	}
+
 	float textPosX = pos.x;
 	float textPosY = pos.y;
 
@@ -1145,15 +1241,15 @@ void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag 
 	const float textPosOriginY = textPosY;
 
 	if (has_flag(posFlags, UIPosFlag::HCENTER)) {
-		textPosX -= (float)(m_DefaultFont->calc_text_width(text) / 2);
+		textPosX -= (float)(font->calc_text_width(text) / 2);
 	}
 	if (has_flag(posFlags, UIPosFlag::VCENTER)) {
-		textPosY -= (float)(m_DefaultFont->maxBearingY / 2);
+		textPosY -= (float)(font->maxBearingY / 2);
 	}
 
 	for (size_t i = 0; i < text.length(); ++i) {
 		const char character = text[i];
-		const GlyphData& glyphData = m_DefaultFont->glyphs[character];
+		const GlyphData& glyphData = font->glyphs[character];
 
 		if (character == ' ') {
 			textPosX += glyphData.advanceX;
@@ -1162,19 +1258,19 @@ void UIPass::draw_text(const glm::vec2& pos, const std::string& text, UIPosFlag 
 
 		if (character == '\n') {
 			textPosX = textPosOriginX;
-			textPosY += m_DefaultFont->lineSpacing;
+			textPosY += font->lineSpacing;
 		}
 
 		UIParams textParams = {};
 		textParams.color = { 1.0f, 1.0f, 1.0f, 1.0f };
 		textParams.position.x = i == 0 ? textPosX : textPosX + glyphData.bearingX; // Only use bearing if it's not the first character
-		textParams.position.y = textPosY + (m_DefaultFont->maxBearingY - glyphData.bearingY);
+		textParams.position.y = textPosY + (font->maxBearingY - glyphData.bearingY);
 		textParams.size = { glyphData.width, glyphData.height };
 		textParams.texCoords[0] = glyphData.texCoords[0];
 		textParams.texCoords[1] = glyphData.texCoords[1];
 		textParams.texCoords[2] = glyphData.texCoords[2];
 		textParams.texCoords[3] = glyphData.texCoords[3];
-		textParams.texIndex = m_GfxDevice.get_descriptor_index(m_DefaultFont->atlasTexture, SubresourceType::SRV);
+		textParams.texIndex = m_GfxDevice.get_descriptor_index(font->atlasTexture, SubresourceType::SRV);
 		textParams.uiType = UIType::TEXT;
 		textParams.zOrder = zOrder;
 

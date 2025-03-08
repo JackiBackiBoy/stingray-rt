@@ -99,6 +99,10 @@ set(SOURCE_FILES
 
 	# Math
 	${SOURCE_DIR}/Math/SRMath.h
+
+	# UI
+	${SOURCE_DIR}/UI/UIContext.cpp
+	${SOURCE_DIR}/UI/UIContext.h
 )
 
 # ------------------------------ Source Groupings ------------------------------
@@ -166,6 +170,11 @@ source_group("Managers" FILES
 
 source_group("Math" FILES
 	${SOURCE_DIR}/Math/SRMath.h
+)
+
+source_group("UI" FILES
+	${SOURCE_DIR}/UI/UIContext.cpp
+	${SOURCE_DIR}/UI/UIContext.h
 )
 
 # ----------------------------- Compile Executable -----------------------------
