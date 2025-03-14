@@ -180,7 +180,12 @@ source_group("UI" FILES
 # ----------------------------- Compile Executable -----------------------------
 add_executable(
 	${CMAKE_PROJECT_NAME}
+	WIN32
 	${SOURCE_FILES}
+)
+
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+	/W4
 )
 
 # Win32 resource file and application manifest

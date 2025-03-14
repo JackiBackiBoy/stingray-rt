@@ -19,6 +19,7 @@ namespace SR {
 
 	typedef void (*window_resize_callback)(int width, int height);
 	typedef void (*window_mouse_pos_callback)(int x, int y);
+	typedef void (*window_mouse_button_callback)(MouseButton button, ButtonAction action, ButtonMods mods);
 	typedef void (*window_keyboard_callback)(Key key, ButtonAction action, ButtonMods mods);
 
 	class Window {
@@ -36,6 +37,7 @@ namespace SR {
 		void* get_internal_object();
 		void set_resize_callback(window_resize_callback callback);
 		void set_mouse_pos_callback(window_mouse_pos_callback callback);
+		void set_mouse_button_callback(window_mouse_button_callback callback);
 		void set_keyboard_callback(window_keyboard_callback callback);
 
 	private:

@@ -1,10 +1,12 @@
 #pragma once
 
-#include "Data/camera.h"
+#include "Data/Camera.h"
 
-struct FrameInfo {
-	Camera* camera = nullptr;
-	float dt;
-	int width;
-	int height;
-};
+namespace SR {
+	struct FrameInfo {
+		Camera* camera = nullptr;
+		float dt;
+		int width;
+		int height;
+	};
+}

@@ -228,6 +228,10 @@ namespace SR {
 				);
 		}
 
+		const MouseState& get_mouse_state() {
+			return g_CurrentMouse;
+		}
+
 		const GamepadState& get_gamepad_state() {
 			return g_CurrentGamepad;
 		}

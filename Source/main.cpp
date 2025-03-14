@@ -1,29 +1,30 @@
-#include "Core/Platform.h"
 #include "Core/FrameInfo.h"
+#include "Core/Platform.h"
 #include "Core/Window.h"
 #include "Data/Camera.h"
 #include "Data/Scene.h"
 #include "ECS/ECS.h"
 #include "Graphics/RenderGraph.h"
 #include "Graphics/Renderpasses/FullscreenTriPass.h"
-#include "Graphics/renderpasses/RayTracingPass.h"
-#include "Graphics/renderpasses/UIPass.h"
+#include "Graphics/Renderpasses/RayTracingPass.h"
+#include "Graphics/Renderpasses/UIPass.h"
 #include "Graphics/Vulkan/GraphicsDeviceVulkan.h"
 #include "Input/Input.h"
 #include "Managers/AssetManager.h"
 #include "Managers/MaterialManager.h"
 
-#include <glm/glm.hpp>
 #include <chrono>
 #include <cstdint>
 #include <format>
+#include <glm/glm.hpp>
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <Windows.h>
 
 using namespace SR;
 
-enum class UIState {
+enum class UIState : uint8_t {
 	HIDDEN,
 	VISIBLE
 };
@@ -37,21 +38,21 @@ struct PerFrameData {
 };
 
 GLOBAL GraphicsAPI g_API = GraphicsAPI::VULKAN;
+GLOBAL UIState g_UIState = UIState::VISIBLE;
 GLOBAL UIEvent g_MouseEvent = UIEvent(UIEventType::None);
 GLOBAL UIEvent g_KeyboardEvent = UIEvent(UIEventType::None);
-GLOBAL UIState g_UIState = UIState::VISIBLE;
 
 GLOBAL std::unique_ptr<Window> g_Window = {};
-GLOBAL std::unique_ptr<GFXDevice> g_GfxDevice = {};
+GLOBAL std::unique_ptr<GraphicsDevice> g_GfxDevice = {};
+GLOBAL std::unique_ptr<RenderGraph> g_RenderGraph = {};
 GLOBAL std::unique_ptr<FullscreenTriPass> g_FullscreenTriPass = {};
 GLOBAL std::unique_ptr<RayTracingPass> g_RayTracingPass = {};
 GLOBAL std::unique_ptr<UIPass> g_UIPass = {};
-GLOBAL std::unique_ptr<RenderGraph> g_RenderGraph = {};
 GLOBAL SwapChain g_SwapChain = {};
 GLOBAL Sampler g_DefaultSampler = {};
 
 GLOBAL std::unique_ptr<MaterialManager> g_MaterialManager = {};
-GLOBAL Buffer g_PerFrameDataBuffers[GFXDevice::FRAMES_IN_FLIGHT] = {};
+GLOBAL Buffer g_PerFrameDataBuffers[GraphicsDevice::FRAMES_IN_FLIGHT] = {};
 GLOBAL PerFrameData g_PerFrameData = {};
 
 GLOBAL std::unique_ptr<Camera> g_Camera = {};
@@ -64,124 +65,143 @@ GLOBAL Scene* g_ActiveScene = nullptr;
 // Resources
 GLOBAL Texture g_DefaultAlbedoMap = {};
 GLOBAL Texture g_DefaultNormalMap = {};
-GLOBAL Asset g_TestTexture = {};
+GLOBAL Asset g_EarthTexture = {};
 GLOBAL Asset g_PlaneModel = {};
 GLOBAL Asset g_LucyModel = {};
 GLOBAL Asset g_SponzaModel = {};
 GLOBAL std::unique_ptr<Model> g_FlatPlaneModel = {};
 GLOBAL std::unique_ptr<Model> g_Sphere = {};
 
-// Callbacks
-INTERNAL void resize_callback(int width, int height) {
-	const SwapChainInfo swapChainInfo = {
-		.width = static_cast<uint32_t>(width),
-		.height = static_cast<uint32_t>(height),
-		.bufferCount = 3,
-		.format = Format::R8G8B8A8_UNORM,
-		.vsync = true
-	};
+// --------------------------- Function Declarations ---------------------------
+INTERNAL void init_window();
+INTERNAL void init_gfx();
+INTERNAL void init_objects();
+INTERNAL void init_render_graph();
+INTERNAL void create_cornell_scene();
+INTERNAL void create_sponza_scene();
+INTERNAL void on_update(FrameInfo& frameInfo);
+INTERNAL void resize_callback(int width, int height);
+INTERNAL void mouse_position_callback(int x, int y);
+INTERNAL void mouse_button_callback(MouseButton button, ButtonAction action, ButtonMods mods);
+INTERNAL void key_callback(Key keys, ButtonAction action, ButtonMods mods);
 
-	width = static_cast<int>(width * 0.6f - 2 * UIPass::UI_PADDING);
-	height = static_cast<int>(width * (9.0f / 16));
-	// Recreate swapchain
-	g_GfxDevice->create_swapchain(swapChainInfo, g_SwapChain);
+// -------------------------------- Entry Point --------------------------------
+int APIENTRY wWinMain(
+	_In_ HINSTANCE hInstance,
+	_In_opt_ HINSTANCE hPrevInstance,
+	_In_ LPWSTR lpCmdLine,
+	_In_ int nCmdShow)
+{
+	init_window();
+	init_gfx();
+	init_objects();
+	init_render_graph();
+	create_cornell_scene();
+	//create_sponza_scene();
 
-	// Recreate resources with new sizes
-	auto rtOutput = g_RenderGraph->get_attachment("RTOutput");
-	auto rtAccumulation = g_RenderGraph->get_attachment("RTAccumulation");
+	g_FrameInfo.camera = g_Camera.get();
 
-	TextureInfo newRtOutputTexInfo = rtOutput->texture.info;
-	newRtOutputTexInfo.width = static_cast<uint32_t>(width);
-	newRtOutputTexInfo.height = static_cast<uint32_t>(height);
+	bool firstFrame = true;
+	while (!g_Window->should_close()) {
+		g_Window->poll_events();
 
-	TextureInfo newRtAccumulationTexInfo = rtAccumulation->texture.info;
-	newRtAccumulationTexInfo.width = static_cast<uint32_t>(width);
-	newRtAccumulationTexInfo.height = static_cast<uint32_t>(height);
+		// Extra security check
+		if (g_Window->should_close()) {
+			break;
+		}
 
-	g_GfxDevice->create_texture(newRtOutputTexInfo, rtOutput->texture, nullptr);
-	g_GfxDevice->create_texture(newRtAccumulationTexInfo, rtAccumulation->texture, nullptr);
+		static auto lastTime = std::chrono::high_resolution_clock::now();
+		const auto currentTime = std::chrono::high_resolution_clock::now();
+		const float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+		lastTime = currentTime;
 
-	// Update the attachment infos in the render graph
-	rtOutput->info.width = width;
-	rtOutput->currentState = ResourceState::UNORDERED_ACCESS;
-	rtAccumulation->info.height = height;
-	rtAccumulation->currentState = ResourceState::UNORDERED_ACCESS;
-}
+		// Update FPS counter
+		if (std::chrono::duration<float, std::chrono::seconds::period>(
+			currentTime - g_FPSStartTime).count() >= 1.0f) {
+			g_FPSStartTime = currentTime;
+			g_CurrentFPS = g_GfxDevice->get_frame_count() - g_LastFrameCount;
+			g_LastFrameCount = g_GfxDevice->get_frame_count();
+		}
 
-INTERNAL void mouse_position_callback(int x, int y) {
-	//input::process_mouse_position(x, y);
+		// Update
+		g_FrameInfo.dt = dt;
+		g_FrameInfo.width = g_Window->get_client_width();
+		g_FrameInfo.height = g_Window->get_client_height();
+		on_update(g_FrameInfo);
 
-	if (g_UIPass != nullptr) {
-		g_MouseEvent.set_type(UIEventType::MouseMove);
+		// Rendering
+		CommandList cmdList = g_GfxDevice->begin_command_list(QueueType::DIRECT);
+		static bool builtASes = false;
 
-		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
-		mouse.position.x = static_cast<float>(x);
-		mouse.position.y = static_cast<float>(y);
+		if (!builtASes) {
+			g_RayTracingPass->build_acceleration_structures(cmdList);
+			builtASes = true;
+		}
 
-		g_UIPass->process_event(g_MouseEvent);
+		g_RenderGraph->execute(g_SwapChain, cmdList, g_FrameInfo);
+		g_GfxDevice->submit_command_lists(g_SwapChain);
+
+		if (firstFrame) {
+			g_Window->show();
+			firstFrame = false;
+		}
 	}
+	g_GfxDevice->wait_for_gpu();
+
+	// Shutdown
+	ECS::destroy();
+	AssetManager::destroy();
+	#if defined(_DEBUG)
+		FreeConsole();
+	#endif
+
+	return 0;
 }
 
-//INTERNAL void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-//	//input::process_mouse_event(button, action, mods);
-//
-//	if (g_UIPass != nullptr && g_UIState == UIState::VISIBLE) {
-//		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
-//		//g_MouseEvent.set_type(action == GLFW_PRESS ? UIEventType::MouseDown : UIEventType::MouseUp);
-//
-//		//if (button == GLFW_MOUSE_BUTTON_1) {
-//		//	mouse.downButtons.left = action == GLFW_PRESS;
-//		//}
-//		//else if (button == GLFW_MOUSE_BUTTON_2) {
-//		//	mouse.downButtons.right = action == GLFW_PRESS;
-//		//}
-//		//else if (button == GLFW_MOUSE_BUTTON_3) {
-//		//	mouse.downButtons.middle = action == GLFW_PRESS;
-//		//}
-//
-//		g_UIPass->process_event(g_MouseEvent);
-//	}
-//}
+// --------------------------- Function Definitions ----------------------------
+INTERNAL void init_window() {
+	#if defined(_DEBUG)
+		AllocConsole();
+		SetConsoleTitle(L"Stingray Debug Console");
 
-INTERNAL void key_callback(Key keys, ButtonAction action, ButtonMods mods) {
-	//if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-	//	glfwSetWindowShouldClose(g_Window, true);
-	//}
+		// Redirect standard output stream to a file
+		FILE* new_stdout;
+		freopen_s(&new_stdout, "CONOUT$", "w", stdout);
+		std::cout.clear();
 
-	if (g_UIPass != nullptr && g_UIState == UIState::VISIBLE) {
-		//if (action == GLFW_PRESS) {
-		//	g_KeyboardEvent.set_type(UIEventType::KeyboardDown);
-		//}
-		//else {
-		//	g_KeyboardEvent.set_type(UIEventType::KeyboardUp);
-		//}
+		// Redirect standard input stream
+		FILE* new_stdin;
+		freopen_s(&new_stdin, "CONIN$", "r", stdin);
+		std::cin.clear();
 
-		//KeyboardEventData& keyboard = g_KeyboardEvent.get_keyboard_data();
-		//keyboard.key = key;
-		//keyboard.action = action;
-		//keyboard.mods = mods;
+		// Redirect standard error stream to a file
+		FILE* new_stderr;
+		freopen_s(&new_stderr, "CONOUT$", "w", stderr);
+		std::cerr.clear();
+		std::cout << "Console attached successfully!" << std::endl;
+	#endif
 
-		//g_UIPass->process_event(g_KeyboardEvent);
-	}
+	g_Window = std::make_unique<Window>(
+		"Stingray",
+		1920,
+		1080,
+		WindowFlag::CENTER |
+		WindowFlag::SIZE_IS_CLIENT_AREA |
+		WindowFlag::NO_TITLEBAR
+	);
+	g_Window->set_resize_callback(resize_callback);
+	g_Window->set_mouse_pos_callback(mouse_position_callback);
+	g_Window->set_mouse_button_callback(mouse_button_callback);
+	g_Window->set_keyboard_callback(key_callback);
 }
-
-//INTERNAL void key_char_callback(GLFWwindow* window, unsigned int codepoint) {
-//	if (g_UIPass != nullptr) {
-//		UIEvent keyCharEvent(UIEventType::KeyboardChar);
-//		KeyboardCharData& keyCharData = keyCharEvent.get_keyboard_char_data();
-//		keyCharData.codePoint = codepoint;
-//
-//		g_UIPass->process_event(keyCharEvent);
-//	}
-//}
 
 INTERNAL void init_gfx() {
 	switch (g_API) {
 	case GraphicsAPI::VULKAN:
-	{
-		g_GfxDevice = std::make_unique<GFXDevice_Vulkan>(*g_Window);
-	}
-	break;
+		{
+			g_GfxDevice = std::make_unique<GraphicsDeviceVulkan>(*g_Window);
+		}
+		break;
 	}
 
 	const SwapChainInfo swapChainInfo = {
@@ -201,8 +221,12 @@ INTERNAL void init_gfx() {
 		.persistentMap = true
 	};
 
-	for (uint32_t i = 0; i < GFXDevice::FRAMES_IN_FLIGHT; ++i) {
-		g_GfxDevice->create_buffer(perFrameDataBufferInfo, g_PerFrameDataBuffers[i], &g_PerFrameData);
+	for (uint32_t i = 0; i < GraphicsDevice::FRAMES_IN_FLIGHT; ++i) {
+		g_GfxDevice->create_buffer(
+			perFrameDataBufferInfo,
+			g_PerFrameDataBuffers[i],
+			&g_PerFrameData
+		);
 	}
 
 	// Default textures
@@ -231,11 +255,11 @@ INTERNAL void init_gfx() {
 
 INTERNAL void init_objects() {
 	g_MaterialManager = std::make_unique<MaterialManager>(*g_GfxDevice, 1024);
-	assetmanager::initialize(*g_GfxDevice, *g_MaterialManager);
-	ecs::initialize();
+	AssetManager::initialize(*g_GfxDevice, *g_MaterialManager);
+	ECS::initialize();
 
 	g_Camera = std::make_unique<Camera>(
-		glm::vec3(0, 3.0f, -4.0f),
+		glm::vec3(0.0f, 3.0f, -4.0f),
 		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
 		60.0f,
 		(float)g_Window->get_client_width() / g_Window->get_client_height(),
@@ -289,87 +313,86 @@ INTERNAL void create_cornell_scene() {
 	Scene* scene = new Scene("Cornell Box", *g_GfxDevice);
 	g_ActiveScene = scene;
 
-	assetmanager::load_from_file(g_TestTexture, "textures/earth.jpg");
-
-	assetmanager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
-	assetmanager::load_from_file(g_LucyModel, "models/lucy/lucy.gltf");
-	g_Sphere = assetmanager::create_sphere(1.5f, 32, 64);
+	AssetManager::load_from_file(g_EarthTexture, "textures/earth.jpg");
+	AssetManager::load_from_file(g_PlaneModel, "models/thin_plane/thin_plane.gltf");
+	AssetManager::load_from_file(g_LucyModel, "models/lucy/lucy.gltf");
+	g_Sphere = AssetManager::create_sphere(1.5f, 32, 64);
 
 	const entity_id light = scene->add_entity("Light");
-	ecs::add_component<Renderable>(light, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
-	ecs::get_component<Transform>(light)->scale = 3.0f * glm::vec3(1.0f);
-	ecs::add_component<Material>(light, Material{
+	ECS::add_component<Renderable>(light, Renderable{ g_PlaneModel.get_model() });
+	ECS::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
+	ECS::get_component<Transform>(light)->scale = 3.0f * glm::vec3(1.0f);
+	ECS::add_component<Material>(light, Material{
 		.color = 20.0f * glm::vec3(1.0f),
 		.type = Material::Type::DIFFUSE_LIGHT
-	});
+		});
 
 	const entity_id sphere = scene->add_entity("Sphere");
-	ecs::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
-	ecs::get_component<Transform>(sphere)->position = { -2.0f, 1.5f, -2.0f };
-	ecs::add_component(sphere, Material{
+	ECS::add_component<Renderable>(sphere, Renderable{ g_Sphere.get() });
+	ECS::get_component<Transform>(sphere)->position = { -2.0f, 1.5f, -2.0f };
+	ECS::add_component(sphere, Material{
 		.color = { 1.0f, 1.0f, 1.0f },
-		.albedoTexIndex = g_GfxDevice->get_descriptor_index(*g_TestTexture.get_texture(), SubresourceType::SRV),
+		.albedoTexIndex = g_GfxDevice->get_descriptor_index(*g_EarthTexture.get_texture(), SubresourceType::SRV),
 		.metallic = 0.0f,
 		.roughness = 0.02f,
-	});
+		});
 
 	const entity_id lucy = scene->add_entity("Lucy");
-	ecs::add_component<Renderable>(lucy, Renderable{ g_LucyModel.get_model() });
-	ecs::get_component<Transform>(lucy)->position = { 1.0f, 0.0f, 2.0f };
-	ecs::get_component<Transform>(lucy)->scale = glm::vec3(2.0f);
-	ecs::get_component<Transform>(lucy)->orientation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	ecs::add_component<Material>(lucy, Material{
+	ECS::add_component<Renderable>(lucy, Renderable{ g_LucyModel.get_model() });
+	ECS::get_component<Transform>(lucy)->position = { 1.0f, 0.0f, 2.0f };
+	ECS::get_component<Transform>(lucy)->scale = glm::vec3(2.0f);
+	ECS::get_component<Transform>(lucy)->orientation = glm::angleAxis(glm::radians(120.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ECS::add_component<Material>(lucy, Material{
 		.color = { 1.0f, 1.0f, 1.0f },
 		.metallic = 1.0f,
 		.roughness = 0.3f,
-	});
+		});
 
 	const entity_id floor = scene->add_entity("Floor");
-	ecs::add_component<Renderable>(floor, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(floor)->position = { 0.0f, 0.0f, 0.0f };
-	ecs::get_component<Transform>(floor)->scale = glm::vec3(10.0f);
-	ecs::add_component<Material>(floor, Material {
+	ECS::add_component<Renderable>(floor, Renderable{ g_PlaneModel.get_model() });
+	ECS::get_component<Transform>(floor)->position = { 0.0f, 0.0f, 0.0f };
+	ECS::get_component<Transform>(floor)->scale = glm::vec3(10.0f);
+	ECS::add_component<Material>(floor, Material{
 		.color = { 0.5f, 0.5f, 0.5f },
 		.roughness = 0.001f
-	});
+		});
 
 	const entity_id backWall = scene->add_entity("Back Wall");
-	ecs::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
-	ecs::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
-	ecs::get_component<Transform>(backWall)->scale = glm::vec3(10.0f);
-	ecs::add_component<Material>(backWall, Material{
+	ECS::add_component<Renderable>(backWall, Renderable{ g_PlaneModel.get_model() });
+	ECS::get_component<Transform>(backWall)->position = { 0.0f, 5.0f, 5.0f };
+	ECS::get_component<Transform>(backWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+	ECS::get_component<Transform>(backWall)->scale = glm::vec3(10.0f);
+	ECS::add_component<Material>(backWall, Material{
 		.color = { 0.7f, 0.7f, 1.0f },
 		.metallic = 1.0f,
 		.roughness = 0.0f
-	});
+		});
 
 	const entity_id leftWall = scene->add_entity("Left Wall");
-	ecs::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(leftWall)->position = { -5.0f, 5.0f, 0.0f };
-	ecs::get_component<Transform>(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
-	ecs::get_component<Transform>(leftWall)->scale = glm::vec3(10.0f);
-	ecs::add_component<Material>(leftWall, Material{
+	ECS::add_component<Renderable>(leftWall, Renderable{ g_PlaneModel.get_model() });
+	ECS::get_component<Transform>(leftWall)->position = { -5.0f, 5.0f, 0.0f };
+	ECS::get_component<Transform>(leftWall)->orientation = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
+	ECS::get_component<Transform>(leftWall)->scale = glm::vec3(10.0f);
+	ECS::add_component<Material>(leftWall, Material{
 		.color = { 0.6f, 0.0f, 0.0f }
-	});
+		});
 
 	const entity_id rightWall = scene->add_entity("Right Wall");
-	ecs::add_component<Renderable>(rightWall, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(rightWall)->position = { 5.0f, 5.0f, 0.0f };
-	ecs::get_component<Transform>(rightWall)->orientation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
-	ecs::get_component<Transform>(rightWall)->scale = glm::vec3(10.0f);
-	ecs::add_component<Material>(rightWall, Material{
+	ECS::add_component<Renderable>(rightWall, Renderable{ g_PlaneModel.get_model() });
+	ECS::get_component<Transform>(rightWall)->position = { 5.0f, 5.0f, 0.0f };
+	ECS::get_component<Transform>(rightWall)->orientation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0.0f, 0.0f, 1.0f));
+	ECS::get_component<Transform>(rightWall)->scale = glm::vec3(10.0f);
+	ECS::add_component<Material>(rightWall, Material{
 		.color = { 0.0f, 0.6f, 0.0f }
-	});
+		});
 
 	const entity_id ceiling = scene->add_entity("Ceiling");
-	ecs::add_component<Renderable>(ceiling, Renderable{ g_PlaneModel.get_model() });
-	ecs::get_component<Transform>(ceiling)->position = { 0.0f, 10.0f, 0.0f };
-	ecs::get_component<Transform>(ceiling)->scale = glm::vec3(10.0f);
-	ecs::add_component<Material>(ceiling, Material{
+	ECS::add_component<Renderable>(ceiling, Renderable{ g_PlaneModel.get_model() });
+	ECS::get_component<Transform>(ceiling)->position = { 0.0f, 10.0f, 0.0f };
+	ECS::get_component<Transform>(ceiling)->scale = glm::vec3(10.0f);
+	ECS::add_component<Material>(ceiling, Material{
 		.color = { 1.0f, 1.0f, 1.0f }
-	});
+		});
 
 	g_RayTracingPass->m_UseSkybox = false;
 	g_RayTracingPass->initialize(*scene, *g_MaterialManager);
@@ -379,20 +402,20 @@ INTERNAL void create_sponza_scene() {
 	Scene* scene = new Scene("Sponza", *g_GfxDevice);
 	g_ActiveScene = scene;
 
-	//g_Sphere = assetmanager::create_sphere(0.5f, 32, 64);
-	assetmanager::load_from_file(g_SponzaModel, "models/sponza/sponza.gltf");
+	//g_Sphere = AssetManager::create_sphere(0.5f, 32, 64);
+	AssetManager::load_from_file(g_SponzaModel, "models/sponza/sponza.gltf");
 
 	//const entity_id light = scene->add_entity("Light");
-	//ecs::add_component<Renderable>(light, Renderable{ g_Sphere.get() });
-	//ecs::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
-	//ecs::add_component<Material>(light, Material{
+	//ECS::add_component<Renderable>(light, Renderable{ g_Sphere.get() });
+	//ECS::get_component<Transform>(light)->position = { 0.0f, 9.9f, 0.0f };
+	//ECS::add_component<Material>(light, Material{
 	//	.color = 20.0f * glm::vec3(1.0f),
 	//	.type = Material::Type::DIFFUSE_LIGHT
 	//});
 
 	const entity_id sponza = scene->add_entity("Sponza");
-	ecs::add_component<Renderable>(sponza, Renderable{ g_SponzaModel.get_model() });
-	ecs::get_component<Transform>(sponza)->position = { 0.0f, 0.0f, 0.0f };
+	ECS::add_component<Renderable>(sponza, Renderable{ g_SponzaModel.get_model() });
+	ECS::get_component<Transform>(sponza)->position = { 0.0f, 0.0f, 0.0f };
 
 	g_RayTracingPass->m_UseSkybox = true;
 	g_RayTracingPass->initialize(*scene, *g_MaterialManager);
@@ -401,7 +424,6 @@ INTERNAL void create_sponza_scene() {
 INTERNAL void on_update(FrameInfo& frameInfo) {
 	// Input
 	Input::update();
-
 	Camera& camera = *frameInfo.camera;
 	const float cameraMoveSpeed = 5.0f;
 	const float mouseSensitivity = 0.001f;
@@ -446,18 +468,8 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 	if (Input::is_down(Key::LEFT_CONTROL)) {
 		newPosition.y -= cameraMoveSpeed * frameInfo.dt;
 	}
-
-	//if (Input::is_down_once(GLFW_KEY_F11)) {
-	//	if (g_UIState == UIState::VISIBLE) {
-	//		g_UIState = UIState::HIDDEN;
-	//	}
-	//	else if (g_UIState == UIState::HIDDEN) {
-	//		g_UIState = UIState::VISIBLE;
-	//	}
-	//}
-
 	camera.set_position(newPosition);
-	camera.set_aspect_ratio(g_Window->get_client_aspect_ratio());
+	camera.set_aspect_ratio(16.0f / 9);
 	camera.update();
 
 	g_PerFrameData.projectionMatrix = camera.get_proj_matrix();
@@ -468,6 +480,41 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 	std::memcpy(g_PerFrameDataBuffers[g_GfxDevice->get_frame_index()].mappedData, &g_PerFrameData, sizeof(g_PerFrameData));
 
 	// User interface
+	g_UIPass->begin_menu_bar(frameInfo.width);
+	{
+		// File menu
+		if (g_UIPass->begin_menu("File")) {
+			if (g_UIPass->begin_menu("New")) {
+				g_UIPass->menu_item("Scene");
+			}
+			g_UIPass->end_menu();
+
+			if (g_UIPass->begin_menu("Load Demo Scene")) {
+				if (g_UIPass->menu_item("Cornell Box")) {
+				}
+				g_UIPass->menu_item("Pool Table");
+			}
+			g_UIPass->end_menu();
+
+			g_UIPass->menu_item("Save Scene");
+			g_UIPass->menu_item("Save Scene As");
+		}
+		g_UIPass->end_menu();
+
+		// Edit menu
+		if (g_UIPass->begin_menu("Edit")) {
+			g_UIPass->menu_item("Preferences");
+		}
+		g_UIPass->end_menu();
+
+		// View menu
+		if (g_UIPass->begin_menu("View")) {
+			g_UIPass->menu_item("Renderpasses");
+		}
+		g_UIPass->end_menu();
+	}
+	g_UIPass->end_menu_bar();
+
 	g_UIPass->begin_split("MainLayout");
 	{
 		g_UIPass->begin_panel("Properties", 0.2f);
@@ -482,7 +529,9 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 			}
 			g_UIPass->widget_text(std::format("FPS: {}", g_CurrentFPS));
 
-			g_UIPass->widget_button("Reload");
+			if (g_UIPass->widget_button("Reload")) {
+				std::cout << "Reload\n";
+			}
 		}
 		g_UIPass->end_panel();
 
@@ -493,79 +542,108 @@ INTERNAL void on_update(FrameInfo& frameInfo) {
 			g_UIPass->widget_image(rtOutputTex, rtOutputTex.info.width, rtOutputTex.info.height);
 		}
 		g_UIPass->end_panel();
+
+		g_UIPass->begin_panel("Output Log", 0.2f);
+		{
+		}
+		g_UIPass->end_panel();
 	}
 	g_UIPass->end_split();
 }
 
-int main() {
-	g_Window = std::make_unique<Window>(
-		"Stingray",
-		1920,
-		1080,
-		WindowFlag::CENTER | WindowFlag::SIZE_IS_CLIENT_AREA | WindowFlag::NO_TITLEBAR
-	);
-	g_Window->set_resize_callback(resize_callback);
-	g_Window->set_mouse_pos_callback(mouse_position_callback);
-	g_Window->set_keyboard_callback(key_callback);
+INTERNAL void resize_callback(int width, int height) {
+	const SwapChainInfo swapChainInfo = {
+		.width = static_cast<uint32_t>(width),
+		.height = static_cast<uint32_t>(height),
+		.bufferCount = 3,
+		.format = Format::R8G8B8A8_UNORM,
+		.vsync = true
+	};
 
-	init_gfx();
-	init_objects();
-	init_render_graph();
-	create_cornell_scene();
-	//create_sponza_scene();
+	width = static_cast<int>(width * 0.6f - 2 * UIPass::UI_PADDING);
+	height = static_cast<int>(width * (9.0f / 16));
+	// Recreate swapchain
+	g_GfxDevice->create_swapchain(swapChainInfo, g_SwapChain);
 
-	g_FrameInfo.camera = g_Camera.get();
+	// Recreate resources with new sizes
+	auto rtOutput = g_RenderGraph->get_attachment("RTOutput");
+	auto rtAccumulation = g_RenderGraph->get_attachment("RTAccumulation");
 
-	bool firstFrame = true;
-	while (!g_Window->should_close()) {
-		g_Window->poll_events();
+	TextureInfo newRtOutputTexInfo = rtOutput->texture.info;
+	newRtOutputTexInfo.width = static_cast<uint32_t>(width);
+	newRtOutputTexInfo.height = static_cast<uint32_t>(height);
+	rtOutput->info.width = newRtOutputTexInfo.width;
+	rtOutput->info.height = newRtOutputTexInfo.height;
 
-		// Extra security check
-		if (g_Window->should_close()) {
-			break;
-		}
+	TextureInfo newRtAccumulationTexInfo = rtAccumulation->texture.info;
+	newRtAccumulationTexInfo.width = static_cast<uint32_t>(width);
+	newRtAccumulationTexInfo.height = static_cast<uint32_t>(height);
+	rtAccumulation->info.width = newRtAccumulationTexInfo.width;
+	rtAccumulation->info.height = newRtAccumulationTexInfo.height;
 
-		static auto lastTime = std::chrono::high_resolution_clock::now();
-		const auto currentTime = std::chrono::high_resolution_clock::now();
-		const float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
-		lastTime = currentTime;
+	g_GfxDevice->create_texture(newRtOutputTexInfo, rtOutput->texture, nullptr);
+	g_GfxDevice->create_texture(newRtAccumulationTexInfo, rtAccumulation->texture, nullptr);
 
-		// Update FPS counter
-		if (std::chrono::duration<float, std::chrono::seconds::period>(
-			currentTime - g_FPSStartTime).count() >= 1.0f) {
-			g_FPSStartTime = currentTime;
-			g_CurrentFPS = g_GfxDevice->get_frame_count() - g_LastFrameCount;
-			g_LastFrameCount = g_GfxDevice->get_frame_count();
-		}
-		
-		// Update
-		g_FrameInfo.dt = dt;
-		g_FrameInfo.width = g_Window->get_client_width();
-		g_FrameInfo.height = g_Window->get_client_height();
-		on_update(g_FrameInfo);
-
-		// Rendering
-		CommandList cmdList = g_GfxDevice->begin_command_list(QueueType::DIRECT);
-		static bool builtASes = false;
-
-		if (!builtASes) {
-			g_RayTracingPass->build_acceleration_structures(cmdList);
-			builtASes = true;
-		}
-
-		g_RenderGraph->execute(g_SwapChain, cmdList, g_FrameInfo);
-		g_GfxDevice->submit_command_lists(g_SwapChain);
-
-		if (firstFrame) {
-			g_Window->show();
-			firstFrame = false;
-		}
-	}
-	g_GfxDevice->wait_for_gpu();
-
-	// Shutdown
-	ecs::destroy();
-	assetmanager::destroy();
-
-	return 0;
+	// Update the attachment infos in the render graph
+	rtOutput->currentState = ResourceState::UNORDERED_ACCESS;
+	rtAccumulation->currentState = ResourceState::UNORDERED_ACCESS;
 }
+
+INTERNAL void mouse_position_callback(int x, int y) {
+	if (g_UIPass != nullptr) {
+		g_MouseEvent.set_type(UIEventType::MouseMove);
+
+		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
+		mouse.position.x = static_cast<float>(x);
+		mouse.position.y = static_cast<float>(y);
+
+		g_UIPass->process_event(g_MouseEvent);
+	}
+}
+
+INTERNAL void mouse_button_callback(MouseButton button, ButtonAction action, ButtonMods mods) {
+	if (g_UIPass != nullptr && g_UIState == UIState::VISIBLE) {
+		MouseEventData& mouse = g_MouseEvent.get_mouse_data();
+		g_MouseEvent.set_type(action == ButtonAction::PRESS ? UIEventType::MouseDown : UIEventType::MouseUp);
+
+		if (button == MouseButton::MOUSE1) {
+			mouse.downButtons.left = action == ButtonAction::PRESS;
+		}
+		else if (button == MouseButton::MOUSE2) {
+			mouse.downButtons.right = action == ButtonAction::PRESS;
+		}
+		else if (button == MouseButton::MOUSE3) {
+			mouse.downButtons.middle = action == ButtonAction::PRESS;
+		}
+
+		g_UIPass->process_event(g_MouseEvent);
+	}
+}
+
+INTERNAL void key_callback(Key keys, ButtonAction action, ButtonMods mods) {
+	if (g_UIPass != nullptr && g_UIState == UIState::VISIBLE) {
+		//if (action == GLFW_PRESS) {
+		//	g_KeyboardEvent.set_type(UIEventType::KeyboardDown);
+		//}
+		//else {
+		//	g_KeyboardEvent.set_type(UIEventType::KeyboardUp);
+		//}
+
+		//KeyboardEventData& keyboard = g_KeyboardEvent.get_keyboard_data();
+		//keyboard.key = key;
+		//keyboard.action = action;
+		//keyboard.mods = mods;
+
+		//g_UIPass->process_event(g_KeyboardEvent);
+	}
+}
+
+//INTERNAL void key_char_callback(GLFWwindow* window, unsigned int codepoint) {
+//	if (g_UIPass != nullptr) {
+//		UIEvent keyCharEvent(UIEventType::KeyboardChar);
+//		KeyboardCharData& keyCharData = keyCharEvent.get_keyboard_char_data();
+//		keyCharData.codePoint = codepoint;
+//
+//		g_UIPass->process_event(keyCharEvent);
+//	}
+//}

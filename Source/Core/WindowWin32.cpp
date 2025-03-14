@@ -155,6 +155,7 @@ namespace SR {
 
 		window_resize_callback m_ResizeCallback = nullptr;
 		window_mouse_pos_callback m_MousePosCallback = nullptr;
+		window_mouse_button_callback m_MouseButtonCallback = nullptr;
 		window_keyboard_callback m_KeyboardCallback = nullptr;
 	};
 
@@ -165,12 +166,12 @@ namespace SR {
 
 		switch (message) {
 		case WM_NCCREATE:
-		{
-			CREATESTRUCT* pCS = reinterpret_cast<CREATESTRUCT*>(lParam);
-			pWindow = reinterpret_cast<Window::Impl*>(pCS->lpCreateParams);
-			SetWindowLongPtr(window, GWLP_USERDATA, (LONG_PTR)pWindow);
-		}
-		break;
+			{
+				CREATESTRUCT* pCS = reinterpret_cast<CREATESTRUCT*>(lParam);
+				pWindow = reinterpret_cast<Window::Impl*>(pCS->lpCreateParams);
+				SetWindowLongPtr(window, GWLP_USERDATA, (LONG_PTR)pWindow);
+			}
+			break;
 		case WM_NCCALCSIZE:
 			{
 				if (pWindow != nullptr && !has_flag(pWindow->m_Flags, WindowFlag::NO_TITLEBAR)) {
@@ -296,37 +297,46 @@ namespace SR {
 		case WM_ERASEBKGND:
 			return TRUE;
 		case WM_SIZE:
-		{
-			if (pWindow) {
-				const int width = LOWORD(lParam);
-				const int height = HIWORD(lParam);
+			{
+				if (pWindow) {
+					const int width = LOWORD(lParam);
+					const int height = HIWORD(lParam);
 
-				pWindow->m_ClientWidth = width;
-				pWindow->m_ClientHeight = height;
+					pWindow->m_ClientWidth = width;
+					pWindow->m_ClientHeight = height;
 
-				if (pWindow->m_ResizeCallback) {
-					pWindow->m_ResizeCallback(width, height);
+					if (pWindow->m_ResizeCallback) {
+						pWindow->m_ResizeCallback(width, height);
+					}
 				}
 			}
-		}
-		break;
+			break;
 		case WM_MOUSEMOVE:
-		{
-			TRACKMOUSEEVENT tme{};
-			tme.cbSize = sizeof(tme);
-			tme.dwFlags = TME_LEAVE;
-			tme.hwndTrack = window;
+		case WM_NCMOUSEMOVE:
+			{
+				if (message == WM_MOUSEMOVE) {
+					TRACKMOUSEEVENT tme{};
+					tme.cbSize = sizeof(tme);
+					tme.dwFlags = TME_LEAVE;
+					tme.hwndTrack = window;
+					tme.dwHoverTime = HOVER_DEFAULT;
 
-			TrackMouseEvent(&tme);
-			POINT pos = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+					TrackMouseEvent(&tme);
+				}
 
-			Input::Internal::update_mouse_position({ (int)pos.x, (int)pos.y });
+				POINT pos = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
 
-			if (pWindow && pWindow->m_MousePosCallback) {
-				pWindow->m_MousePosCallback((int)pos.x, (int)pos.y);
+				if (message == WM_NCMOUSEMOVE) {
+					ScreenToClient(window, &pos);
+				}
+
+				Input::Internal::update_mouse_position({ (int)pos.x, (int)pos.y });
+
+				if (pWindow && pWindow->m_MousePosCallback) {
+					pWindow->m_MousePosCallback((int)pos.x, (int)pos.y);
+				}
 			}
-		}
-		break;
+			break;
 		case WM_LBUTTONDOWN:
 		case WM_MBUTTONDOWN:
 		case WM_RBUTTONDOWN:
@@ -335,32 +345,69 @@ namespace SR {
 		case WM_MBUTTONUP:
 		case WM_RBUTTONUP:
 		case WM_XBUTTONUP:
-		{
-			Input::Internal::update_mouse_buttons(
-				(GET_KEYSTATE_WPARAM(wParam) & MK_LBUTTON) > 0,
-				(GET_KEYSTATE_WPARAM(wParam) & MK_RBUTTON) > 0,
-				(GET_KEYSTATE_WPARAM(wParam) & MK_MBUTTON) > 0
-			);
-		}
-		break;
+			{
+				const int keyState = GET_KEYSTATE_WPARAM(wParam);
+				const bool mouse1 = (keyState & MK_LBUTTON) > 0;
+				const bool mouse2 = (keyState & MK_RBUTTON) > 0;
+				const bool mouse3 = (keyState & MK_MBUTTON) > 0;
+				const bool buttonPressed = mouse1 || mouse2 || mouse3;
+
+				if (buttonPressed) {
+					SetCapture(window);
+				}
+				else {
+					ReleaseCapture();
+				}
+
+				const MouseState& lastMouseState = Input::get_mouse_state();
+				Input::Internal::update_mouse_buttons(mouse1, mouse2, mouse3);
+
+				if (pWindow && pWindow->m_MouseButtonCallback) {
+					// Only callback if a change has occurred
+					if (mouse1 != lastMouseState.buttons[0]) {
+						pWindow->m_MouseButtonCallback(
+							MouseButton::MOUSE1,
+							(mouse1 ? ButtonAction::PRESS : ButtonAction::RELEASE),
+							ButtonMods::NONE
+						);
+					}
+
+					if (mouse2 != lastMouseState.buttons[1]) {
+						pWindow->m_MouseButtonCallback(
+							MouseButton::MOUSE2,
+							(mouse2 ? ButtonAction::PRESS : ButtonAction::RELEASE),
+							ButtonMods::NONE
+						);
+					}
+
+					if (mouse3 != lastMouseState.buttons[2]) {
+						pWindow->m_MouseButtonCallback(
+							MouseButton::MOUSE3,
+							(mouse3 ? ButtonAction::PRESS : ButtonAction::RELEASE),
+							ButtonMods::NONE
+						);
+					}
+				}
+			}
+			break;
 		case WM_MOUSELEAVE:
-		{
-			Input::Internal::update_mouse_buttons(false, false, false);
-		}
-		break;
+			{
+				Input::Internal::update_mouse_buttons(false, false, false);
+			}
+			break;
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
-		{
-			const Key key = convert_key(wParam, lParam);
-			Input::Internal::update_key_state(key, message == WM_KEYDOWN ? true : false);
+			{
+				const Key key = convert_key(wParam, lParam);
+				Input::Internal::update_key_state(key, message == WM_KEYDOWN ? true : false);
 
-			if (pWindow && pWindow->m_KeyboardCallback) {
-				pWindow->m_KeyboardCallback(key, ButtonAction::NONE, ButtonMods::NONE);
+				if (pWindow && pWindow->m_KeyboardCallback) {
+					pWindow->m_KeyboardCallback(key, ButtonAction::NONE, ButtonMods::NONE);
+				}
 			}
-		}
-		break;
+			break;
 		case WM_DESTROY:
 			PostQuitMessage(0);
 			return 0;
@@ -510,6 +557,10 @@ namespace SR {
 
 	void Window::set_mouse_pos_callback(window_mouse_pos_callback callback) {
 		m_Impl->m_MousePosCallback = callback;
+	}
+
+	void Window::set_mouse_button_callback(window_mouse_button_callback callback) {
+		m_Impl->m_MouseButtonCallback = callback;
 	}
 
 	void Window::set_keyboard_callback(window_keyboard_callback callback) {

@@ -168,6 +168,8 @@ namespace SR {
 
 	enum class ButtonAction : uint8_t {
 		NONE,
+		PRESS,
+		RELEASE
 	};
 
 	enum class ButtonMods : uint8_t {
@@ -212,6 +214,7 @@ namespace SR {
 		bool is_gamepad_active();
 		bool is_gamepad_axes_active();
 
+		const MouseState& get_mouse_state();
 		const GamepadState& get_gamepad_state();
 		glm::ivec2 get_mouse_position();
 		glm::ivec2 get_mouse_delta();

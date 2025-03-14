@@ -4,7 +4,7 @@
 #include <queue>
 #include <vector>
 
-namespace ecs {
+namespace SR::ECS {
 	template<typename T>
 	struct ComponentArray {
 		void add(entity_id entity, T component) {

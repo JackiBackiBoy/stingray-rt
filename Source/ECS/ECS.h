@@ -3,7 +3,7 @@
 #include "ECS/Components.h"
 #include "Core/platform.h"
 
-namespace ecs {
+namespace SR::ECS {
 	void initialize();
 	void destroy();
 
