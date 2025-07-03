@@ -1,7 +1,5 @@
 # Build
-[Bb]in/
-[Ll]ib/
-[Bb]uild/
+build
 .cache
 
 # Prerequisites
