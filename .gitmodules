@@ -4,18 +4,9 @@
 [submodule "Dependencies/GLM"]
 	path = Dependencies/GLM
 	url = https://github.com/g-truc/glm
-[submodule "Dependencies/TinyGLTF"]
-	path = Dependencies/TinyGLTF
-	url = https://github.com/syoyo/tinygltf
 [submodule "Dependencies/Volk"]
 	path = Dependencies/Volk
 	url = https://github.com/zeux/volk
-[submodule "Dependencies/ImWin32"]
-	path = Dependencies/ImWin32
-	url = https://github.com/JackiBackiBoy/ImWin32
-[submodule "Dependencies/JSON"]
-	path = Dependencies/JSON
-	url = https://github.com/nlohmann/json
 [submodule "Dependencies/VMA"]
 	path = Dependencies/VMA
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator

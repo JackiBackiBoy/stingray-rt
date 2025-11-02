@@ -32,11 +32,6 @@ set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/TinyGLTF/)
 add_subdirectory(Dependencies/FreeType)
 set_property(TARGET freetype PROPERTY FOLDER "Dependencies")
 
-# 2. TinyGLTF
-set(TINYGLTF_BUILD_LOADER_EXAMPLE OFF CACHE INTERNAL "Enable loader example")
-add_subdirectory(Dependencies/TinyGLTF)
-set_property(TARGET tinygltf PROPERTY FOLDER "Dependencies")
-
 # 3. Volk
 set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
 add_subdirectory(Dependencies/Volk)
