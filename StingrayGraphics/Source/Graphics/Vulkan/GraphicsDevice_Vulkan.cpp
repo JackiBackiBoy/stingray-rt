@@ -62,7 +62,6 @@ struct SRGraphicsDevice_Vulkan::Impl {
 
 	uint64_t m_NextGPUSignalValue = 1;
 	uint64_t m_FrameDoneValue[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
-	bool m_IsFirstCmdListThisFrame[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
 	std::vector<std::unique_ptr<SRCmdList_Vulkan>> m_PerFrameCmdLists[FRAMES_IN_FLIGHT];
 	size_t m_PerFrameCmdListCounters[FRAMES_IN_FLIGHT] = {};
 	uint32_t m_FrameIndex = 0;
@@ -86,6 +85,8 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	void create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data);
 
 	void bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList);
+	void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
+	void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 
 	SRCmdList begin_command_list(SRQueue queue);
@@ -94,6 +95,7 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	void submit_command_lists(const SRSwapchain& swapchain);
 
 	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList);
+	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList);
 
 	SRShaderPlatformInfo get_shader_platform_info();
 	void wait_for_gpu();
@@ -139,6 +141,7 @@ SRGraphicsDevice_Vulkan::Impl::~Impl() {
 
 	m_DestructionHandler->enqueue(m_Surface);
 
+	// Command pools
 	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
 		for (uint32_t f = 0; f < FRAMES_IN_FLIGHT; ++f) {
 			m_DestructionHandler->enqueue(m_CommandPools[q][f]);
@@ -146,14 +149,23 @@ SRGraphicsDevice_Vulkan::Impl::~Impl() {
 	}
 	m_DestructionHandler->enqueue(m_UploadCmdPool);
 
+	// Fences (timeline semaphores)
 	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
 		m_DestructionHandler->enqueue(m_FrameFences[q]);
 	}
 
+	// Semaphores
 	for (uint32_t f = 0; f < FRAMES_IN_FLIGHT; f++) {
 		m_DestructionHandler->enqueue(m_ImageAvailableSemaphores[f]);
 		m_DestructionHandler->enqueue(m_RenderFinishedSemaphores[f]);
 	}
+
+	// Descriptor pool
+	m_DestructionHandler->enqueue(m_DescriptorPool);
+
+	// Descriptor set layouts
+	m_DestructionHandler->enqueue(m_PushDescriptorSetLayout);
+	m_DestructionHandler->enqueue(m_ResourceDescriptorSetLayout);
 }
 
 void SRGraphicsDevice_Vulkan::Impl::create_instance() {
@@ -1165,6 +1177,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 // TODO: Add support for ReBar devices
 void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data) {
 	auto internalBuffer = std::make_shared<SRBuffer_Vulkan>();
+	internalBuffer->destructionHandler = m_DestructionHandler.get();
 
 	buffer.info = info;
 	buffer.internalState = internalBuffer;
@@ -1249,10 +1262,10 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 	}
 	else if (info.usage == SRUsage::UPLOAD) {
 		buffer.mappedData = internalBuffer->allocation->GetMappedData();
+		buffer.mappedSize = info.size;
 
 		if (data != nullptr) {
 			std::memcpy(buffer.mappedData, data, info.size);
-			buffer.mappedSize = info.size;
 		}
 	}
 
@@ -1265,6 +1278,23 @@ void SRGraphicsDevice_Vulkan::Impl::bind_pipeline(const SRPipeline& pipeline, co
 
 	vkCmdBindPipeline(internalCmdList->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internalPipeline->pipeline);
 	m_ActivePipeline = internalPipeline;
+}
+
+void SRGraphicsDevice_Vulkan::Impl::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	assert(buffer.info.bindFlags & SRBindFlag_VertexBuffer);
+	auto internalBuffer = to_internal(buffer);
+	auto internalCmdList = to_internal(cmdList);
+
+	const VkDeviceSize offset = 0;
+	vkCmdBindVertexBuffers(internalCmdList->cmdBuffer, 0, 1, &internalBuffer->buffer, &offset);
+}
+
+void SRGraphicsDevice_Vulkan::Impl::bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	assert(buffer.info.bindFlags & SRBindFlag_IndexBuffer);
+	auto internalBuffer = to_internal(buffer);
+	auto internalCmdList = to_internal(cmdList);
+
+	vkCmdBindIndexBuffer(internalCmdList->cmdBuffer, internalBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
 void SRGraphicsDevice_Vulkan::Impl::bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
@@ -1326,28 +1356,7 @@ SRCmdList SRGraphicsDevice_Vulkan::Impl::begin_command_list(SRQueue queue) {
 	// Reset the command pool JUST BEFORE we begin command buffer recording.
 	// This results in as little potential CPU waiting as possible.
 	// Should only be done ONCE per frame per queue family.
-	if (m_IsFirstCmdListThisFrame[queue][m_FrameIndex] && m_FrameCounter >= FRAMES_IN_FLIGHT) {
-		const uint64_t needed = m_FrameDoneValue[queue][m_FrameIndex];
-		uint64_t current = 0;
-		SR_VK_CHECK(vkGetSemaphoreCounterValue(m_Device, m_FrameFences[queue], &current), "Get semaphore counter value");
-
-		if (current < needed) {
-			const VkSemaphoreWaitInfo waitInfo = {
-				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-				.semaphoreCount = 1,
-				.pSemaphores = &m_FrameFences[queue],
-				.pValues = &needed
-			};
-
-			SR_VK_CHECK(vkWaitSemaphores(m_Device, &waitInfo, UINT64_MAX), "Wait for semaphore");
-		}
-
-		m_DestructionHandler->update(m_FrameCounter, FRAMES_IN_FLIGHT);
-
-		SR_VK_CHECK(vkResetCommandPool(m_Device, m_CommandPools[queue][m_FrameIndex], 0), "Reset command pool");
-		m_IsFirstCmdListThisFrame[queue][m_FrameIndex] = false;
-	}
-
+	SR_VK_CHECK(vkResetCommandPool(m_Device, m_CommandPools[queue][m_FrameIndex], 0), "Reset command pool");
 	SR_VK_CHECK(vkBeginCommandBuffer(internalCmdList->cmdBuffer, &beginInfo), "Begin command buffer recording");
 	++cmdListCounter;
 
@@ -1502,19 +1511,43 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 	};
 	SR_VK_CHECK(vkQueuePresentKHR(m_CommandQueues[SRQueue_Universal], &presentInfo), "Swapchain present");
 
+	// Await frame value
 	m_FrameDoneValue[SRQueue_Universal][m_FrameIndex] = m_NextGPUSignalValue++;
-
 	++m_FrameCounter;
-	m_FrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
-	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
-		m_IsFirstCmdListThisFrame[q][m_FrameIndex] = true;
+	const uint32_t nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
+
+	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
+		const uint64_t needed = m_FrameDoneValue[SRQueue_Universal][nextFrameIndex];
+		uint64_t current = 0;
+		SR_VK_CHECK(vkGetSemaphoreCounterValue(m_Device, m_FrameFences[SRQueue_Universal], &current), "Get semaphore counter value");
+
+		if (current < needed) {
+			const VkSemaphoreWaitInfo waitInfo = {
+				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+				.semaphoreCount = 1,
+				.pSemaphores = &m_FrameFences[SRQueue_Universal],
+				.pValues = &needed
+			};
+
+			SR_VK_CHECK(vkWaitSemaphores(m_Device, &waitInfo, UINT64_MAX), "Wait for semaphore");
+		}
 	}
+
+	m_DestructionHandler->update(m_FrameCounter, FRAMES_IN_FLIGHT);
+	m_FrameIndex = nextFrameIndex;
 }
 
 void SRGraphicsDevice_Vulkan::Impl::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
 	auto internalCmdList = to_internal(cmdList);
 
 	vkCmdDraw(internalCmdList->cmdBuffer, vtxCount, 1, startVtx, 0);
+}
+
+
+void SRGraphicsDevice_Vulkan::Impl::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
+	auto internalCmdList = to_internal(cmdList);
+
+	vkCmdDrawIndexed(internalCmdList->cmdBuffer, idxCount, 1, startIdx, baseVtx, 0);
 }
 
 SRShaderPlatformInfo SRGraphicsDevice_Vulkan::Impl::get_shader_platform_info() {
@@ -1637,6 +1670,14 @@ void SRGraphicsDevice_Vulkan::bind_viewport(const SRViewport& viewport, const SR
 	vkCmdSetScissor(internalCmdList->cmdBuffer, 0, 1, &scissor);
 }
 
+void SRGraphicsDevice_Vulkan::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	m_Impl->bind_vertex_buffer(buffer, cmdList);
+}
+
+void SRGraphicsDevice_Vulkan::bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	m_Impl->bind_index_buffer(buffer, cmdList);
+}
+
 void SRGraphicsDevice_Vulkan::bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
 	m_Impl->bind_root_constant_buffer(buffer, cmdList);
 }
@@ -1659,6 +1700,10 @@ void SRGraphicsDevice_Vulkan::submit_command_lists(const SRSwapchain& swapchain)
 
 void SRGraphicsDevice_Vulkan::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
 	m_Impl->draw(vtxCount, startVtx, cmdList);
+}
+
+void SRGraphicsDevice_Vulkan::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
+	m_Impl->draw_indexed(idxCount, startIdx, baseVtx, cmdList);
 }
 
 SRShaderPlatformInfo SRGraphicsDevice_Vulkan::get_shader_platform_info() {

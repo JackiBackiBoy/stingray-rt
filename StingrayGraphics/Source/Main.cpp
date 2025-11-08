@@ -3,13 +3,14 @@
 #include "Core/Window.hpp"
 #include "Core/System/Time.hpp"
 #include "Data/Camera.hpp"
+#include "Data/Model.hpp"
 #include "Graphics/GraphicsDevice.hpp"
 #include "Graphics/DX12/GraphicsDevice_DX12.hpp"
 #include "Graphics/Vulkan/GraphicsDevice_Vulkan.hpp"
 #include "Graphics/ShaderCompiler.hpp"
 #include "Input/Input.hpp"
-#include <glm/glm.hpp>
 
+#include <glm/glm.hpp>
 #include <cassert>
 #include <iostream>
 #include <memory>
@@ -35,7 +36,7 @@ static std::vector<glm::vec3> VERTICES = {
 
 // NOTE: Trick for making sure that the logger exists longer than all other objects
 static auto& logger = SRLogger::get();
-static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::VULKAN;
+static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::DX12;
 static constexpr int WIDTH = 1920;
 static constexpr int HEIGHT = 1080;
 
@@ -51,6 +52,7 @@ SRShader g_VertexShader = {};
 SRShader g_PixelShader  = {};
 SRPipeline g_Pipeline   = {};
 SRSwapchain g_Swapchain = {};
+SRModel g_TestModel = {};
 
 void init_console();
 void init_resources();
@@ -69,8 +71,8 @@ int main() {
 		g_GfxDevice = std::make_unique<SRGraphicsDevice_DX12>(*g_Window);
 	}
 	g_ShaderCompiler = std::make_unique<SRShaderCompiler>(g_GfxDevice->get_shader_platform_info());
-	g_ShaderCompiler->compile_from_file(RES_DIR "Shaders/Slang/HelloTriangle.slang", { SRShaderStage::VERTEX, "vertexMain" }, g_VertexShader);
-	g_ShaderCompiler->compile_from_file(RES_DIR "Shaders/Slang/HelloTriangle.slang", { SRShaderStage::PIXEL, "pixelMain" }, g_PixelShader);
+	g_ShaderCompiler->compile_from_file(RES_DIR "Shaders/Testing.slang", { SRShaderStage::VERTEX, "vertexMain" }, g_VertexShader);
+	g_ShaderCompiler->compile_from_file(RES_DIR "Shaders/Testing.slang", { SRShaderStage::PIXEL, "pixelMain" }, g_PixelShader);
 
 	init_resources();
 
@@ -86,6 +88,12 @@ int main() {
 	const SRPipelineInfo pipelineInfo = {
 		.vertexShader = &g_VertexShader,
 		.pixelShader = &g_PixelShader,
+		.inputLayout = {
+			.elements = {
+				{ "POSITION", SRFormat::RGB32_FLOAT },
+				{ "TEXCOORD", SRFormat::RG32_FLOAT }
+			}
+		},
 		.numRenderTargets = 1,
 		.renderTargetFormats = { SRFormat::BGRA8_UNORM },
 	};
@@ -146,7 +154,9 @@ void init_resources() {
 		g_GfxDevice->create_buffer(perFrameBufferInfo, g_PerFrameBuffers[f], &g_PerFrameData);
 	}
 
-	//g_GfxDevice->flush_initial_uploads();
+	SRModelLoader::load_gltf(RES_DIR "Models/Cube/cube.gltf", g_TestModel, *g_GfxDevice);
+
+	g_GfxDevice->flush_initial_uploads();
 }
 
 void update(const FrameInfo& frameInfo) {
@@ -154,7 +164,7 @@ void update(const FrameInfo& frameInfo) {
 	SRMouseState mouse = SRInput::get_mouse_state();
 	SRLOG_TRACE("Mouse Delta: %d, %d", mouse.dx, mouse.dy);
 
-	const float cameraMoveSpeed = 1.0f;
+	const float cameraMoveSpeed = 4.0f;
 	const float mouseSensitivity = 0.001f;
 	const float dx = mouseSensitivity * mouse.dx;
 	const float dy = mouseSensitivity * mouse.dy;
@@ -201,7 +211,16 @@ void render() {
 			g_GfxDevice->bind_viewport(viewport, cmdList);
 			g_GfxDevice->bind_pipeline(g_Pipeline, cmdList);
 			g_GfxDevice->bind_root_constant_buffer(g_PerFrameBuffers[g_GfxDevice->get_frame_index()], cmdList);
-			g_GfxDevice->draw(3, 0, cmdList);
+			g_GfxDevice->bind_vertex_buffer(g_TestModel.vertexBuffer, cmdList);
+			g_GfxDevice->bind_index_buffer(g_TestModel.indexBuffer, cmdList);
+
+			for (const auto& mesh : g_TestModel.meshes) {
+				for (uint32_t i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
+					const SRMeshPrimitive& primitive = g_TestModel.primitives[i];
+
+					g_GfxDevice->draw_indexed(primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);
+				}
+			}
 		}
 		g_GfxDevice->end_render_pass(g_Swapchain, cmdList);
 	}

@@ -10,3 +10,9 @@
 [submodule "Dependencies/VMA"]
 	path = Dependencies/VMA
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+[submodule "Dependencies/FastGLTF"]
+	path = Dependencies/FastGLTF
+	url = https://github.com/spnda/fastgltf
+[submodule "Dependencies/D3D12MA"]
+	path = Dependencies/D3D12MA
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator

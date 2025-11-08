@@ -3,10 +3,12 @@
 #include "Core/Logger.hpp"
 #include "Graphics/GraphicsTypes.hpp"
 
-#include "AgilitySDK/d3d12.h"
+#include "d3d12.h"
+#include <D3D12MemAlloc.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 #include <Windows.h>
+
 #include <cassert>
 #include <cstdint>
 #include <stdexcept>
@@ -32,6 +34,7 @@ public:
 	SRDescriptorIndex get_next_index();
 	D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_handle(SRDescriptorIndex index);
 	D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_handle(SRDescriptorIndex index);
+	ID3D12DescriptorHeap* get_heap_object() const { return m_DescriptorHeap.Get(); }
 
 	void free_index(SRDescriptorIndex index);
 
@@ -124,8 +127,25 @@ void SRDescriptorHeap_DX12::free_index(SRDescriptorIndex index) {
 	m_FreeList.push_back(index);
 }
 
+struct SRResource_DX12 {
+	virtual ~SRResource_DX12() {
+		allocation->Release();
+	};
+
+	D3D12MA::Allocation* allocation = nullptr;
+};
+
+struct SRBuffer_DX12 : public SRResource_DX12 {
+
+};
+
 struct SRCmdList_DX12 {
 	ComPtr<ID3D12GraphicsCommandList7> graphicsCmdList;
+};
+
+struct SRPipeline_DX12 {
+	ComPtr<ID3D12PipelineState> pipeline;
+	ComPtr<ID3D12RootSignature> rootSignature;
 };
 
 struct SRSwapchain_DX12 {
@@ -135,12 +155,97 @@ struct SRSwapchain_DX12 {
 };
 
 // ---------------------------- Converter Functions ----------------------------
+inline SRBuffer_DX12* to_internal(const SRBuffer& buffer) {
+	return (SRBuffer_DX12*)buffer.internalState.get();
+}
+
 inline SRCmdList_DX12* to_internal(const SRCmdList& cmdList) {
 	return (SRCmdList_DX12*)cmdList.internalState;
 }
 
+inline SRPipeline_DX12* to_internal(const SRPipeline& pipeline) {
+	return (SRPipeline_DX12*)pipeline.internalState.get();
+}
+
 inline SRSwapchain_DX12* to_internal(const SRSwapchain& swapchain) {
 	return (SRSwapchain_DX12*)swapchain.internalState.get();
+}
+
+inline constexpr D3D12_BLEND to_dx12_blend(SRBlend value) {
+	switch (value) {
+	case SRBlend::ZERO:
+		return D3D12_BLEND_ZERO;
+	case SRBlend::ONE:
+		return D3D12_BLEND_ONE;
+	case SRBlend::SRC_COLOR:
+		return D3D12_BLEND_SRC_COLOR;
+	case SRBlend::INV_SRC_COLOR:
+		return D3D12_BLEND_INV_SRC_COLOR;
+	case SRBlend::SRC_ALPHA:
+		return D3D12_BLEND_SRC_ALPHA;
+	case SRBlend::INV_SRC_ALPHA:
+		return D3D12_BLEND_INV_SRC_ALPHA;
+	case SRBlend::DEST_ALPHA:
+		return D3D12_BLEND_DEST_ALPHA;
+	case SRBlend::INV_DEST_ALPHA:
+		return D3D12_BLEND_INV_DEST_ALPHA;
+	case SRBlend::DEST_COLOR:
+		return D3D12_BLEND_DEST_COLOR;
+	case SRBlend::INV_DEST_COLOR:
+		return D3D12_BLEND_INV_DEST_COLOR;
+	case SRBlend::SRC_ALPHA_SAT:
+		return D3D12_BLEND_SRC_ALPHA_SAT;
+	case SRBlend::BLEND_FACTOR:
+		return D3D12_BLEND_BLEND_FACTOR;
+	case SRBlend::INV_BLEND_FACTOR:
+		return D3D12_BLEND_INV_BLEND_FACTOR;
+	case SRBlend::SRC1_COLOR:
+		return D3D12_BLEND_SRC1_COLOR;
+	case SRBlend::INV_SRC1_COLOR:
+		return D3D12_BLEND_INV_SRC1_COLOR;
+	case SRBlend::SRC1_ALPHA:
+		return D3D12_BLEND_SRC1_ALPHA;
+	case SRBlend::INV_SRC1_ALPHA:
+		return D3D12_BLEND_INV_SRC1_ALPHA;
+	default:
+		return D3D12_BLEND_ZERO;
+	}
+}
+
+inline constexpr D3D12_BLEND to_dx12_alpha_blend(SRBlend value) {
+	switch (value) {
+	case SRBlend::SRC_COLOR:
+		return D3D12_BLEND_SRC_ALPHA;
+	case SRBlend::INV_SRC_COLOR:
+		return D3D12_BLEND_INV_SRC_ALPHA;
+	case SRBlend::DEST_COLOR:
+		return D3D12_BLEND_DEST_ALPHA;
+	case SRBlend::INV_DEST_COLOR:
+		return D3D12_BLEND_INV_DEST_ALPHA;
+	case SRBlend::SRC1_COLOR:
+		return D3D12_BLEND_SRC1_ALPHA;
+	case SRBlend::INV_SRC1_COLOR:
+		return D3D12_BLEND_INV_SRC1_ALPHA;
+	default:
+		return to_dx12_blend(value);
+	}
+}
+
+inline constexpr D3D12_BLEND_OP to_dx12_blend_op(SRBlendOp value) {
+	switch (value) {
+	case SRBlendOp::ADD:
+		return D3D12_BLEND_OP_ADD;
+	case SRBlendOp::SUBTRACT:
+		return D3D12_BLEND_OP_SUBTRACT;
+	case SRBlendOp::REV_SUBTRACT:
+		return D3D12_BLEND_OP_REV_SUBTRACT;
+	case SRBlendOp::MIN:
+		return D3D12_BLEND_OP_MIN;
+	case SRBlendOp::MAX:
+		return D3D12_BLEND_OP_MAX;
+	default:
+		return D3D12_BLEND_OP_ADD;
+	}
 }
 
 inline constexpr D3D12_COMMAND_LIST_TYPE to_dx12_cmd_list_type(SRQueue queue) {
@@ -149,8 +254,62 @@ inline constexpr D3D12_COMMAND_LIST_TYPE to_dx12_cmd_list_type(SRQueue queue) {
 		return D3D12_COMMAND_LIST_TYPE_DIRECT;
 	case SRQueue_Compute:
 		return D3D12_COMMAND_LIST_TYPE_COMPUTE;
+	case SRQueue_Copy:
+		return D3D12_COMMAND_LIST_TYPE_COPY;
 	default:
 		return D3D12_COMMAND_LIST_TYPE_NONE;
+	}
+}
+
+inline constexpr D3D12_COMPARISON_FUNC to_dx12_comparison_func(SRComparisonFunc value) {
+	switch (value) {
+	case SRComparisonFunc::NEVER:
+		return D3D12_COMPARISON_FUNC_NEVER;
+	case SRComparisonFunc::LESS:
+		return D3D12_COMPARISON_FUNC_LESS;
+	case SRComparisonFunc::EQUAL:
+		return D3D12_COMPARISON_FUNC_EQUAL;
+	case SRComparisonFunc::LESS_EQUAL:
+		return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	case SRComparisonFunc::GREATER:
+		return D3D12_COMPARISON_FUNC_GREATER;
+	case SRComparisonFunc::NOT_EQUAL:
+		return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+	case SRComparisonFunc::GREATER_EQUAL:
+		return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+	case SRComparisonFunc::ALWAYS:
+		return D3D12_COMPARISON_FUNC_ALWAYS;
+	default:
+		return D3D12_COMPARISON_FUNC_NEVER;
+	}
+}
+
+inline constexpr D3D12_CULL_MODE to_dx12_cull_mode(SRCullMode value) {
+	switch (value) {
+	case SRCullMode::FRONT:
+		return D3D12_CULL_MODE_FRONT;
+	case SRCullMode::BACK:
+		return D3D12_CULL_MODE_BACK;
+	default:
+		return D3D12_CULL_MODE_NONE;
+	}
+}
+
+inline constexpr D3D12_DEPTH_WRITE_MASK to_dx12_depth_write_mask(SRDepthWriteMask value) {
+	switch (value) {
+	case SRDepthWriteMask::ALL:
+		return D3D12_DEPTH_WRITE_MASK_ALL;
+	default:
+		return D3D12_DEPTH_WRITE_MASK_ZERO;
+	}
+}
+
+inline constexpr D3D12_FILL_MODE to_dx12_fill_mode(SRFillMode value) {
+	switch (value) {
+	case SRFillMode::SOLID:
+		return D3D12_FILL_MODE_SOLID;
+	default:
+		return D3D12_FILL_MODE_WIREFRAME;
 	}
 }
 
@@ -291,5 +450,13 @@ inline constexpr DXGI_FORMAT to_dx12_format(SRFormat format) {
 	default:
 		return DXGI_FORMAT_UNKNOWN;
 	}
-	return DXGI_FORMAT_UNKNOWN;
+}
+
+inline constexpr D3D12_INPUT_CLASSIFICATION to_dx12_input_class(SRInputClass value) {
+	switch (value) {
+	case SRInputClass::PER_INSTANCE:
+		return D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA;
+	default:
+		return D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+	}
 }

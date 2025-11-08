@@ -210,9 +210,14 @@ private:
 };
 
 struct SRBuffer_Vulkan {
+	~SRBuffer_Vulkan() {
+		destructionHandler->enqueue(buffer);
+		destructionHandler->enqueue(allocation);
+	}
+
+	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
 	VkBuffer buffer = VK_NULL_HANDLE;
 	VmaAllocation allocation = VMA_NULL;
-
 	SRDescriptorIndex uboDescriptor = INVALID_DESCRIPTOR_INDEX;
 };
 

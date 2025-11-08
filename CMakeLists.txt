@@ -26,19 +26,23 @@ endif()
 set(DEPENDENCY_DIR ${CMAKE_SOURCE_DIR}/Dependencies)
 set(FREETYPE_INCLUDE_DIR ${DEPENDENCY_DIR}/FreeType/include/)
 set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/GLM/)
-set(TINYGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/TinyGLTF/)
 
 # 1. FreeType
 add_subdirectory(Dependencies/FreeType)
 set_property(TARGET freetype PROPERTY FOLDER "Dependencies")
 
-# 3. Volk
+# 2. Volk
 set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
 add_subdirectory(Dependencies/Volk)
 set_property(TARGET volk PROPERTY FOLDER "Dependencies")
 
-# 4. JSON
-add_subdirectory(Dependencies/JSON)
-set_property(TARGET nlohmann_json PROPERTY FOLDER "Dependencies")
+# 3. FastGLTF
+add_subdirectory(Dependencies/FastGLTF)
+set_property(TARGET fastgltf PROPERTY FOLDER "Dependencies")
+
+# 4. D3D12 Memory Allocator
+set(D3D12MA_AGILITY_SDK_DIRECTORY ${DEPENDENCY_DIR}/DXAgilitySDK CACHE STRING "Agility SDK Path for D3D12MA" FORCE)
+add_subdirectory(Dependencies/D3D12MA)
+set_property(TARGET D3D12MemoryAllocator PROPERTY FOLDER "Dependencies")
 
 add_subdirectory(StingrayGraphics)

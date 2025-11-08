@@ -24,8 +24,10 @@ endif()
 
 # -------------------------------- Dependencies --------------------------------
 set(DEPENDENCY_DIR ${CMAKE_SOURCE_DIR}/Dependencies)
-set(DXSDK_BIN_DIR ${DEPENDENCY_DIR}/DXAgilitySDK/Bin/)
-set(DXSDK_INCLUDE_DIR ${DEPENDENCY_DIR}/DXAgilitySDK/Include/)
+set(D3D12MA_INCLUDE_DIR ${DEPENDENCY_DIR}/D3D12MA/include/)
+set(DXSDK_BIN_DIR ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/bin/x64/)
+set(DXSDK_INCLUDE_DIR ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/include/)
+set(FASTGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/FastGLTF/include/)
 set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/GLM/)
 set(SLANG_INCLUDE_DIR ${DEPENDENCY_DIR}/Slang/include/)
 set(SLANG_LIBRARY_DIR ${DEPENDENCY_DIR}/Slang/lib/)
@@ -51,6 +53,8 @@ set(SOURCE_FILES
 	# Data
 	${SOURCE_DIR}/Data/Camera.cpp
 	${SOURCE_DIR}/Data/Camera.hpp
+	${SOURCE_DIR}/Data/Model.cpp
+	${SOURCE_DIR}/Data/Model.hpp
 
 	# Graphics
 	${SOURCE_DIR}/Graphics/GraphicsDevice.hpp
@@ -100,6 +104,8 @@ source_group("Core/System" FILES
 source_group("Data" FILES
 	${SOURCE_DIR}/Data/Camera.cpp
 	${SOURCE_DIR}/Data/Camera.hpp
+	${SOURCE_DIR}/Data/Model.cpp
+	${SOURCE_DIR}/Data/Model.hpp
 )
 
 source_group("Graphics" FILES
@@ -169,7 +175,9 @@ target_compile_definitions(StingrayGraphics PRIVATE
 
 target_include_directories(StingrayGraphics PRIVATE
 	${SOURCE_DIR}
+	${D3D12MA_INCLUDE_DIR}
 	${DXSDK_INCLUDE_DIR}
+	${FASTGLTF_INCLUDE_DIR}
 	${GLM_INCLUDE_DIR}
 	${SLANG_INCLUDE_DIR}
 	${VMA_INCLUDE_DIR}
@@ -183,8 +191,10 @@ target_link_directories(StingrayGraphics PRIVATE
 target_link_libraries(StingrayGraphics
 	PUBLIC
 	D3D12
+	D3D12MemoryAllocator
 	DXGI
 	DXGUID
+	fastgltf
 	volk::volk
 	slang
 )

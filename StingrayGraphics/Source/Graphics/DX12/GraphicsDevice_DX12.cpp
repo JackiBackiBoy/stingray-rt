@@ -4,7 +4,7 @@
 #include "Core/Logger.hpp"
 #include "Utilities/TextUtilities.hpp"
 
-#include "AgilitySDK/d3d12.h"
+#include "d3d12.h"
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
 #include <wrl/client.h>
@@ -23,6 +23,7 @@ struct SRGraphicsDevice_DX12::Impl {
 	void create_dxgi_debug_interface();
 	void create_dxgi_factory();
 	void create_device();
+	void create_memory_allocator();
 	void create_command_allocators();
 	void create_command_queues();
 	void create_sync_objects();
@@ -30,14 +31,29 @@ struct SRGraphicsDevice_DX12::Impl {
 
 	void create_swapchain(const SRSwapchainInfo& info, SRSwapchain& swapchain);
 	void create_pipeline(const SRPipelineInfo& info, SRPipeline& pipeline);
+	void create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data);
+
+	void bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList);
 	void bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList);
+	void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
+	void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
+	void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 
 	SRCmdList begin_command_list(SRQueue queue);
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
 	void end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
 	void submit_command_lists(const SRSwapchain& swapchain);
 
+	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList);
+	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList);
+
+	SRShaderPlatformInfo get_shader_platform_info();
 	void wait_for_gpu();
+
+	// NOTE: TEMPORARY STUFF
+	void flush_initial_uploads();
+	std::vector<std::shared_ptr<void>> m_PendingUploadResources;
+	// END OF TEMPORARY STUFF
 
 	SRWindow& m_Window;
 	#ifdef _DEBUG
@@ -46,7 +62,13 @@ struct SRGraphicsDevice_DX12::Impl {
 	ComPtr<ID3D12DebugDevice> m_DebugDevice;
 	#endif
 
+	ComPtr<ID3D12CommandAllocator> m_UploadCmdAllocator;
+	ComPtr<ID3D12GraphicsCommandList7> m_UploadCmdList;
+	bool m_IsUploadCmdListRecording = false;
+
 	ComPtr<IDXGIFactory2> m_DXGIFactory;
+	ComPtr<IDXGIAdapter1> m_Adapter;
+	D3D12MA::Allocator* m_Allocator = nullptr;
 	ComPtr<ID3D12Device> m_Device;
 	SRDeviceCapabilities_DX12 m_DeviceCapabilities = {};
 	ComPtr<ID3D12CommandAllocator> m_CommandAllocators[SRQueue_COUNT][FRAMES_IN_FLIGHT];
@@ -60,7 +82,6 @@ struct SRGraphicsDevice_DX12::Impl {
 	ComPtr<ID3D12Fence> m_FrameFences[SRQueue_COUNT];
 	uint64_t m_FrameDoneValues[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
 	uint64_t m_NextGPUSignalValue = 1;
-	bool m_IsFirstCmdListThisFrame[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
 
 	std::vector<std::unique_ptr<SRCmdList_DX12>> m_PerFrameCmdLists[FRAMES_IN_FLIGHT];
 	size_t m_PerFrameCmdListCounters[FRAMES_IN_FLIGHT] = {};
@@ -69,6 +90,10 @@ struct SRGraphicsDevice_DX12::Impl {
 	uint64_t m_FrameCounter = 0;
 	bool m_IsTearingSupported = false;
 
+	static constexpr SRShaderPlatformInfo m_ShaderPlatformInfo = {
+		SRShaderCompileTarget::DXIL,
+		"sm_6_5"
+	};
 	static constexpr uint32_t MAX_RESOURCE_DESCRIPTORS = 32768;
 	static constexpr uint32_t MAX_SAMPLER_DESCRIPTORS = 16;
 	static constexpr uint32_t MAX_RTV_DESCRIPTORS = 256;
@@ -77,7 +102,8 @@ struct SRGraphicsDevice_DX12::Impl {
 
 // -------------------------- Impl Method Definitions --------------------------
 SRGraphicsDevice_DX12::Impl::~Impl() {
-	
+	m_Allocator->Release();
+	m_Allocator = nullptr;
 }
 
 void SRGraphicsDevice_DX12::Impl::create_debug_interface() {
@@ -216,6 +242,7 @@ void SRGraphicsDevice_DX12::Impl::create_device() {
 		}
 
 		m_Device = device;
+		m_Adapter = adapter;
 
 		#ifdef _DEBUG
 			if (FAILED(m_Device.As(&m_DebugDevice))) {
@@ -236,20 +263,50 @@ void SRGraphicsDevice_DX12::Impl::create_device() {
 	SRLOG_INFO_CAT(SRLOG_CAT_DX12, "Picked [GPU%u] %s", pickedDeviceIdx, deviceName.c_str());
 }
 
+void SRGraphicsDevice_DX12::Impl::create_memory_allocator() {
+	const D3D12MA::ALLOCATOR_DESC allocatorDesc = {
+		.Flags = D3D12MA_RECOMMENDED_ALLOCATOR_FLAGS,
+		.pDevice = m_Device.Get(),
+		.pAdapter = m_Adapter.Get()
+	};
+
+	SR_DX12_CHECK(D3D12MA::CreateAllocator(&allocatorDesc, &m_Allocator), "Create D3D12 Memory Allocator");
+}
+
 void SRGraphicsDevice_DX12::Impl::create_command_allocators() {
 	for (uint32_t f = 0; f < FRAMES_IN_FLIGHT; ++f) {
+		// Universal command allocators (direct)
 		SR_DX12_CHECK(m_Device->CreateCommandAllocator(
 			D3D12_COMMAND_LIST_TYPE_DIRECT,
 			IID_PPV_ARGS(&m_CommandAllocators[SRQueue_Universal][f])
 		), "Command allocator creation");
+
+		// TODO: Create command allocators for other queue types too. We will need
+		// it eventually.
+
+		// Compute (TODO)
+
+		// Copy command allocators (TODO)
 	}
 
-	// TODO: Create command allocators for other queue types too. We will need
-	// it eventually.
+	// TEMPORARY
+	SR_DX12_CHECK(m_Device->CreateCommandAllocator(
+		D3D12_COMMAND_LIST_TYPE_COPY,
+		IID_PPV_ARGS(&m_UploadCmdAllocator)
+	), "Upload command allocator creation");
+
+	SR_DX12_CHECK(m_Device->CreateCommandList(
+		0,
+		D3D12_COMMAND_LIST_TYPE_COPY,
+		m_UploadCmdAllocator.Get(),
+		nullptr,
+		IID_PPV_ARGS(&m_UploadCmdList)
+	), "Command list creation");
+	m_UploadCmdList->Close();
 }
 
 void SRGraphicsDevice_DX12::Impl::create_command_queues() {
-	const D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {
+	D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {
 		.Type = D3D12_COMMAND_LIST_TYPE_DIRECT,
 		.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL,
 		.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE,
@@ -259,6 +316,13 @@ void SRGraphicsDevice_DX12::Impl::create_command_queues() {
 	SR_DX12_CHECK(m_Device->CreateCommandQueue(
 		&commandQueueDesc,
 		IID_PPV_ARGS(&m_CommandQueues[SRQueue_Universal])
+	), "Command queue creation");
+
+	commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
+
+	SR_DX12_CHECK(m_Device->CreateCommandQueue(
+		&commandQueueDesc,
+		IID_PPV_ARGS(&m_CommandQueues[SRQueue_Copy])
 	), "Command queue creation");
 
 	// TODO: Create command queues for other queue types too. We will need it
@@ -339,11 +403,273 @@ void SRGraphicsDevice_DX12::Impl::create_swapchain(const SRSwapchainInfo& info, 
 }
 
 void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SRPipeline& pipeline) {
+	auto internalPipeline = std::make_shared<SRPipeline_DX12>();
 
+	pipeline.info = info;
+	pipeline.internalState = internalPipeline;
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = {
+		.pRootSignature = nullptr,
+		.SampleMask = UINT_MAX,
+		.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+		.SampleDesc = { .Count = 1, .Quality = 0 },
+		.NodeMask = 0
+	};
+
+	const D3D12_ROOT_PARAMETER1 perFrameCBV = {
+		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV,
+		.Descriptor = {
+			.ShaderRegister = 0,
+			.RegisterSpace = 1,
+			.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE
+		},
+		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
+	};
+	std::vector<D3D12_ROOT_PARAMETER1> rootParameters = {
+		perFrameCBV
+	};
+
+	struct D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc {
+		.Version = D3D_ROOT_SIGNATURE_VERSION_1_1,
+		.Desc_1_1 = {
+			.NumParameters = static_cast<UINT>(rootParameters.size()),
+			.pParameters = rootParameters.data(),
+			.NumStaticSamplers = 0U,
+			.pStaticSamplers = nullptr,
+			.Flags = (
+				D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+				D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED //|
+				//D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED
+			)
+		}
+	};
+
+	ComPtr<ID3DBlob> rootSignatureBlob = nullptr;
+	ComPtr<ID3DBlob> rootSignatureErrorBlob = nullptr;
+	SR_DX12_CHECK(D3D12SerializeVersionedRootSignature(
+		&rootSignatureDesc,
+		&rootSignatureBlob,
+		&rootSignatureErrorBlob
+	), "Serialize versioned root signature");
+
+	SR_DX12_CHECK(m_Device->CreateRootSignature(
+		0U,
+		rootSignatureBlob->GetBufferPointer(),
+		rootSignatureBlob->GetBufferSize(),
+		IID_PPV_ARGS(&internalPipeline->rootSignature)
+	), "Create root signature");
+	pipelineDesc.pRootSignature = internalPipeline->rootSignature.Get();
+
+	if (info.vertexShader != nullptr) {
+		pipelineDesc.VS.BytecodeLength = info.vertexShader->byteCode.size();
+		pipelineDesc.VS.pShaderBytecode = info.vertexShader->byteCode.data();
+	}
+	if (info.pixelShader != nullptr) {
+		pipelineDesc.PS.BytecodeLength = info.pixelShader->byteCode.size();
+		pipelineDesc.PS.pShaderBytecode = info.pixelShader->byteCode.data();
+	}
+
+	// Blend state
+	D3D12_BLEND_DESC& blendDesc = pipelineDesc.BlendState;
+	blendDesc.AlphaToCoverageEnable = info.blendState.alphaToCoverage ? TRUE : FALSE;
+	blendDesc.IndependentBlendEnable = info.blendState.independentBlend ? TRUE : FALSE;
+
+	// Render target blend states (always 8 such states available)
+	for (size_t i = 0; i < 8; ++i) {
+		const auto& blendState = info.blendState.renderTargetBlendStates[i];
+		auto& dx12BlendState = blendDesc.RenderTarget[i];
+
+		dx12BlendState.BlendEnable = blendState.blendEnable ? TRUE : FALSE;
+		dx12BlendState.SrcBlend = to_dx12_blend(blendState.srcBlend);
+		dx12BlendState.DestBlend = to_dx12_blend(blendState.dstBlend);
+		dx12BlendState.BlendOp = to_dx12_blend_op(blendState.blendOp);
+		dx12BlendState.SrcBlendAlpha = to_dx12_alpha_blend(blendState.srcBlendAlpha);
+		dx12BlendState.DestBlendAlpha = to_dx12_alpha_blend(blendState.dstBlendAlpha);
+		dx12BlendState.BlendOpAlpha = to_dx12_blend_op(blendState.blendOpAlpha);
+		dx12BlendState.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL; // TODO: Very unlikely to need anything else, but we should make it dynamic
+	}
+
+	// TODO: SampleMask
+
+	// Rasterizer state
+	D3D12_RASTERIZER_DESC& rasterizerDesc = pipelineDesc.RasterizerState;
+	rasterizerDesc.FillMode = to_dx12_fill_mode(info.rasterizerState.fillMode);
+	rasterizerDesc.CullMode = to_dx12_cull_mode(info.rasterizerState.cullMode);
+	rasterizerDesc.FrontCounterClockwise = info.rasterizerState.frontCW ? TRUE : FALSE;
+	rasterizerDesc.DepthBias = info.rasterizerState.depthBias;
+	rasterizerDesc.DepthBiasClamp = info.rasterizerState.depthBiasClamp;
+	rasterizerDesc.SlopeScaledDepthBias = info.rasterizerState.slopeScaledDepthBias;
+	rasterizerDesc.DepthClipEnable = info.rasterizerState.depthClipEnable ? TRUE : FALSE;
+	rasterizerDesc.MultisampleEnable = info.rasterizerState.multisampleEnable ? TRUE : FALSE;
+	rasterizerDesc.AntialiasedLineEnable = info.rasterizerState.antialisedLineEnable ? TRUE : FALSE;
+	rasterizerDesc.ForcedSampleCount = 0U;
+	rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+	// Depth stencil state
+	D3D12_DEPTH_STENCIL_DESC& depthStencilDesc = pipelineDesc.DepthStencilState;
+	depthStencilDesc.DepthEnable = info.depthStencilState.depthEnable ? TRUE : FALSE;
+	depthStencilDesc.DepthWriteMask = to_dx12_depth_write_mask(info.depthStencilState.depthWriteMask);
+	depthStencilDesc.DepthFunc = to_dx12_comparison_func(info.depthStencilState.depthFunction);
+	depthStencilDesc.StencilEnable = info.depthStencilState.stencilEnable ? TRUE : FALSE;
+	depthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+	depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+	depthStencilDesc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	depthStencilDesc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	pipelineDesc.DSVFormat = to_dx12_format(info.depthStencilFormat);
+
+	// Input layout
+	D3D12_INPUT_LAYOUT_DESC& inputLayoutDesc = pipelineDesc.InputLayout;
+	inputLayoutDesc.NumElements = static_cast<UINT>(info.inputLayout.elements.size());
+
+	std::vector<D3D12_INPUT_ELEMENT_DESC> inputElements;
+	inputElements.reserve(info.inputLayout.elements.size());
+
+	for (size_t i = 0; i < info.inputLayout.elements.size(); ++i) {
+		const auto& element = info.inputLayout.elements[i];
+
+		const D3D12_INPUT_ELEMENT_DESC dx12Element = {
+			.SemanticName = element.name.c_str(),
+			.SemanticIndex = 0U, // TODO: Pretty certain this doesn't matter
+			.Format = to_dx12_format(element.format),
+			.InputSlot = 0U, // NOTE: No more than 1 vertex buffer will be bound at a time, so this will alwasy be 0 in our case
+			.AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT,
+			.InputSlotClass = to_dx12_input_class(element.inputClass),
+			.InstanceDataStepRate = 0U, // TODO: Fix if per-instance data is used, right now it will not work with 0
+		};
+
+		inputElements.push_back(dx12Element);
+	}
+
+	inputLayoutDesc.pInputElementDescs = inputElements.data();
+
+	// RTV formats
+	pipelineDesc.NumRenderTargets = info.numRenderTargets;
+
+	for (size_t i = 0; i < info.numRenderTargets; ++i) {
+		pipelineDesc.RTVFormats[i] = to_dx12_format(info.renderTargetFormats[i]);
+	}
+
+	SR_DX12_CHECK(m_Device->CreateGraphicsPipelineState(
+		&pipelineDesc,
+		IID_PPV_ARGS(&internalPipeline->pipeline)
+	), "Create graphics pipeline");
+}
+
+void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data) {
+	auto internalBuffer = std::make_shared<SRBuffer_DX12>();
+
+	buffer.info = info;
+	buffer.internalState = internalBuffer;
+	buffer.mappedData = nullptr;
+	buffer.mappedSize = 0;
+
+	D3D12_RESOURCE_DESC1 resourceDesc = {
+		.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
+		.Alignment = 0,
+		.Width = info.size,
+		.Height = 1,
+		.DepthOrArraySize = 1,
+		.MipLevels = 1,
+		.Format = DXGI_FORMAT_UNKNOWN,
+		.SampleDesc = { .Count = 1, .Quality = 0 },
+		.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+		.Flags = D3D12_RESOURCE_FLAG_NONE
+	};
+
+	if (info.bindFlags & SRBindFlag_UnorderedAccess) {
+		resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	}
+	// TODO: Look into whether or not this is always correct
+	if (!(info.bindFlags & SRBindFlag_ShaderResource)) {
+		resourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+	}
+
+	D3D12MA::ALLOCATION_DESC allocDesc = {
+		.HeapType = D3D12_HEAP_TYPE_DEFAULT,
+	};
+
+	switch (info.usage) {
+	case SRUsage::DEFAULT:
+		allocDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+		break;
+	case SRUsage::UPLOAD:
+		allocDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
+		break;
+	}
+
+	SR_DX12_CHECK(m_Allocator->CreateResource3(
+		&allocDesc,
+		&resourceDesc,
+		D3D12_BARRIER_LAYOUT_UNDEFINED,
+		nullptr,
+		0,
+		nullptr,
+		&internalBuffer->allocation,
+		IID_NULL, nullptr
+	), "CreateResource3");
+
+	if (info.usage == SRUsage::DEFAULT && data != nullptr) {
+		// Staging buffer
+		SRBufferInfo stagingBufferInfo = info;
+		stagingBufferInfo.usage = SRUsage::UPLOAD;
+		stagingBufferInfo.bindFlags = SRBindFlag_None;
+		stagingBufferInfo.miscFlags = SRMiscFlag_None;
+
+		SRBuffer stagingBuffer;
+		create_buffer(stagingBufferInfo, stagingBuffer, data);
+
+		m_PendingUploadResources.push_back(stagingBuffer.internalState);
+		auto internalStagingBuffer = to_internal(stagingBuffer);
+
+		// Copy staging buffer into target buffer
+		if (!m_IsUploadCmdListRecording) {
+			SR_DX12_CHECK(m_UploadCmdAllocator->Reset(), "Reset command allocator");
+			SR_DX12_CHECK(m_UploadCmdList->Reset(
+				m_UploadCmdAllocator.Get(),
+				nullptr
+			), "Begin upload command list recording");
+
+			m_IsUploadCmdListRecording = true;
+		}
+
+		ID3D12Resource* srcResource = internalStagingBuffer->allocation->GetResource();
+		ID3D12Resource* dstResource = internalBuffer->allocation->GetResource();
+		m_UploadCmdList->CopyResource(dstResource, srcResource);
+	}
+	else if (info.usage == SRUsage::UPLOAD) {
+		internalBuffer->allocation->GetResource()->Map(0, nullptr, &buffer.mappedData);
+		buffer.mappedSize = info.size;
+
+		if (data != nullptr) {
+			std::memcpy(buffer.mappedData, data, info.size);
+		}
+
+		// NOTE: We always perform persistent mappings, so no unmap is necessary
+	}
+
+	// Descriptors
+	// TODO: UAV
+	// TODO: SRV
+	// TODO: CBV
+}
+
+void SRGraphicsDevice_DX12::Impl::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
+	auto* internalPipeline = to_internal(pipeline);
+	auto* internalCmdList = to_internal(cmdList);
+
+	internalCmdList->graphicsCmdList->SetPipelineState(internalPipeline->pipeline.Get());
+	internalCmdList->graphicsCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	internalCmdList->graphicsCmdList->SetGraphicsRootSignature(internalPipeline->rootSignature.Get());
 }
 
 void SRGraphicsDevice_DX12::Impl::bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList) {
-	auto internalCmdList = to_internal(cmdList);
+	auto* internalCmdList = to_internal(cmdList);
 
 	const D3D12_RECT scissorRect = {
 		.left = static_cast<LONG>(viewport.topLeftX),
@@ -356,6 +682,45 @@ void SRGraphicsDevice_DX12::Impl::bind_viewport(const SRViewport& viewport, cons
 	internalCmdList->graphicsCmdList->RSSetScissorRects(1, &scissorRect);
 }
 
+void SRGraphicsDevice_DX12::Impl::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	assert(buffer.info.bindFlags & SRBindFlag_VertexBuffer);
+	auto* internalBuffer = to_internal(buffer);
+	auto* internalCmdList = to_internal(cmdList);
+
+	const D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {
+		.BufferLocation = internalBuffer->allocation->GetResource()->GetGPUVirtualAddress(),
+		.SizeInBytes = static_cast<UINT>(buffer.info.size),
+		.StrideInBytes = buffer.info.stride
+	};
+
+	internalCmdList->graphicsCmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
+}
+
+void SRGraphicsDevice_DX12::Impl::bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	assert(buffer.info.bindFlags & SRBindFlag_IndexBuffer);
+	auto* internalBuffer = to_internal(buffer);
+	auto* internalCmdList = to_internal(cmdList);
+
+	const D3D12_INDEX_BUFFER_VIEW indexBufferView = {
+		.BufferLocation = internalBuffer->allocation->GetResource()->GetGPUVirtualAddress(),
+		.SizeInBytes = static_cast<UINT>(buffer.info.size),
+		.Format = DXGI_FORMAT_R32_UINT
+	};
+
+	internalCmdList->graphicsCmdList->IASetIndexBuffer(&indexBufferView);
+}
+
+void SRGraphicsDevice_DX12::Impl::bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	assert(buffer.info.bindFlags & SRBindFlag_ConstantBuffer);
+	auto* internalBuffer = to_internal(buffer);
+	auto* internalCmdList = to_internal(cmdList);
+
+	internalCmdList->graphicsCmdList->SetGraphicsRootConstantBufferView(
+		0,
+		internalBuffer->allocation->GetResource()->GetGPUVirtualAddress()
+	);
+}
+
 SRCmdList SRGraphicsDevice_DX12::Impl::begin_command_list(SRQueue queue) {
 	size_t& cmdListCounter = m_PerFrameCmdListCounters[m_FrameIndex];
 	auto& cmdLists = m_PerFrameCmdLists[m_FrameIndex];
@@ -366,7 +731,7 @@ SRCmdList SRGraphicsDevice_DX12::Impl::begin_command_list(SRQueue queue) {
 
 	auto internalCmdList = cmdLists[cmdListCounter].get();
 	if (internalCmdList->graphicsCmdList == nullptr) {
-		// NOTE: We require ID3D12GraphicsCommandList6 to be available
+		// NOTE: We require ID3D12GraphicsCommandList7 to be available
 		SR_DX12_CHECK(m_Device->CreateCommandList(
 			0,
 			to_dx12_cmd_list_type(queue),
@@ -379,26 +744,16 @@ SRCmdList SRGraphicsDevice_DX12::Impl::begin_command_list(SRQueue queue) {
 		internalCmdList->graphicsCmdList->Close();
 	}
 
-	// Wait until cmdList is done processing on GPU, only then is it safe to
-	// reset the command allocator
-	// Reset the command pool JUST BEFORE we begin command buffer recording.
-	// This results in as little potential CPU waiting as possible.
-	// Should only be done ONCE per frame per queue family.
-	if (m_IsFirstCmdListThisFrame[queue][m_FrameIndex] && m_FrameCounter >= FRAMES_IN_FLIGHT) {
-		const uint64_t needed = m_FrameDoneValues[queue][m_FrameIndex];
-		const uint64_t current = m_FrameFences[queue]->GetCompletedValue();
-
-		if (current < needed) {
-			SR_DX12_CHECK(m_FrameFences[queue]->SetEventOnCompletion(needed, nullptr), "Wait for fence");
-		}
-
-		SR_DX12_CHECK(m_CommandAllocators[queue][m_FrameIndex]->Reset(), "Reset command allocator");
-		m_IsFirstCmdListThisFrame[queue][m_FrameIndex] = false;
-	}
+	SR_DX12_CHECK(m_CommandAllocators[queue][m_FrameIndex]->Reset(), "Reset command allocator");
 	SR_DX12_CHECK(internalCmdList->graphicsCmdList->Reset(
 		m_CommandAllocators[queue][m_FrameIndex].Get(),
 		nullptr
 	), "Begin command list recording");
+
+	ID3D12DescriptorHeap* const descriptorHeaps[] = {
+		m_ResourceDescriptorHeap.get_heap_object()
+	};
+	internalCmdList->graphicsCmdList->SetDescriptorHeaps(std::size(descriptorHeaps), descriptorHeaps);
 
 	++cmdListCounter;
 	return SRCmdList{ internalCmdList };
@@ -416,7 +771,7 @@ void SRGraphicsDevice_DX12::Impl::begin_render_pass(const SRSwapchain& swapchain
 	// and thus it was decided to not allow such clears.
 	const D3D12_CLEAR_VALUE clearValue = {
 		.Format = to_dx12_format(swapchain.info.format),
-		.Color = { 0.0F, 1.0F, 0.0F, 1.0F }
+		.Color = { 0.0F, 0.0F, 0.0F, 1.0F }
 	};
 
 	const D3D12_RENDER_PASS_RENDER_TARGET_DESC passRTVDesc = {
@@ -476,7 +831,7 @@ void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapch
 	cmdListsToSubmit.reserve(numSubmittedCmdLists);
 	for (uint32_t i = 0; i < numSubmittedCmdLists; ++i) {
 		const SRCmdList_DX12* cmdList = m_PerFrameCmdLists[m_FrameIndex][i].get();
-		cmdList->graphicsCmdList->Close();
+		SR_DX12_CHECK(cmdList->graphicsCmdList->Close(), "Close command list");
 		cmdListsToSubmit.push_back(cmdList->graphicsCmdList.Get());
 	}
 
@@ -496,10 +851,23 @@ void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapch
 
 	m_FrameDoneValues[SRQueue_Universal][m_FrameIndex] = m_NextGPUSignalValue++;
 	++m_FrameCounter;
-	m_FrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
-	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
-		m_IsFirstCmdListThisFrame[q][m_FrameIndex] = true;
+	const uint32_t nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
+
+	// Await frame value
+	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
+		const uint64_t needed = m_FrameDoneValues[SRQueue_Universal][nextFrameIndex];
+		const uint64_t current = m_FrameFences[SRQueue_Universal]->GetCompletedValue();
+
+		if (current < needed) {
+			SR_DX12_CHECK(m_FrameFences[SRQueue_Universal]->SetEventOnCompletion(needed, nullptr), "Wait for fence");
+		}
 	}
+
+	m_FrameIndex = nextFrameIndex;
+}
+
+SRShaderPlatformInfo SRGraphicsDevice_DX12::Impl::get_shader_platform_info() {
+	return m_ShaderPlatformInfo;
 }
 
 void SRGraphicsDevice_DX12::Impl::wait_for_gpu() {
@@ -513,6 +881,49 @@ void SRGraphicsDevice_DX12::Impl::wait_for_gpu() {
 	}
 }
 
+void SRGraphicsDevice_DX12::Impl::flush_initial_uploads() {
+	SR_DX12_CHECK(m_UploadCmdList->Close(), "Close command list");
+
+	ID3D12CommandList* cmdLists[1] = { m_UploadCmdList.Get() };
+	m_CommandQueues[SRQueue_Copy]->ExecuteCommandLists(
+		1,
+		cmdLists
+	);
+
+	// TEMPORARY
+	ComPtr<ID3D12Fence> tempFence;
+	SR_DX12_CHECK(m_Device->CreateFence(
+		0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(&tempFence)
+	), "Create temporary fence");
+
+	SR_DX12_CHECK(m_CommandQueues[SRQueue_Copy]->Signal(tempFence.Get(), 1), "Signal fence");
+
+	if (tempFence->GetCompletedValue() < 1) {
+		SR_DX12_CHECK(tempFence->SetEventOnCompletion(1, nullptr), "Wait for fence");
+	}
+
+	m_PendingUploadResources.clear();
+	m_UploadCmdAllocator->Reset();
+}
+
+void SRGraphicsDevice_DX12::Impl::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
+	auto* internalCmdList = to_internal(cmdList);
+	internalCmdList->graphicsCmdList->DrawInstanced(vtxCount, 1, startVtx, 0);
+}
+
+void SRGraphicsDevice_DX12::Impl::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
+	auto* internalCmdList = to_internal(cmdList);
+	internalCmdList->graphicsCmdList->DrawIndexedInstanced(
+		idxCount,
+		1,
+		startIdx,
+		baseVtx,
+		0
+	);
+}
+
 // --------------------------------- Public API --------------------------------
 SRGraphicsDevice_DX12::SRGraphicsDevice_DX12(SRWindow& window) : SRGraphicsDevice(window) {
 	m_Impl = new Impl(window);
@@ -520,6 +931,7 @@ SRGraphicsDevice_DX12::SRGraphicsDevice_DX12(SRWindow& window) : SRGraphicsDevic
 	m_Impl->create_dxgi_debug_interface();
 	m_Impl->create_dxgi_factory();
 	m_Impl->create_device();
+	m_Impl->create_memory_allocator();
 	m_Impl->create_command_allocators();
 	m_Impl->create_command_queues();
 	m_Impl->create_sync_objects();
@@ -544,19 +956,27 @@ void SRGraphicsDevice_DX12::create_pipeline(const SRPipelineInfo& info, SRPipeli
 }
 
 void SRGraphicsDevice_DX12::create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data) {
-
+	m_Impl->create_buffer(info, buffer, data);
 }
 
 void SRGraphicsDevice_DX12::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
-
+	m_Impl->bind_pipeline(pipeline, cmdList);
 }
 
 void SRGraphicsDevice_DX12::bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList) {
 	m_Impl->bind_viewport(viewport, cmdList);
 }
 
-void SRGraphicsDevice_DX12::bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	m_Impl->bind_vertex_buffer(buffer, cmdList);
+}
 
+void SRGraphicsDevice_DX12::bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	m_Impl->bind_index_buffer(buffer, cmdList);
+}
+
+void SRGraphicsDevice_DX12::bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
+	m_Impl->bind_root_constant_buffer(buffer, cmdList);
 }
 
 SRCmdList SRGraphicsDevice_DX12::begin_command_list(SRQueue queue) {
@@ -576,11 +996,15 @@ void SRGraphicsDevice_DX12::submit_command_lists(const SRSwapchain& swapchain) {
 }
 
 void SRGraphicsDevice_DX12::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
+	m_Impl->draw(vtxCount, startVtx, cmdList);
+}
 
+void SRGraphicsDevice_DX12::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
+	m_Impl->draw_indexed(idxCount, startIdx, baseVtx, cmdList);
 }
 
 SRShaderPlatformInfo SRGraphicsDevice_DX12::get_shader_platform_info() {
-	return {};
+	return m_Impl->get_shader_platform_info();
 }
 
 void SRGraphicsDevice_DX12::wait_for_gpu() {
@@ -588,6 +1012,6 @@ void SRGraphicsDevice_DX12::wait_for_gpu() {
 }
 
 void SRGraphicsDevice_DX12::flush_initial_uploads() {
-
+	m_Impl->flush_initial_uploads();
 }
 

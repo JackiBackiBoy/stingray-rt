@@ -93,7 +93,7 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 		.profile = m_GlobalSession->findProfile(m_ShaderPlatformInfo.profileName)
 	};
 	// TODO: Perhaps NOT hardcode paths for include?
-	const char* includeDir = RES_DIR "Shaders/Slang/";
+	const char* includeDir = RES_DIR "Shaders/";
 	const slang::SessionDesc sessionDesc = {
 		.targets = &targetDesc,
 		.targetCount = 1,

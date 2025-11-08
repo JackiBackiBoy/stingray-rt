@@ -156,9 +156,7 @@ namespace SRInput {
 						key = rawKeyboard.MakeCode & 0xff;
 					}
 					else {
-						assert(false);
-						// TODO: Should probably be removed
-						key = LOWORD(MapVirtualKey(rawKeyboard.VKey, MAPVK_VK_TO_VSC_EX));
+						continue;
 					}
 
 					if (flags & RI_KEY_E1) {

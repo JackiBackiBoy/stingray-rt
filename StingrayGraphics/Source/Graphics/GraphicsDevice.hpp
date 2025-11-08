@@ -17,6 +17,8 @@ public:
 
 	virtual void bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) = 0;
 	virtual void bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList) = 0;
+	virtual void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
+	virtual void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
 	virtual void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
 
 	virtual SRCmdList begin_command_list(SRQueue quee) = 0;
@@ -25,6 +27,7 @@ public:
 	virtual void submit_command_lists(const SRSwapchain& swapchain) = 0;
 
 	virtual void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) = 0;
+	virtual void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) = 0;
 
 	virtual SRShaderPlatformInfo get_shader_platform_info() = 0;
 	virtual void wait_for_gpu() = 0;

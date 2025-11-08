@@ -15,6 +15,8 @@ public:
 
 	void bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) override;
 	void bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList) override;
+	void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) override;
+	void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) override;
 	void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) override;
 
 	SRCmdList begin_command_list(SRQueue queue) override;
@@ -23,6 +25,7 @@ public:
 	void submit_command_lists(const SRSwapchain& swapchain) override;
 
 	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) override;
+	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) override;
 
 	SRShaderPlatformInfo get_shader_platform_info() override;
 	void wait_for_gpu() override;
