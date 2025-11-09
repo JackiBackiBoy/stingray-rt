@@ -60,6 +60,8 @@ void update(const FrameInfo& frameInfo);
 void render();
 
 int main() {
+	init_console();
+
 	const char* windowTitle = (g_API == SRGraphicsAPI::VULKAN ? "Stingray (Vulkan)" : "Stingray (DX12)");
 	g_Window = std::make_unique<SRWindow>(windowTitle, WIDTH, HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
 	SRInput::initialize(g_Window.get());
@@ -77,7 +79,7 @@ int main() {
 	init_resources();
 
 	g_Camera = std::make_unique<SRCamera>(
-		glm::vec3(.0f, 0.0f, -2.0f),
+		glm::vec3(0.0f, 0.0f, -2.0f),
 		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
 		60.0f,
 		g_Window->get_client_aspect_ratio(),
