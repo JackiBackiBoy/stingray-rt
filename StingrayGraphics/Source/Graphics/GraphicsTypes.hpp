@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+typedef uint16_t SRBarrierSync;
+typedef uint16_t SRBarrierAccess;
 typedef uint8_t SRQueue;
 typedef uint8_t SRBindFlag;
 typedef uint8_t SRMiscFlag;
@@ -12,14 +14,42 @@ typedef uint8_t SRMiscFlag;
 typedef uint32_t SRDescriptorIndex;
 inline constexpr SRDescriptorIndex INVALID_DESCRIPTOR_INDEX = ~0U;
 
-enum SRQueue_ : uint8_t {
+enum SRBarrierSync_ : SRBarrierSync {
+	SRBarrierSync_None          = 0,
+	SRBarrierSync_All           = 1 << 0,
+	SRBarrierSync_Draw          = 1 << 1,
+	SRBarrierSync_IndexInput    = 1 << 2,
+	SRBarrierSync_VertexShader  = 1 << 3,
+	SRBarrierSync_PixelShader   = 1 << 4,
+	SRBarrierSync_DepthStencil  = 1 << 5,
+	SRBarrierSync_RenderTarget  = 1 << 6,
+	SRBarrierSync_ComputeShader = 1 << 7,
+	SRBarrierSync_RayTracing    = 1 << 8,
+	SRBarrierSync_Copy          = 1 << 9,
+};
+
+enum SRBarrierAccess_ : SRBarrierAccess {
+	SRBarrierAccess_None              = 0,
+	SRBarrierAccess_VertexBuffer      = 1 << 0,
+	SRBarrierAccess_ConstantBuffer    = 1 << 1,
+	SRBarrierAccess_IndexBuffer       = 1 << 2,
+	SRBarrierAccess_RenderTarget      = 1 << 3,
+	SRBarrierAccess_UnorderedAccess   = 1 << 4,
+	SRBarrierAccess_DepthStencilRead  = 1 << 5,
+	SRBarrierAccess_DepthStencilWrite = 1 << 6,
+	SRBarrierAccess_ShaderResource    = 1 << 7,
+	SRBarrierAccess_CopyDest          = 1 << 8,
+	SRBarrierAccess_CopySrc           = 1 << 9
+};
+
+enum SRQueue_ : SRQueue {
 	SRQueue_Universal, // Graphics + Compute + Copy
 	SRQueue_Compute, // Dedicated compute
 	SRQueue_Copy, // Dedicated copy queue
 	SRQueue_COUNT
 };
 
-enum SRBindFlag_ : uint8_t {
+enum SRBindFlag_ : SRBindFlag {
 	SRBindFlag_None            = 0,
 	SRBindFlag_VertexBuffer    = 1 << 0,
 	SRBindFlag_IndexBuffer     = 1 << 1,
@@ -31,7 +61,7 @@ enum SRBindFlag_ : uint8_t {
 	SRBindFlag_ShadingRate     = 1 << 7 // NOTE: Not supported right now
 };
 
-enum SRMiscFlag_ : uint8_t {
+enum SRMiscFlag_ : SRMiscFlag {
 	SRMiscFlag_None              = 0,
 	SRMiscFlag_StructuredBuffer  = 1 << 0,
 	SRMiscFlag_ByteAddressBuffer = 1 << 1,
@@ -229,6 +259,31 @@ enum class SRInputClass : uint8_t {
 	PER_INSTANCE,
 };
 
+enum class SRResourceState : uint8_t {
+	UNDEFINED        = 0,
+	SHADER_RESOURCE  = 1 << 0,
+	UNORDERED_ACCESS = 1 << 1,
+	RENDER_TARGET    = 1 << 2,
+	DEPTH_WRITE      = 1 << 3,
+	DEPTH_READ       = 1 << 4,
+	COPY_SRC         = 1 << 5,
+	COPY_DST         = 1 << 6,
+};
+
+enum class SRPassBeginAccess : uint8_t {
+	DISCARD,
+	PRESERVE,
+	CLEAR,
+	NO_ACCESS
+};
+
+enum class SRPassEndAccess : uint8_t {
+	DISCARD,
+	PRESERVE,
+	RESOLVE,
+	NO_ACCESS
+};
+
 enum class SRShaderStage : uint8_t {
 	VERTEX,
 	PIXEL,
@@ -249,6 +304,23 @@ enum class SRUsage : uint8_t {
 	COPY // Copy from GPU to CPU
 };
 
+enum class SRBarrierType : uint8_t {
+	UAV,
+	IMAGE,
+	BUFFER
+};
+
+struct SRSubresourceRange {
+	uint32_t baseMip = 0;
+	uint32_t mipCount = 1;
+	uint32_t baseSlice = 0;
+	uint32_t sliceCount = 1;
+
+	static constexpr SRSubresourceRange All() {
+		return { 0U, ~0U, 0U, ~0U };
+	}
+};
+
 struct SRBufferInfo {
 	uint64_t size = 0;
 	uint32_t stride = 0;
@@ -262,6 +334,52 @@ struct SRBuffer {
 	std::shared_ptr<void> internalState = nullptr;
 	void* mappedData = nullptr;
 	uint64_t mappedSize = 0;
+};
+
+struct SRTextureInfo {
+	uint32_t width = 1;
+	uint32_t height = 1;
+	uint32_t depth = 1;
+	uint32_t arraySize = 1;
+	uint32_t mipLevels = 1;
+	uint32_t sampleCount = 1;
+	SRFormat format = SRFormat::UNKNOWN;
+	SRUsage usage = SRUsage::DEFAULT;
+	SRBindFlag bindFlags = SRBindFlag_None;
+};
+
+struct SRTexture {
+	SRTextureInfo info = {};
+	std::shared_ptr<void> internalState = nullptr;
+};
+
+struct SRBarrier {
+	SRBarrierType type = SRBarrierType::IMAGE;
+
+	struct UAV {
+		// TODO
+	};
+
+	struct Image {
+		const SRTexture* texture = nullptr;
+		SRResourceState stateBefore = SRResourceState::UNDEFINED;
+		SRResourceState stateAfter = SRResourceState::UNDEFINED;
+		SRBarrierAccess accessBefore = SRBarrierAccess_None;
+		SRBarrierAccess accessAfter = SRBarrierAccess_None;
+		SRBarrierSync syncBefore = SRBarrierSync_None;
+		SRBarrierSync syncAfter = SRBarrierSync_None;
+		SRSubresourceRange subresourceRange = {};
+	};
+
+	struct Buffer {
+		// TODO
+	};
+
+	union {
+		UAV uav;
+		Image image;
+		Buffer buffer;
+	};
 };
 
 struct SRShaderPlatformInfo {
@@ -355,6 +473,17 @@ struct SRCmdList {
 struct SRSwapchain {
 	SRSwapchainInfo info = {};
 	std::shared_ptr<void> internalState;
+};
+
+struct SRPassInfo {
+	const SRTexture* colors[8] = { nullptr };
+	const SRTexture* depth = nullptr;
+	uint32_t numColorAttachments = 0;
+	SRPassBeginAccess colorBeginAccess = {};
+	SRPassEndAccess colorEndAccess = {};
+	SRPassBeginAccess depthBeginAccess = {};
+	SRPassEndAccess depthEndAccess = {};
+	float depthClearValue = 0.0f;
 };
 
 struct SRViewport {

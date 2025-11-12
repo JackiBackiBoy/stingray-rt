@@ -32,6 +32,7 @@ public:
 	virtual SRShaderPlatformInfo get_shader_platform_info() = 0;
 	virtual void wait_for_gpu() = 0;
 	virtual void flush_initial_uploads() = 0; // NOTE: TEMPORARY function, will be removed once we introduce streaming system
+	virtual void setup_imgui_init_info(SRFormat swapchainFormat) = 0;
 
 	static constexpr uint32_t FRAMES_IN_FLIGHT = 2;
 	

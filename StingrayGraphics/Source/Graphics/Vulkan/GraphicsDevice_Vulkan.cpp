@@ -1,3 +1,4 @@
+#define VOLK_IMPLEMENTATION
 #define VMA_IMPLEMENTATION
 
 #include "GraphicsDevice_Vulkan.hpp"
@@ -7,13 +8,15 @@
 #include "Core/Logger.hpp"
 #include "Core/System/MonitorEnumerator.hpp"
 
-#include <Windows.h>
+#include <imgui.h>
+#include <imgui_impl_vulkan.h>
 
 #include <algorithm>
 #include <cassert>
 #include <memory>
 #include <vector>
 #include <stdexcept>
+#include <Windows.h>
 
 namespace {
 	constexpr const char* REQUIRED_INSTANCE_EXTS[] = {
@@ -99,6 +102,7 @@ struct SRGraphicsDevice_Vulkan::Impl {
 
 	SRShaderPlatformInfo get_shader_platform_info();
 	void wait_for_gpu();
+	void setup_imgui_init_info(SRFormat swapchainFormat);
 
 	// NOTE: TEMPORARY STUFF
 	void flush_initial_uploads();
@@ -1094,7 +1098,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 
 	const VkDescriptorSetLayout setLayouts[] = {
 		m_ResourceDescriptorSetLayout, // set 0
-		m_PushDescriptorSetLayout
+		m_PushDescriptorSetLayout // set 1
 	};
 
 	const VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
@@ -1233,7 +1237,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 
 		SRBuffer stagingBuffer;
 		create_buffer(stagingBufferInfo, stagingBuffer, data);
-		auto internalStagingBuffer = to_internal(stagingBuffer);
+		auto internalStagingBuffer = to_vk_internal(stagingBuffer);
 
 		// Copy staging buffer into target buffer
 		if (!m_IsUploadCmdBufferRecording) {
@@ -1273,8 +1277,8 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 }
 
 void SRGraphicsDevice_Vulkan::Impl::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
-	auto internalPipeline = to_internal(pipeline);
-	auto internalCmdList = to_internal(cmdList);
+	auto internalPipeline = to_vk_internal(pipeline);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdBindPipeline(internalCmdList->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internalPipeline->pipeline);
 	m_ActivePipeline = internalPipeline;
@@ -1282,8 +1286,8 @@ void SRGraphicsDevice_Vulkan::Impl::bind_pipeline(const SRPipeline& pipeline, co
 
 void SRGraphicsDevice_Vulkan::Impl::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
 	assert(buffer.info.bindFlags & SRBindFlag_VertexBuffer);
-	auto internalBuffer = to_internal(buffer);
-	auto internalCmdList = to_internal(cmdList);
+	auto internalBuffer = to_vk_internal(buffer);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	const VkDeviceSize offset = 0;
 	vkCmdBindVertexBuffers(internalCmdList->cmdBuffer, 0, 1, &internalBuffer->buffer, &offset);
@@ -1291,8 +1295,8 @@ void SRGraphicsDevice_Vulkan::Impl::bind_vertex_buffer(const SRBuffer& buffer, c
 
 void SRGraphicsDevice_Vulkan::Impl::bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
 	assert(buffer.info.bindFlags & SRBindFlag_IndexBuffer);
-	auto internalBuffer = to_internal(buffer);
-	auto internalCmdList = to_internal(cmdList);
+	auto internalBuffer = to_vk_internal(buffer);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdBindIndexBuffer(internalCmdList->cmdBuffer, internalBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
 }
@@ -1301,8 +1305,8 @@ void SRGraphicsDevice_Vulkan::Impl::bind_root_constant_buffer(const SRBuffer& bu
 	assert(buffer.info.bindFlags & SRBindFlag_ConstantBuffer);
 	assert(m_ActivePipeline != nullptr);
 
-	auto internalBuffer = to_internal(buffer);
-	auto internalCmdList = to_internal(cmdList);
+	auto internalBuffer = to_vk_internal(buffer);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	const VkDescriptorBufferInfo bufferInfo = {
 		.buffer = internalBuffer->buffer,
@@ -1364,8 +1368,8 @@ SRCmdList SRGraphicsDevice_Vulkan::Impl::begin_command_list(SRQueue queue) {
 }
 
 void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
-	auto internalSwapchain = to_internal(swapchain);
-	auto internalCmdList = to_internal(cmdList);
+	auto internalSwapchain = to_vk_internal(swapchain);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	SR_VK_CHECK(vkAcquireNextImageKHR(
 		m_Device,
@@ -1422,8 +1426,8 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRSwapchain& swapcha
 }
 
 void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
-	auto internalSwapchain = to_internal(swapchain);
-	auto internalCmdList = to_internal(cmdList);
+	auto internalSwapchain = to_vk_internal(swapchain);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdEndRendering(internalCmdList->cmdBuffer);
 
@@ -1441,7 +1445,7 @@ void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRSwapchain& swapchain
 }
 
 void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swapchain) {
-	auto internalSwapchain = to_internal(swapchain);
+	auto internalSwapchain = to_vk_internal(swapchain);
 
 	const uint32_t numSubmittedCmdLists = m_PerFrameCmdListCounters[m_FrameIndex];
 	m_PerFrameCmdListCounters[m_FrameIndex] = 0;
@@ -1538,14 +1542,14 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 }
 
 void SRGraphicsDevice_Vulkan::Impl::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
-	auto internalCmdList = to_internal(cmdList);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdDraw(internalCmdList->cmdBuffer, vtxCount, 1, startVtx, 0);
 }
 
 
 void SRGraphicsDevice_Vulkan::Impl::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
-	auto internalCmdList = to_internal(cmdList);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdDrawIndexed(internalCmdList->cmdBuffer, idxCount, 1, startIdx, baseVtx, 0);
 }
@@ -1556,6 +1560,67 @@ SRShaderPlatformInfo SRGraphicsDevice_Vulkan::Impl::get_shader_platform_info() {
 
 void SRGraphicsDevice_Vulkan::Impl::wait_for_gpu() {
 	vkDeviceWaitIdle(m_Device);
+}
+
+void SRGraphicsDevice_Vulkan::Impl::setup_imgui_init_info(SRFormat swapchainFormat) {
+	ImGui::GetPlatformIO().Platform_CreateVkSurface = [](
+		ImGuiViewport* viewport,
+		ImU64 vkInstance,
+		const void* vkAllocators,
+		ImU64* outVkSurface
+	) -> int {
+		VkInstance instance = (VkInstance)vkInstance;
+		HWND hwnd = (HWND)viewport->PlatformHandle;
+
+		if (!hwnd) {
+			hwnd = (HWND)viewport->PlatformHandleRaw;
+		}
+
+		VkWin32SurfaceCreateInfoKHR ci{};
+		ci.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		ci.hinstance = GetModuleHandle(nullptr);
+		ci.hwnd = hwnd;
+
+		VkSurfaceKHR surface = VK_NULL_HANDLE;
+		VkResult err = vkCreateWin32SurfaceKHR(
+			instance, &ci,
+			(const VkAllocationCallbacks*)vkAllocators,
+			&surface
+		);
+
+		if (outVkSurface) {
+			*outVkSurface = (ImU64)surface;
+		}
+
+		return err == VK_SUCCESS;
+	};
+
+	const VkFormat vkSwapchainFormat = to_vk_format(swapchainFormat);
+	ImGui_ImplVulkan_InitInfo initInfo = {
+		.ApiVersion = VK_API_VERSION_1_4,
+		.Instance = m_Instance,
+		.PhysicalDevice = m_PhysicalDevice,
+		.Device = m_Device,
+		.QueueFamily = m_QueueIndices[SRQueue_Universal],
+		.Queue = m_CommandQueues[SRQueue_Universal],
+		.DescriptorPoolSize = IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE,
+		.MinImageCount = 3, // TODO: Depends on the swapchain buffers we choose, make the function require a swapchain object to check
+		.ImageCount = 3,
+		.PipelineInfoMain = {
+			.PipelineRenderingCreateInfo = {
+				.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+				.viewMask = 0,
+				.colorAttachmentCount = 1,
+				.pColorAttachmentFormats = &vkSwapchainFormat,
+				.depthAttachmentFormat = VK_FORMAT_UNDEFINED,
+				.stencilAttachmentFormat = VK_FORMAT_UNDEFINED
+			}
+		},
+		.UseDynamicRendering = true,
+		.CheckVkResultFn = [](VkResult err) { SR_VK_CHECK(err, ""); }
+	};
+
+	ImGui_ImplVulkan_Init(&initInfo);
 }
 
 void SRGraphicsDevice_Vulkan::Impl::flush_initial_uploads() {
@@ -1643,7 +1708,7 @@ void SRGraphicsDevice_Vulkan::bind_pipeline(const SRPipeline& pipeline, const SR
 }
 
 void SRGraphicsDevice_Vulkan::bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList) {
-	auto internalCmdList = to_internal(cmdList);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	// We need to flip the viewport vertically in order to work with DX12
 	const VkViewport vkViewport = {
@@ -1716,4 +1781,8 @@ void SRGraphicsDevice_Vulkan::wait_for_gpu() {
 
 void SRGraphicsDevice_Vulkan::flush_initial_uploads() {
 	m_Impl->flush_initial_uploads();
+}
+
+void SRGraphicsDevice_Vulkan::setup_imgui_init_info(SRFormat swapchainFormat) {
+	m_Impl->setup_imgui_init_info(swapchainFormat);
 }

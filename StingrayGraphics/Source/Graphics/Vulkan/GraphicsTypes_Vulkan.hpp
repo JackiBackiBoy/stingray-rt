@@ -49,24 +49,6 @@ private:
 	std::vector<uint64_t> m_StateArray;
 };
 
-SRDescriptorHeap_Vulkan::SRDescriptorHeap_Vulkan(VkDescriptorType type, uint32_t capacity) :
-	m_Type(type), m_Capacity(capacity) {
-	m_StateArray.resize((capacity + 63ull) >> 6ull, 0ull);
-}
-
-SRDescriptorIndex SRDescriptorHeap_Vulkan::get_next_index() {
-	if (!m_FreeList.empty()) {
-		const SRDescriptorIndex index = m_FreeList.back();
-		m_FreeList.pop_back();
-		set_state_bit(index);
-		return index;
-	}
-
-	assert(m_Size < m_Capacity);
-	set_state_bit(m_Size);
-	return m_Size++;
-}
-
 class SRDestructionHandler_Vulkan {
 public:
 	SRDestructionHandler_Vulkan(VkDevice device, VkInstance instance, VmaAllocator allocator) :
@@ -217,7 +199,7 @@ struct SRBuffer_Vulkan {
 
 	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
 	VkBuffer buffer = VK_NULL_HANDLE;
-	VmaAllocation allocation = VMA_NULL;
+	VmaAllocation allocation = nullptr;
 	SRDescriptorIndex uboDescriptor = INVALID_DESCRIPTOR_INDEX;
 };
 
@@ -253,19 +235,19 @@ struct SRSwapchain_Vulkan {
 };
 
 // ---------------------------- Converter Functions ----------------------------
-SRBuffer_Vulkan* to_internal(const SRBuffer& buffer) {
+inline SRBuffer_Vulkan* to_vk_internal(const SRBuffer& buffer) {
 	return (SRBuffer_Vulkan*)buffer.internalState.get();
 }
 
-SRCmdList_Vulkan* to_internal(const SRCmdList& cmdList) {
+inline SRCmdList_Vulkan* to_vk_internal(const SRCmdList& cmdList) {
 	return (SRCmdList_Vulkan*)cmdList.internalState;
 }
 
-SRPipeline_Vulkan* to_internal(const SRPipeline& pipeline) {
+inline SRPipeline_Vulkan* to_vk_internal(const SRPipeline& pipeline) {
 	return (SRPipeline_Vulkan*)pipeline.internalState.get();
 }
 
-SRSwapchain_Vulkan* to_internal(const SRSwapchain& swapchain) {
+inline SRSwapchain_Vulkan* to_vk_internal(const SRSwapchain& swapchain) {
 	return (SRSwapchain_Vulkan*)swapchain.internalState.get();
 }
 

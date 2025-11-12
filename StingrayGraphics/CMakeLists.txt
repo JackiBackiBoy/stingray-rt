@@ -3,7 +3,7 @@ project(StingrayGraphics LANGUAGES CXX)
 
 # -------------------------------- Build Options -------------------------------
 option(BUILD_VULKAN "Build Vulkan" ON)
-option(BUILD_DX12 "Build D3D12" ON) # TODO: D3D12 backend not yet implemented
+option(BUILD_DX12 "Build D3D12" ON)
 
 # ---------------------------------- Settings ----------------------------------
 set(CMAKE_GENERATOR_PLATFORM "x64")
@@ -29,6 +29,7 @@ set(DXSDK_BIN_DIR ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/bin/x64/)
 set(DXSDK_INCLUDE_DIR ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/include/)
 set(FASTGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/FastGLTF/include/)
 set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/GLM/)
+set(IMGUI_INCLUDE_DIR ${DEPENDENCY_DIR}/ImGui/)
 set(SLANG_INCLUDE_DIR ${DEPENDENCY_DIR}/Slang/include/)
 set(SLANG_LIBRARY_DIR ${DEPENDENCY_DIR}/Slang/lib/)
 set(VMA_INCLUDE_DIR ${DEPENDENCY_DIR}/VMA/include/)
@@ -57,26 +58,39 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Data/Model.hpp
 
 	# Graphics
+	${SOURCE_DIR}/Graphics/FrameInfo.hpp
 	${SOURCE_DIR}/Graphics/GraphicsDevice.hpp
 	${SOURCE_DIR}/Graphics/GraphicsTypes.hpp
+	${SOURCE_DIR}/Graphics/RenderGraph.cpp
+	${SOURCE_DIR}/Graphics/RenderGraph.hpp
 	${SOURCE_DIR}/Graphics/ShaderCompiler.cpp
 	${SOURCE_DIR}/Graphics/ShaderCompiler.hpp
 
-	# Graphics (Vulkan)
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.cpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.hpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsHelpers_Vulkan.hpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.hpp
-
-	# Graphics (DX12)
+	# Graphics/DX12
 	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.cpp
 	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.hpp
 	${SOURCE_DIR}/Graphics/DX12/GraphicsHelpers_DX12.hpp
+	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.cpp
 	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.hpp
+
+	# Graphics/Vulkan
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.cpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.hpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsHelpers_Vulkan.hpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.cpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.hpp
+
+	# Graphics/Renderpasses
+	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.hpp
 
 	# Input
 	${SOURCE_DIR}/Input/Input.cpp
 	${SOURCE_DIR}/Input/Input.hpp
+
+	# UI
+	${SOURCE_DIR}/UI/Editor.cpp
+	${SOURCE_DIR}/UI/Editor.hpp
 
 	# Utilities
 	${SOURCE_DIR}/Utilities/TextUtilities.hpp
@@ -109,29 +123,44 @@ source_group("Data" FILES
 )
 
 source_group("Graphics" FILES
+	${SOURCE_DIR}/Graphics/FrameInfo.hpp
 	${SOURCE_DIR}/Graphics/GraphicsDevice.hpp
 	${SOURCE_DIR}/Graphics/GraphicsTypes.hpp
+	${SOURCE_DIR}/Graphics/RenderGraph.cpp
+	${SOURCE_DIR}/Graphics/RenderGraph.hpp
 	${SOURCE_DIR}/Graphics/ShaderCompiler.cpp
 	${SOURCE_DIR}/Graphics/ShaderCompiler.hpp
-)
-
-source_group("Graphics/Vulkan" FILES
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.cpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.hpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsHelpers_Vulkan.hpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.hpp
 )
 
 source_group("Graphics/DX12" FILES
 	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.cpp
 	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.hpp
 	${SOURCE_DIR}/Graphics/DX12/GraphicsHelpers_DX12.hpp
+	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.cpp
 	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.hpp
+)
+
+source_group("Graphics/Vulkan" FILES
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.cpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.hpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsHelpers_Vulkan.hpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.cpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.hpp
+)
+
+source_group("Graphics/Renderpasses" FILES
+	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.hpp
 )
 
 source_group("Input" FILES
 	${SOURCE_DIR}/Input/Input.cpp
 	${SOURCE_DIR}/Input/Input.hpp
+)
+
+source_group("UI" FILES
+	${SOURCE_DIR}/UI/Editor.cpp
+	${SOURCE_DIR}/UI/Editor.hpp
 )
 
 source_group("Utilities" FILES
@@ -148,11 +177,26 @@ target_compile_options(StingrayGraphics PRIVATE
 	/W4
 )
 
+# ------------------------------- Target Sources -------------------------------
+# ImGui
+set(IMGUI_SOURCE_FILES
+	${IMGUI_INCLUDE_DIR}imgui.cpp
+	${IMGUI_INCLUDE_DIR}imgui_demo.cpp
+	${IMGUI_INCLUDE_DIR}imgui_draw.cpp
+	${IMGUI_INCLUDE_DIR}imgui_widgets.cpp
+	${IMGUI_INCLUDE_DIR}imgui_tables.cpp
+	${IMGUI_INCLUDE_DIR}backends/imgui_impl_dx12.cpp
+	${IMGUI_INCLUDE_DIR}backends/imgui_impl_vulkan.cpp
+	${IMGUI_INCLUDE_DIR}backends/imgui_impl_win32.cpp
+)
+source_group("ImGui" FILES ${IMGUI_SOURCE_FILES})
+
 # Win32 resource file and application manifest
 set(WIN32_RES_DIR ${CMAKE_SOURCE_DIR}/Resources/Win32/)
 set_source_files_properties(${WIN32_RES_DIR}Resources.rc PROPERTIES LANGUAGE RC)
 target_sources(StingrayGraphics PRIVATE
 	${WIN32_RES_DIR}Resources.rc
+	${IMGUI_SOURCE_FILES}
 )
 
 set_target_properties(StingrayGraphics PROPERTIES
@@ -164,6 +208,9 @@ target_compile_definitions(StingrayGraphics PRIVATE
 	GLM_FORCE_LEFT_HANDED
 	GLM_FORCE_RADIANS
 	GLM_FORCE_DEPTH_ZERO_TO_ONE
+	VK_NO_PROTOTYPES
+	IMGUI_IMPL_VULKAN_NO_PROTOTYPES
+	IMGUI_IMPL_VULKAN_USE_VOLK
 	ENGINE_BASE_DIR="${CMAKE_SOURCE_DIR}/"
 	RES_DIR="${CMAKE_SOURCE_DIR}/Resources/"
 
@@ -179,6 +226,8 @@ target_include_directories(StingrayGraphics PRIVATE
 	${DXSDK_INCLUDE_DIR}
 	${FASTGLTF_INCLUDE_DIR}
 	${GLM_INCLUDE_DIR}
+	${IMGUI_INCLUDE_DIR}
+	${IMGUI_INCLUDE_DIR}backends/
 	${SLANG_INCLUDE_DIR}
 	${VMA_INCLUDE_DIR}
 	${WIN32_RES_DIR}

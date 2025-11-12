@@ -30,6 +30,7 @@ public:
 	SRShaderPlatformInfo get_shader_platform_info() override;
 	void wait_for_gpu() override;
 	void flush_initial_uploads() override;
+	void setup_imgui_init_info(SRFormat swapchainFormat) override;
 
 private:
 	struct Impl;

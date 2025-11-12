@@ -1,10 +1,13 @@
 #include "Window.hpp"
 #include "Utilities/TextUtilities.hpp"
 
+#include <imgui_impl_win32.h>
+
 #include <vector>
 #include <Windows.h>
 
 // TODO: Rename this to Window_Win32 and introduce other OS variants
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // ------------------------------ Impl Definition ------------------------------
 struct SRWindow::Impl {
@@ -19,6 +22,12 @@ struct SRWindow::Impl {
 
 // -------------------------- Impl Method Definitions --------------------------
 LRESULT SRWindow::Impl::window_proc_thunk(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) {
+		return true;
+	}
+	// TODO: // (You should discard mouse/keyboard messages in your game/engine when io.WantCaptureMouse/io.WantCaptureKeyboard are set.)
+	// From ImGui documentation
+
 	// TRICK: WM_NCCREATE is guaranteed to be the first message that has the
 	// valid HWND. Meaning that we can store the SRWindow pointer inside the
 	// GWLP_USERDATA to then be used by other messages and also set m_Hwnd
@@ -33,7 +42,7 @@ LRESULT SRWindow::Impl::window_proc_thunk(HWND hWnd, UINT msg, WPARAM wParam, LP
 
 	auto impl = reinterpret_cast<class SRWindow::Impl*>(
 		GetWindowLongPtr(hWnd, GWLP_USERDATA)
-		);
+	);
 
 	if (impl) {
 		return impl->window_proc(msg, wParam, lParam);

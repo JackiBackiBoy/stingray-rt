@@ -4,6 +4,9 @@
 #include "Core/Logger.hpp"
 #include "Utilities/TextUtilities.hpp"
 
+#include <imgui.h>
+#include <imgui_impl_dx12.h>
+
 #include "d3d12.h"
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
@@ -54,6 +57,8 @@ struct SRGraphicsDevice_DX12::Impl {
 	void flush_initial_uploads();
 	std::vector<std::shared_ptr<void>> m_PendingUploadResources;
 	// END OF TEMPORARY STUFF
+
+	void setup_imgui_init_info(SRFormat swapchainFormat);
 
 	SRWindow& m_Window;
 	#ifdef _DEBUG
@@ -416,6 +421,33 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 		.NodeMask = 0
 	};
 
+	const D3D12_DESCRIPTOR_RANGE1 texture2DRange = {
+		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		.NumDescriptors = UINT_MAX,
+		.RegisterSpace = 0,
+		.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE,
+		.OffsetInDescriptorsFromTableStart = 0
+	};
+	const D3D12_DESCRIPTOR_RANGE1 texture3DRange = {
+		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		.NumDescriptors = UINT_MAX,
+		.RegisterSpace = 1,
+		.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE,
+		.OffsetInDescriptorsFromTableStart = 0
+	};
+	const D3D12_DESCRIPTOR_RANGE1 srvRanges[] = {
+		texture2DRange,
+		texture3DRange
+	};
+
+	const D3D12_ROOT_PARAMETER1 srvTable = {
+		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+		.DescriptorTable = {
+			.NumDescriptorRanges = static_cast<UINT>(std::size(srvRanges)),
+			.pDescriptorRanges = srvRanges
+		},
+		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
+	};
 	const D3D12_ROOT_PARAMETER1 perFrameCBV = {
 		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV,
 		.Descriptor = {
@@ -425,20 +457,21 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 		},
 		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
 	};
-	std::vector<D3D12_ROOT_PARAMETER1> rootParameters = {
+	const D3D12_ROOT_PARAMETER1 rootParameters[] = {
+		srvTable,
 		perFrameCBV
 	};
 
 	struct D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc {
 		.Version = D3D_ROOT_SIGNATURE_VERSION_1_1,
 		.Desc_1_1 = {
-			.NumParameters = static_cast<UINT>(rootParameters.size()),
-			.pParameters = rootParameters.data(),
-			.NumStaticSamplers = 0U,
+			.NumParameters = static_cast<UINT>(std::size(rootParameters)),
+			.pParameters = rootParameters,
+			.NumStaticSamplers = 0,
 			.pStaticSamplers = nullptr,
 			.Flags = (
-				D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
-				D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED //|
+				D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT //|
+				//D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED //|
 				//D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED
 			)
 		}
@@ -625,7 +658,7 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 		create_buffer(stagingBufferInfo, stagingBuffer, data);
 
 		m_PendingUploadResources.push_back(stagingBuffer.internalState);
-		auto internalStagingBuffer = to_internal(stagingBuffer);
+		auto internalStagingBuffer = to_dx12_internal(stagingBuffer);
 
 		// Copy staging buffer into target buffer
 		if (!m_IsUploadCmdListRecording) {
@@ -660,16 +693,19 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 }
 
 void SRGraphicsDevice_DX12::Impl::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
-	auto* internalPipeline = to_internal(pipeline);
-	auto* internalCmdList = to_internal(cmdList);
+	auto* internalPipeline = to_dx12_internal(pipeline);
+	auto* internalCmdList = to_dx12_internal(cmdList);
 
 	internalCmdList->graphicsCmdList->SetPipelineState(internalPipeline->pipeline.Get());
 	internalCmdList->graphicsCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	internalCmdList->graphicsCmdList->SetGraphicsRootSignature(internalPipeline->rootSignature.Get());
+	internalCmdList->graphicsCmdList->SetGraphicsRootDescriptorTable(
+		0, m_ResourceDescriptorHeap.get_heap_object()->GetGPUDescriptorHandleForHeapStart()
+	);
 }
 
 void SRGraphicsDevice_DX12::Impl::bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList) {
-	auto* internalCmdList = to_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmdList);
 
 	const D3D12_RECT scissorRect = {
 		.left = static_cast<LONG>(viewport.topLeftX),
@@ -684,8 +720,8 @@ void SRGraphicsDevice_DX12::Impl::bind_viewport(const SRViewport& viewport, cons
 
 void SRGraphicsDevice_DX12::Impl::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
 	assert(buffer.info.bindFlags & SRBindFlag_VertexBuffer);
-	auto* internalBuffer = to_internal(buffer);
-	auto* internalCmdList = to_internal(cmdList);
+	auto* internalBuffer = to_dx12_internal(buffer);
+	auto* internalCmdList = to_dx12_internal(cmdList);
 
 	const D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {
 		.BufferLocation = internalBuffer->allocation->GetResource()->GetGPUVirtualAddress(),
@@ -698,8 +734,8 @@ void SRGraphicsDevice_DX12::Impl::bind_vertex_buffer(const SRBuffer& buffer, con
 
 void SRGraphicsDevice_DX12::Impl::bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
 	assert(buffer.info.bindFlags & SRBindFlag_IndexBuffer);
-	auto* internalBuffer = to_internal(buffer);
-	auto* internalCmdList = to_internal(cmdList);
+	auto* internalBuffer = to_dx12_internal(buffer);
+	auto* internalCmdList = to_dx12_internal(cmdList);
 
 	const D3D12_INDEX_BUFFER_VIEW indexBufferView = {
 		.BufferLocation = internalBuffer->allocation->GetResource()->GetGPUVirtualAddress(),
@@ -712,11 +748,11 @@ void SRGraphicsDevice_DX12::Impl::bind_index_buffer(const SRBuffer& buffer, cons
 
 void SRGraphicsDevice_DX12::Impl::bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
 	assert(buffer.info.bindFlags & SRBindFlag_ConstantBuffer);
-	auto* internalBuffer = to_internal(buffer);
-	auto* internalCmdList = to_internal(cmdList);
+	auto* internalBuffer = to_dx12_internal(buffer);
+	auto* internalCmdList = to_dx12_internal(cmdList);
 
 	internalCmdList->graphicsCmdList->SetGraphicsRootConstantBufferView(
-		0,
+		1,
 		internalBuffer->allocation->GetResource()->GetGPUVirtualAddress()
 	);
 }
@@ -760,8 +796,8 @@ SRCmdList SRGraphicsDevice_DX12::Impl::begin_command_list(SRQueue queue) {
 }
 
 void SRGraphicsDevice_DX12::Impl::begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
-	auto internalSwapchain = to_internal(swapchain);
-	auto internalCmdList = to_internal(cmdList);
+	auto internalSwapchain = to_dx12_internal(swapchain);
+	auto internalCmdList = to_dx12_internal(cmdList);
 	m_ImageIndex = internalSwapchain->swapchain->GetCurrentBackBufferIndex();
 
 	// NOTE: Stingray always assumes that the swapchain will never be cleared,
@@ -806,8 +842,8 @@ void SRGraphicsDevice_DX12::Impl::begin_render_pass(const SRSwapchain& swapchain
 }
 
 void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
-	auto internalSwapchain = to_internal(swapchain);
-	auto internalCmdList = to_internal(cmdList);
+	auto internalSwapchain = to_dx12_internal(swapchain);
+	auto internalCmdList = to_dx12_internal(cmdList);
 	internalCmdList->graphicsCmdList->EndRenderPass();
 
 	const SRImageTransitionInfo_DX12 transitionInfo = {
@@ -823,7 +859,7 @@ void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRSwapchain& swapchain, 
 }
 
 void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapchain) {
-	auto internalSwapchain = to_internal(swapchain);
+	auto internalSwapchain = to_dx12_internal(swapchain);
 	const uint32_t numSubmittedCmdLists = m_PerFrameCmdListCounters[m_FrameIndex];
 	m_PerFrameCmdListCounters[m_FrameIndex] = 0;
 
@@ -909,12 +945,12 @@ void SRGraphicsDevice_DX12::Impl::flush_initial_uploads() {
 }
 
 void SRGraphicsDevice_DX12::Impl::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
-	auto* internalCmdList = to_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmdList);
 	internalCmdList->graphicsCmdList->DrawInstanced(vtxCount, 1, startVtx, 0);
 }
 
 void SRGraphicsDevice_DX12::Impl::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
-	auto* internalCmdList = to_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmdList);
 	internalCmdList->graphicsCmdList->DrawIndexedInstanced(
 		idxCount,
 		1,
@@ -922,6 +958,46 @@ void SRGraphicsDevice_DX12::Impl::draw_indexed(uint32_t idxCount, uint32_t start
 		baseVtx,
 		0
 	);
+}
+
+void SRGraphicsDevice_DX12::Impl::setup_imgui_init_info(SRFormat swapchainFormat) {
+	ImGui_ImplDX12_InitInfo initInfo = {};
+	initInfo.Device = m_Device.Get();
+	initInfo.CommandQueue = m_CommandQueues[SRQueue_Universal].Get();
+	initInfo.NumFramesInFlight = FRAMES_IN_FLIGHT;
+	initInfo.RTVFormat = to_dx12_format(swapchainFormat);
+	initInfo.UserData = &m_ResourceDescriptorHeap;
+	initInfo.SrvDescriptorHeap = m_ResourceDescriptorHeap.get_heap_object();
+
+	initInfo.SrvDescriptorAllocFn = [](
+		ImGui_ImplDX12_InitInfo* initInfo,
+		D3D12_CPU_DESCRIPTOR_HANDLE* cpuHandle,
+		D3D12_GPU_DESCRIPTOR_HANDLE* gpuHandle
+	) {
+		SRDescriptorHeap_DX12* descriptorHeap = reinterpret_cast<SRDescriptorHeap_DX12*>(
+			initInfo->UserData
+		);
+
+		const SRDescriptorIndex descriptorIndex = descriptorHeap->get_next_index();
+		*cpuHandle = descriptorHeap->get_cpu_handle(descriptorIndex);
+		*gpuHandle = descriptorHeap->get_gpu_handle(descriptorIndex);
+	};
+
+	initInfo.SrvDescriptorFreeFn = [](
+		ImGui_ImplDX12_InitInfo* initInfo,
+		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle
+	) {
+		SRDescriptorHeap_DX12* descriptorHeap = reinterpret_cast<SRDescriptorHeap_DX12*>(
+			initInfo->UserData
+		);
+
+		// NOTE: CPU and GPU handle are related, freeing CPU also frees GPU
+		const SRDescriptorIndex descriptorIndex = descriptorHeap->get_index_from_handle(cpuHandle);
+		descriptorHeap->free_index(descriptorIndex);
+	};
+
+	ImGui_ImplDX12_Init(&initInfo);
 }
 
 // --------------------------------- Public API --------------------------------
@@ -1013,5 +1089,9 @@ void SRGraphicsDevice_DX12::wait_for_gpu() {
 
 void SRGraphicsDevice_DX12::flush_initial_uploads() {
 	m_Impl->flush_initial_uploads();
+}
+
+void SRGraphicsDevice_DX12::setup_imgui_init_info(SRFormat swapchainFormat) {
+	m_Impl->setup_imgui_init_info(swapchainFormat);
 }
 
