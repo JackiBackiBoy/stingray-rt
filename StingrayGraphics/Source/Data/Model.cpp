@@ -43,7 +43,7 @@ namespace {
 				gltfAsset,
 				positionAccessor,
 				[&](fastgltf::math::fvec3 pos, size_t i) {
-					verticesPtr[i].position = glm::vec3(pos.x(), pos.y(), pos.z());
+					verticesPtr[i].position = glm::vec3(pos.x(), pos.z(), pos.y());
 				}
 			);
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(

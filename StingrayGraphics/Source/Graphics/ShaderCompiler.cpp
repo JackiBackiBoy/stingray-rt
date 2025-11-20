@@ -114,6 +114,7 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 	}
 
 	const char* args[] = {
+		"-warnings-disable", "39001", // Disable warning for overlapping bindings
 		"-O0", // NOTE: Will change in the future, for development we want ZERO optimization
 		"-g2", // Debug information level
 	};

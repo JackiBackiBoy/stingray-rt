@@ -1,3 +1,7 @@
+#include "Includes/Bindless.slang"
+
+SR_PUSH_CONSTANT(SRDescriptorIndex, g_AlbedoTexIndex);
+
 struct VSOutput {
 	float4 position : SV_Position;
 	float2 uv : TEXCOORD;
@@ -17,7 +21,10 @@ VSOutput vertexMain(uint VertexID : SV_VertexID) {
 }
 
 PSOutput pixelMain(VSOutput input) {
+	SamplerState sampler = g_Sampler[0]; // TODO: Remove hardcoded
+	float4 albedo = g_Texture2D[g_AlbedoTexIndex].Sample(sampler, input.uv);
+
 	PSOutput output;
-	output.color = float4(input.uv.x, input.uv.y, 0.0f, 1.0f);
+	output.color = albedo;
 	return output;
 }

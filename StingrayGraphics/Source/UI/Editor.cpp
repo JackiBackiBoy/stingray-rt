@@ -52,7 +52,7 @@ SREditor::SREditor(SRWindow& window, SRGraphicsDevice& gfxDevice, SRGraphicsAPI 
 
 	ImGui_ImplWin32_Init(window.get_internal_handle());
 	// TODO: Make format dynamic
-	gfxDevice.setup_imgui_init_info(SRFormat::BGRA8_UNORM);
+	gfxDevice.setup_imgui_init_info(SRFormat::RGBA8_UNORM);
 }
 
 SREditor::~SREditor() {

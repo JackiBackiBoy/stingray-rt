@@ -635,7 +635,6 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 		allocDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
 		break;
 	}
-
 	SR_DX12_CHECK(m_Allocator->CreateResource3(
 		&allocDesc,
 		&resourceDesc,
@@ -1035,6 +1034,14 @@ void SRGraphicsDevice_DX12::create_buffer(const SRBufferInfo& info, SRBuffer& bu
 	m_Impl->create_buffer(info, buffer, data);
 }
 
+void SRGraphicsDevice_DX12::create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data) {
+	// TODO
+}
+
+void SRGraphicsDevice_DX12::create_sampler(const SRSamplerInfo& info, SRSampler& sampler) {
+
+}
+
 void SRGraphicsDevice_DX12::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
 	m_Impl->bind_pipeline(pipeline, cmdList);
 }
@@ -1055,6 +1062,14 @@ void SRGraphicsDevice_DX12::bind_root_constant_buffer(const SRBuffer& buffer, co
 	m_Impl->bind_root_constant_buffer(buffer, cmdList);
 }
 
+void SRGraphicsDevice_DX12::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
+
+}
+
+void SRGraphicsDevice_DX12::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
+
+}
+
 SRCmdList SRGraphicsDevice_DX12::begin_command_list(SRQueue queue) {
 	return m_Impl->begin_command_list(queue);
 }
@@ -1063,8 +1078,16 @@ void SRGraphicsDevice_DX12::begin_render_pass(const SRSwapchain& swapchain, cons
 	m_Impl->begin_render_pass(swapchain, cmdList);
 }
 
+void SRGraphicsDevice_DX12::begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+
+}
+
 void SRGraphicsDevice_DX12::end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
 	m_Impl->end_render_pass(swapchain, cmdList);
+}
+
+void SRGraphicsDevice_DX12::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+
 }
 
 void SRGraphicsDevice_DX12::submit_command_lists(const SRSwapchain& swapchain) {
@@ -1077,6 +1100,11 @@ void SRGraphicsDevice_DX12::draw(uint32_t vtxCount, uint32_t startVtx, const SRC
 
 void SRGraphicsDevice_DX12::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
 	m_Impl->draw_indexed(idxCount, startIdx, baseVtx, cmdList);
+}
+
+SRDescriptorIndex SRGraphicsDevice_DX12::get_descriptor_index_srv(const SRResource& resource) {
+	assert(false);
+	return ~0;
 }
 
 SRShaderPlatformInfo SRGraphicsDevice_DX12::get_shader_platform_info() {

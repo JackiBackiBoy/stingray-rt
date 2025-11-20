@@ -28,7 +28,32 @@ enum class SRSizeClass : uint8_t {
 	SWAPCHAIN_RELATIVE
 };
 
+struct SRRenderPassAttachmentSubresource {
+	SRResourceState state = SRResourceState::UNDEFINED;
+	SRBarrierAccess lastBarrierAccess = SRBarrierAccess_None;
+	SRBarrierSync lastBarrierStage = SRBarrierSync_None;
+};
+
 struct SRRenderPassAttachment {
+	inline bool is_read_in_pass(uint32_t passIdx) const {
+		for (uint32_t i = 0; i < readInPasses.size(); ++i) {
+			if (readInPasses[i] == passIdx) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+	inline bool is_written_in_pass(uint32_t passIdx) const {
+		for (uint32_t i = 0; i < writtenInPasses.size(); ++i) {
+			if (writtenInPasses[i] == passIdx) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	SRTexture texture;
 	uint32_t width;
 	uint32_t height;
@@ -41,7 +66,7 @@ struct SRRenderPassAttachment {
 		DEPTH_STENCIL,
 		RW_TEXTURE
 	} type = Type::RENDER_TARGET;
-	std::vector<SRResourceState> subresourceStates;
+	std::vector<SRRenderPassAttachmentSubresource> subresourceStates;
 	std::string name;
 
 	std::vector<uint32_t> readInPasses = {};
@@ -58,7 +83,6 @@ struct SRRenderPassAttachmentInput {
 // NOTE: The only purpose of a PrefabPass is to store pass data, whose life-
 // time is bound to the render graph. The pass itself has no impact on the
 // render graph execution order, and is only used for utility.
-// NOTE: Might be removed in the future.
 class PrefabPass {
 public:
 	PrefabPass(const std::string& name) : m_Name(name) {}
@@ -114,6 +138,7 @@ public:
 	}
 
 	inline std::string get_name() const { return m_Name; }
+	inline uint32_t get_index() const { return m_Index; }
 	inline SRPassType get_type() const { return m_Type; }
 	SRRenderPassAttachment* get_attachment(const std::string& name);
 	const std::vector<SRRenderPassAttachment*>& get_output_attachments() const;

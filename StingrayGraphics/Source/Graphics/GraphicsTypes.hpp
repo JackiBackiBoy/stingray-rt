@@ -16,7 +16,7 @@ inline constexpr SRDescriptorIndex INVALID_DESCRIPTOR_INDEX = ~0U;
 
 enum SRBarrierSync_ : SRBarrierSync {
 	SRBarrierSync_None          = 0,
-	SRBarrierSync_All           = 1 << 0,
+	SRBarrierSync_AllCommands   = 1 << 0,
 	SRBarrierSync_Draw          = 1 << 1,
 	SRBarrierSync_IndexInput    = 1 << 2,
 	SRBarrierSync_VertexShader  = 1 << 3,
@@ -270,18 +270,24 @@ enum class SRResourceState : uint8_t {
 	COPY_DST         = 1 << 6,
 };
 
-enum class SRPassBeginAccess : uint8_t {
-	DISCARD,
-	PRESERVE,
-	CLEAR,
-	NO_ACCESS
+enum class SRResourceType : uint8_t {
+	Unknown,
+	Buffer,
+	Texture,
+	Sampler
 };
 
-enum class SRPassEndAccess : uint8_t {
-	DISCARD,
-	PRESERVE,
-	RESOLVE,
-	NO_ACCESS
+enum class SRLoadOp : uint8_t {
+	None,
+	Load,
+	Clear,
+	DontCare
+};
+
+enum class SRStoreOp : uint8_t {
+	None,
+	Store,
+	DontCare
 };
 
 enum class SRShaderStage : uint8_t {
@@ -298,6 +304,14 @@ enum class SRShaderCompileTarget : uint8_t {
 	DXIL
 };
 
+enum class SRTextureAddressMode : uint8_t {
+	WRAP,
+	MIRROR,
+	CLAMP,
+	BORDER,
+	MIRROR_ONCE
+};
+
 enum class SRUsage : uint8_t {
 	DEFAULT, // CPU no access, GPU read/write
 	UPLOAD, // CPU write, GPU read
@@ -308,6 +322,12 @@ enum class SRBarrierType : uint8_t {
 	UAV,
 	IMAGE,
 	BUFFER
+};
+
+struct SRSubresourceData {
+	const void* data = nullptr;
+	uint32_t rowPitch = 0;
+	uint32_t slicePitch = 0; // NOTE: Only used for 3D textures
 };
 
 struct SRSubresourceRange {
@@ -321,6 +341,11 @@ struct SRSubresourceRange {
 	}
 };
 
+struct SRResource {
+	std::shared_ptr<void> internalState = nullptr;
+	SRResourceType type = SRResourceType::Unknown;
+};
+
 struct SRBufferInfo {
 	uint64_t size = 0;
 	uint32_t stride = 0;
@@ -329,9 +354,8 @@ struct SRBufferInfo {
 	SRMiscFlag miscFlags = SRMiscFlag_None;
 };
 
-struct SRBuffer {
+struct SRBuffer : public SRResource {
 	SRBufferInfo info = {};
-	std::shared_ptr<void> internalState = nullptr;
 	void* mappedData = nullptr;
 	uint64_t mappedSize = 0;
 };
@@ -348,9 +372,25 @@ struct SRTextureInfo {
 	SRBindFlag bindFlags = SRBindFlag_None;
 };
 
-struct SRTexture {
+struct SRTexture : public SRResource {
 	SRTextureInfo info = {};
-	std::shared_ptr<void> internalState = nullptr;
+};
+
+struct SRSamplerInfo {
+	SRFilter filter = SRFilter::MIN_MAG_MIP_LINEAR;
+	SRTextureAddressMode addressU = SRTextureAddressMode::WRAP;
+	SRTextureAddressMode addressV = SRTextureAddressMode::WRAP;
+	SRTextureAddressMode addressW = SRTextureAddressMode::WRAP;
+	float mipLODBias = 0.0f;
+	uint32_t maxAnisotropy = 0;
+	SRComparisonFunc comparisonFunc = SRComparisonFunc::NEVER;
+	SRBorderColor borderColor = SRBorderColor::TRANSPARENT_BLACK;
+	float minLOD = 0.0f;
+	float maxLOD = std::numeric_limits<float>::max();
+};
+
+struct SRSampler : public SRResource {
+	SRSamplerInfo info = {};
 };
 
 struct SRBarrier {
@@ -476,14 +516,16 @@ struct SRSwapchain {
 };
 
 struct SRPassInfo {
-	const SRTexture* colors[8] = { nullptr };
-	const SRTexture* depth = nullptr;
+	struct Attachment {
+		const SRTexture* texture = nullptr;
+		float clearValue = 0.0f;
+		SRLoadOp loadOp = SRLoadOp::Clear;
+		SRStoreOp storeOp = SRStoreOp::Store;
+	};
+
+	Attachment colorAttachments[8] = {};
+	Attachment depthAttachment = {};
 	uint32_t numColorAttachments = 0;
-	SRPassBeginAccess colorBeginAccess = {};
-	SRPassEndAccess colorEndAccess = {};
-	SRPassBeginAccess depthBeginAccess = {};
-	SRPassEndAccess depthEndAccess = {};
-	float depthClearValue = 0.0f;
 };
 
 struct SRViewport {
@@ -494,3 +536,104 @@ struct SRViewport {
 	float minDepth = 0.0f;
 	float maxDepth = 1.0f;
 };
+
+namespace SRGraphicsHelpers {
+	inline constexpr bool is_depth_format(SRFormat format) {
+		switch (format) {
+		case SRFormat::D16_UNORM:
+		case SRFormat::D24_UNORM_S8_UINT:
+		case SRFormat::D32_FLOAT:
+		case SRFormat::D32_FLOAT_S8X24_UINT:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	inline constexpr uint32_t get_format_stride(SRFormat format) {
+		switch (format) {
+		case SRFormat::BC1_UNORM:
+		case SRFormat::BC1_UNORM_SRGB:
+		case SRFormat::BC4_SNORM:
+		case SRFormat::BC4_UNORM:
+			return 8;
+
+		case SRFormat::RGBA32_FLOAT:
+		case SRFormat::RGBA32_UINT:
+		case SRFormat::RGBA32_SINT:
+		case SRFormat::BC2_UNORM:
+		case SRFormat::BC2_UNORM_SRGB:
+		case SRFormat::BC3_UNORM:
+		case SRFormat::BC3_UNORM_SRGB:
+		case SRFormat::BC5_SNORM:
+		case SRFormat::BC5_UNORM:
+		case SRFormat::BC6H_UF16:
+		case SRFormat::BC6H_SF16:
+		case SRFormat::BC7_UNORM:
+		case SRFormat::BC7_UNORM_SRGB:
+			return 16;
+
+		case SRFormat::RGB32_FLOAT:
+		case SRFormat::RGB32_UINT:
+		case SRFormat::RGB32_SINT:
+			return 12;
+
+		case SRFormat::RGBA16_FLOAT:
+		case SRFormat::RGBA16_UNORM:
+		case SRFormat::RGBA16_UINT:
+		case SRFormat::RGBA16_SNORM:
+		case SRFormat::RGBA16_SINT:
+			return 8;
+
+		case SRFormat::RG32_FLOAT:
+		case SRFormat::RG32_UINT:
+		case SRFormat::RG32_SINT:
+		case SRFormat::D32_FLOAT_S8X24_UINT:
+			return 8;
+
+		case SRFormat::RGB10A2_UNORM:
+		case SRFormat::RGB10A2_UINT:
+		case SRFormat::RG11B10_FLOAT:
+		case SRFormat::RGBA8_UNORM:
+		case SRFormat::RGBA8_UNORM_SRGB:
+		case SRFormat::RGBA8_UINT:
+		case SRFormat::RGBA8_SNORM:
+		case SRFormat::RGBA8_SINT:
+		case SRFormat::BGRA8_UNORM:
+		case SRFormat::BGRA8_UNORM_SRGB:
+		case SRFormat::RG16_FLOAT:
+		case SRFormat::RG16_UNORM:
+		case SRFormat::RG16_UINT:
+		case SRFormat::RG16_SNORM:
+		case SRFormat::RG16_SINT:
+		case SRFormat::D32_FLOAT:
+		case SRFormat::R32_FLOAT:
+		case SRFormat::R32_UINT:
+		case SRFormat::R32_SINT:
+		case SRFormat::D24_UNORM_S8_UINT:
+		case SRFormat::RGB9E5_SHAREDEXP:
+			return 4;
+
+		case SRFormat::RG8_UNORM:
+		case SRFormat::RG8_UINT:
+		case SRFormat::RG8_SNORM:
+		case SRFormat::RG8_SINT:
+		case SRFormat::R16_FLOAT:
+		case SRFormat::D16_UNORM:
+		case SRFormat::R16_UNORM:
+		case SRFormat::R16_UINT:
+		case SRFormat::R16_SNORM:
+		case SRFormat::R16_SINT:
+			return 2;
+
+		case SRFormat::R8_UNORM:
+		case SRFormat::R8_UINT:
+		case SRFormat::R8_SNORM:
+		case SRFormat::R8_SINT:
+			return 1;
+
+		default:
+			return 16;
+		}
+	}
+}

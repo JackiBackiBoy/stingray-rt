@@ -203,6 +203,29 @@ struct SRBuffer_Vulkan {
 	SRDescriptorIndex uboDescriptor = INVALID_DESCRIPTOR_INDEX;
 };
 
+struct SRTexture_Vulkan {
+	~SRTexture_Vulkan() {
+		destructionHandler->enqueue(image, allocation);
+		destructionHandler->enqueue(imageView);
+	}
+
+	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
+	VkImage image = VK_NULL_HANDLE;
+	VkImageView imageView = VK_NULL_HANDLE;
+	VmaAllocation allocation = nullptr;
+	SRDescriptorIndex srvDescriptor = INVALID_DESCRIPTOR_INDEX;
+};
+
+struct SRSampler_Vulkan {
+	~SRSampler_Vulkan() {
+		destructionHandler->enqueue(sampler);
+	}
+
+	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
+	VkSampler sampler = VK_NULL_HANDLE;
+	SRDescriptorIndex samplerDescriptor = INVALID_DESCRIPTOR_INDEX;
+};
+
 struct SRCmdList_Vulkan {
 	VkCommandBuffer cmdBuffer = VK_NULL_HANDLE;
 };
@@ -249,6 +272,163 @@ inline SRPipeline_Vulkan* to_vk_internal(const SRPipeline& pipeline) {
 
 inline SRSwapchain_Vulkan* to_vk_internal(const SRSwapchain& swapchain) {
 	return (SRSwapchain_Vulkan*)swapchain.internalState.get();
+}
+
+inline SRTexture_Vulkan* to_vk_internal(const SRTexture& texture) {
+	return (SRTexture_Vulkan*)texture.internalState.get();
+}
+
+inline constexpr VkAttachmentLoadOp to_vk_load_op(SRLoadOp value) {
+	switch (value) {
+	case SRLoadOp::None:
+		return VK_ATTACHMENT_LOAD_OP_NONE; // NOTE: Very new feature, core from Vulkan 1.4
+	case SRLoadOp::Load:
+		return VK_ATTACHMENT_LOAD_OP_LOAD;
+	case SRLoadOp::Clear:
+		return VK_ATTACHMENT_LOAD_OP_CLEAR;
+	case SRLoadOp::DontCare:
+		return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	}
+}
+
+inline constexpr VkAttachmentStoreOp to_vk_store_op(SRStoreOp value) {
+	switch (value) {
+	case SRStoreOp::None:
+		return VK_ATTACHMENT_STORE_OP_NONE;
+	case SRStoreOp::Store:
+		return VK_ATTACHMENT_STORE_OP_STORE;
+	case SRStoreOp::DontCare:
+		return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	}
+}
+
+inline constexpr VkAccessFlags2 to_vk_access_mask(SRBarrierAccess value) {
+	VkAccessFlags2 result = VK_ACCESS_2_NONE;
+
+	if (value & SRBarrierAccess_VertexBuffer) {
+		result |= VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+	}
+	if (value & SRBarrierAccess_ConstantBuffer) {
+		result |= VK_ACCESS_2_UNIFORM_READ_BIT;
+	}
+	if (value & SRBarrierAccess_IndexBuffer) {
+		result |= VK_ACCESS_2_INDEX_READ_BIT;
+	}
+	if (value & SRBarrierAccess_RenderTarget) {
+		result |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT; // TODO; Might need VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT too?
+	}
+	if (value & SRBarrierAccess_UnorderedAccess) {
+		result |= VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+	}
+	if (value & SRBarrierAccess_DepthStencilRead) {
+		result |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+	}
+	if (value & SRBarrierAccess_DepthStencilWrite) {
+		result |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	}
+	if (value & SRBarrierAccess_ShaderResource) {
+		result |= VK_ACCESS_2_SHADER_READ_BIT;
+	}
+	if (value & SRBarrierAccess_CopySrc) {
+		result |= VK_ACCESS_2_TRANSFER_READ_BIT;
+	}
+	if (value & SRBarrierAccess_CopyDest) {
+		result |= VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	}
+
+	return result;
+}
+
+inline constexpr VkImageLayout to_vk_resource_state(SRResourceState value) {
+	switch (value) {
+	case SRResourceState::UNDEFINED:
+		return VK_IMAGE_LAYOUT_UNDEFINED;
+	case SRResourceState::RENDER_TARGET:
+		return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	case SRResourceState::DEPTH_WRITE: // TODO: Might be wrong
+		return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	case SRResourceState::DEPTH_READ:
+		return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+	case SRResourceState::SHADER_RESOURCE:
+		return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	case SRResourceState::UNORDERED_ACCESS:
+		return VK_IMAGE_LAYOUT_GENERAL;
+	default:
+		return VK_IMAGE_LAYOUT_GENERAL;
+	}
+}
+
+inline constexpr VkBorderColor to_vk_sampler_border_color(SRBorderColor value) {
+	switch (value) {
+	case SRBorderColor::TRANSPARENT_BLACK:
+		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	case SRBorderColor::OPAQUE_BLACK:
+		return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+	case SRBorderColor::OPAQUE_WHITE:
+		return VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	default:
+		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	}
+}
+
+inline constexpr VkSamplerAddressMode to_vk_texture_address_mode(SRTextureAddressMode value) {
+	switch (value) {
+	case SRTextureAddressMode::WRAP:
+		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	case SRTextureAddressMode::MIRROR:
+		return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	case SRTextureAddressMode::CLAMP:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	case SRTextureAddressMode::BORDER:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		//case TextureAddressMode::MIRROR_ONCE:
+		//	if (features_1_2.samplerMirrorClampToEdge == VK_TRUE) {
+		//		return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+		//	}
+		//	return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	default:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	}
+}
+
+inline constexpr VkPipelineStageFlags2 to_vk_pipeline_stage(SRBarrierSync value) {
+	VkPipelineStageFlags2 result = VK_PIPELINE_STAGE_2_NONE;
+
+	if (value & SRBarrierSync_AllCommands) {
+		result |= VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+	}
+	if (value & SRBarrierSync_Draw) {
+		// TODO: LOOK INTO THIS
+		// Invalid for now
+		assert(false);
+	}
+	if (value & SRBarrierSync_IndexInput) {
+		assert(false);
+	}
+	if (value & SRBarrierSync_VertexShader) {
+		result |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+	}
+	if (value & SRBarrierSync_PixelShader) {
+		result |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	}
+	if (value & SRBarrierSync_DepthStencil) {
+		// TODO: Investigate
+		result |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	}
+	if (value & SRBarrierSync_RenderTarget) {
+		result |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	}
+	if (value & SRBarrierSync_ComputeShader) {
+		result |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	}
+	if (value & SRBarrierSync_RayTracing) {
+		assert(false);
+	}
+	if (value & SRBarrierSync_Copy) {
+		result |= VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	}
+
+	return result;
 }
 
 inline constexpr VkBlendFactor to_vk_blend(SRBlend value) {

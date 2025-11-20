@@ -81,17 +81,6 @@ namespace SRInput {
 		g_FrameMouseState.dy = 0;
 
 		const UINT riHeaderSize = sizeof(RAWINPUTHEADER);
-		UINT firstMessageSize = 0;
-		UINT res = GetRawInputBuffer(nullptr, &firstMessageSize, riHeaderSize);
-
-		if (res == (UINT)-1) {
-			SRLOG_ERROR("GetRawInputBuffer failed. Error: %lu", GetLastError());
-			assert(false);
-		}
-
-		if (firstMessageSize == 0) {
-			return;
-		}
 
 		UINT processed = 0;
 		UINT iterations = 0;

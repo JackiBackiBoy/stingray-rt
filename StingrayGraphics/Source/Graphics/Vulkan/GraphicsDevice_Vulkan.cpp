@@ -19,6 +19,12 @@
 #include <Windows.h>
 
 namespace {
+	// TODO: Move elsewhere
+	template<typename T>
+	constexpr T align_to(T value, T alignment) {
+		return ((value + alignment - T(1)) / alignment) * alignment;
+	}
+
 	constexpr const char* REQUIRED_INSTANCE_EXTS[] = {
 		VK_KHR_SURFACE_EXTENSION_NAME,
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
@@ -86,20 +92,27 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	void create_swapchain(const SRSwapchainInfo& info, SRSwapchain& swapchain);
 	void create_pipeline(const SRPipelineInfo& info, SRPipeline& pipeline);
 	void create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data);
+	void create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data);
+	void create_sampler(const SRSamplerInfo& info, SRSampler& sampler);
 
 	void bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList);
 	void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
+	void push_constants(const void* data, uint32_t size, const SRCmdList& cmdList);
+	void barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList);
 
 	SRCmdList begin_command_list(SRQueue queue);
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
+	void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
 	void end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
+	void end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
 	void submit_command_lists(const SRSwapchain& swapchain);
 
 	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList);
 	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList);
 
+	SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource);
 	SRShaderPlatformInfo get_shader_platform_info();
 	void wait_for_gpu();
 	void setup_imgui_init_info(SRFormat swapchainFormat);
@@ -122,10 +135,10 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	static constexpr uint32_t MAX_STORAGE_BUFFER_DESCRIPTORS = 2048;
 	static constexpr uint32_t UBO_BINDING = 0;
 	static constexpr uint32_t UBO_SET = 1;
-	static constexpr uint32_t TEXTURE_BINDING = 1;
-	static constexpr uint32_t SAMPLER_BINDING = 2;
-	static constexpr uint32_t STORAGE_BUFFER_BINDING = 3;
-	static constexpr uint32_t RW_TEXTURE_BINDING = 4;
+	static constexpr uint32_t TEXTURE_BINDING = 0;
+	static constexpr uint32_t SAMPLER_BINDING = 1;
+	static constexpr uint32_t STORAGE_BUFFER_BINDING = 2;
+	static constexpr uint32_t RW_TEXTURE_BINDING = 3;
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 		VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -1006,7 +1019,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 		attributeDescriptions[i].format = to_vk_format(info.inputLayout.elements[i].format);
 		attributeDescriptions[i].offset = offset;
 
-		offset += SRVulkanHelpers::get_format_stride(info.inputLayout.elements[i].format);
+		offset += SRGraphicsHelpers::get_format_stride(info.inputLayout.elements[i].format);
 	}
 
 	// TODO: For now we only allow one binding description
@@ -1216,7 +1229,6 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 		allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 		break;
 	}
-	//SR_VK_CHECK(vkCreateBuffer(m_Device, &createInfo, nullptr, &internalBuffer->buffer), "Create buffer");
 
 	VmaAllocationInfo allocInfo = {};
 	SR_VK_CHECK(vmaCreateBuffer(
@@ -1276,12 +1288,435 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 	// TODO: Descriptors (non UBO that is)
 }
 
+void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data) {
+	assert(info.usage == SRUsage::DEFAULT);
+
+	auto internalTexture = std::make_shared<SRTexture_Vulkan>();
+	internalTexture->destructionHandler = m_DestructionHandler.get();
+
+	texture.type = SRResourceType::Texture;
+	texture.info = info;
+	texture.internalState = internalTexture;
+
+	VkImageCreateInfo imageInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.flags = 0,
+		.imageType = VK_IMAGE_TYPE_2D, // TODO: Make dynamic
+		.format = to_vk_format(info.format),
+		.extent = { info.width, info.height, info.depth },
+		.mipLevels = info.mipLevels,
+		.arrayLayers = info.arraySize,
+		.samples = VK_SAMPLE_COUNT_1_BIT, // TODO: Make dynamic
+		.tiling = VK_IMAGE_TILING_OPTIMAL,
+		.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+	};
+	// TODO: Not valid for transient attachments ^^
+	VmaAllocationCreateInfo allocCreateInfo = {
+		.usage = VMA_MEMORY_USAGE_AUTO
+	};
+
+	VkAccessFlags2 accessFlags = 0;
+
+	if (info.bindFlags & SRBindFlag_ShaderResource) {
+		imageInfo.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+		accessFlags |= VK_ACCESS_2_SHADER_READ_BIT;
+	}
+	if (info.bindFlags & SRBindFlag_UnorderedAccess) {
+		imageInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		//accessFlags = VK_ACCESS_2_SHA
+	}
+
+	if (info.bindFlags & SRBindFlag_RenderTarget) {
+		imageInfo.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		accessFlags |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+		accessFlags |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	}
+	else if (info.bindFlags & SRBindFlag_DepthStencil) {
+		imageInfo.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		accessFlags |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+		accessFlags |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	}
+
+	VmaAllocationInfo allocInfo = {};
+	SR_VK_CHECK(vmaCreateImage(
+		m_Allocator,
+		&imageInfo,
+		&allocCreateInfo,
+		&internalTexture->image,
+		&internalTexture->allocation,
+		&allocInfo
+	), "Create image");
+
+	const bool isDepthFormat = SRGraphicsHelpers::is_depth_format(info.format);
+	const VkImageAspectFlags aspectMask = isDepthFormat ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+	const VkImageViewCreateInfo imageViewInfo = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.image = internalTexture->image,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D, // TODO: Make dynamic
+		.format = to_vk_format(info.format),
+		.components = {
+			.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+			.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+		},
+		.subresourceRange = {
+			.aspectMask = aspectMask,
+			.baseMipLevel = 0,
+			.levelCount = info.mipLevels,
+			.baseArrayLayer = 0,
+			.layerCount = info.arraySize
+		}
+	};
+	SR_VK_CHECK(vkCreateImageView(
+		m_Device,
+		&imageViewInfo,
+		nullptr,
+		&internalTexture->imageView
+	), "Create image view");
+
+	if (data && data->data) {
+		// Staging buffer
+		SRBufferInfo stagingBufferInfo = {
+			.size = static_cast<uint64_t>(data->rowPitch * info.height),
+			.usage = SRUsage::UPLOAD
+		};
+
+		SRBuffer stagingBuffer;
+		create_buffer(stagingBufferInfo, stagingBuffer, data);
+		auto internalStagingBuffer = to_vk_internal(stagingBuffer);
+
+		// Copy staging buffer into target buffer
+		if (!m_IsUploadCmdBufferRecording) {
+			const VkCommandBufferBeginInfo beginInfo = {
+				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+			};
+
+			SR_VK_CHECK(vkResetCommandPool(m_Device, m_UploadCmdPool, 0), "Reset command pool");
+			SR_VK_CHECK(vkBeginCommandBuffer(m_UploadCmdBuffer, &beginInfo), "Begin command buffer");
+			m_IsUploadCmdBufferRecording = true;
+		}
+
+		std::vector<VkBufferImageCopy> copyRegions;
+		VkDeviceSize copyOffset = 0;
+		uint32_t dataIdx = 0;
+
+		for (uint32_t layer = 0; layer < info.arraySize; ++layer) {
+			uint32_t width = info.width;
+			uint32_t height = info.height;
+			uint32_t depth = info.depth;
+
+			for (uint32_t mip = 0; mip < info.mipLevels; ++mip) {
+				const SRSubresourceData subresourceData = data[dataIdx++];
+				const uint32_t texelBlockSize = 1; // TODO: For block-compressed textures, this must be 4, please fix
+				const uint32_t numTexelBlocksX = std::max(1U, width / texelBlockSize);
+				const uint32_t numTexelBlocksY = std::max(1U, height / texelBlockSize);
+				const uint32_t dstRowPitch = numTexelBlocksX * SRGraphicsHelpers::get_format_stride(info.format);
+				const uint32_t dstSlicePitch = dstRowPitch * numTexelBlocksY;
+				const uint32_t srcRowPitch = subresourceData.rowPitch;
+				const uint32_t srcSlicePitch = subresourceData.slicePitch;
+
+				const VkBufferImageCopy copyRegion = {
+					.bufferOffset = copyOffset,
+					.bufferRowLength = 0,
+					.bufferImageHeight = 0,
+					.imageSubresource = {
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.mipLevel = mip,
+						.baseArrayLayer = layer,
+						.layerCount = 1
+					},
+					.imageOffset = { 0, 0, 0 },
+					.imageExtent = { width, height, depth }
+				};
+				copyRegions.push_back(copyRegion);
+
+				// NOTE: In the case of using the transfer queue (copy queue),
+				// it is required that bufferOffset is a multiple of 4. So we
+				// will always align to 4 bytes.
+				copyOffset += dstSlicePitch * depth;
+				copyOffset = align_to(copyOffset, static_cast<VkDeviceSize>(4));
+
+				width = std::max(1U, width / 2);
+				height = std::max(1U, height / 2);
+				depth = std::max(1U, depth / 2);
+			}
+		}
+
+		// Transition image to be COPY_DST
+		// TODO: Use the GLOBAL image transition interface instead (i.e. barrier())
+		const SRImageTransitionInfo transitionInfo = {
+			.image = internalTexture->image,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			.srcAccessMask = VK_ACCESS_2_NONE,
+			.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+			.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+			.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT
+		};
+		SRVulkanHelpers::transition_image_layout(transitionInfo, m_UploadCmdBuffer);
+
+		vkCmdCopyBufferToImage(
+			m_UploadCmdBuffer,
+			internalStagingBuffer->buffer,
+			internalTexture->image,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			static_cast<uint32_t>(copyRegions.size()),
+			copyRegions.data()
+		);
+	}
+
+	// TODO: More descriptors
+	// SRV Descriptor
+	// TODO: Cleanup, move descriptor write functions into separate file
+	if (info.bindFlags & SRBindFlag_ShaderResource) {
+		const VkDescriptorImageInfo descriptorImageInfo = {
+			.sampler = nullptr,
+			.imageView = internalTexture->imageView,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		};
+
+		internalTexture->srvDescriptor = m_TextureDescriptorHeap.get_next_index();
+
+		const VkWriteDescriptorSet descriptorWrite = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = m_ResourceDescriptorSet,
+			.dstBinding = TEXTURE_BINDING,
+			.dstArrayElement = internalTexture->srvDescriptor,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.pImageInfo = &descriptorImageInfo
+		};
+
+		vkUpdateDescriptorSets(m_Device, 1, &descriptorWrite, 0, nullptr);
+	}
+}
+
+void SRGraphicsDevice_Vulkan::Impl::create_sampler(const SRSamplerInfo& info, SRSampler& sampler) {
+	auto internalSampler = std::make_shared<SRSampler_Vulkan>();
+	internalSampler->destructionHandler = m_DestructionHandler.get();
+
+	sampler.info = info;
+	sampler.internalState = internalSampler;
+
+	VkSamplerCreateInfo samplerCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.addressModeU = to_vk_texture_address_mode(info.addressU),
+		.addressModeV = to_vk_texture_address_mode(info.addressV),
+		.addressModeW = to_vk_texture_address_mode(info.addressW),
+		.mipLodBias = info.mipLODBias,
+		.anisotropyEnable = VK_TRUE,
+		.maxAnisotropy = 16, // TODO: Enforce or check if always available
+		.compareOp = to_vk_comparison_func(info.comparisonFunc),
+		.minLod = info.minLOD,
+		.maxLod = info.maxLOD,
+		.borderColor = to_vk_sampler_border_color(info.borderColor),
+		.unnormalizedCoordinates = VK_FALSE
+	};
+
+	switch (info.filter) {
+	case SRFilter::MIN_MAG_MIP_POINT:
+	case SRFilter::MINIMUM_MIN_MAG_MIP_POINT:
+	case SRFilter::MAXIMUM_MIN_MAG_MIP_POINT:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::MIN_MAG_POINT_MIP_LINEAR:
+	case SRFilter::MINIMUM_MIN_MAG_POINT_MIP_LINEAR:
+	case SRFilter::MAXIMUM_MIN_MAG_POINT_MIP_LINEAR:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::MIN_POINT_MAG_LINEAR_MIP_POINT:
+	case SRFilter::MINIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT:
+	case SRFilter::MAXIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::MIN_POINT_MAG_MIP_LINEAR:
+	case SRFilter::MINIMUM_MIN_POINT_MAG_MIP_LINEAR:
+	case SRFilter::MAXIMUM_MIN_POINT_MAG_MIP_LINEAR:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::MIN_LINEAR_MAG_MIP_POINT:
+	case SRFilter::MINIMUM_MIN_LINEAR_MAG_MIP_POINT:
+	case SRFilter::MAXIMUM_MIN_LINEAR_MAG_MIP_POINT:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+	case SRFilter::MINIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+	case SRFilter::MAXIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::MIN_MAG_LINEAR_MIP_POINT:
+	case SRFilter::MINIMUM_MIN_MAG_LINEAR_MIP_POINT:
+	case SRFilter::MAXIMUM_MIN_MAG_LINEAR_MIP_POINT:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::MIN_MAG_MIP_LINEAR:
+	case SRFilter::MINIMUM_MIN_MAG_MIP_LINEAR:
+	case SRFilter::MAXIMUM_MIN_MAG_MIP_LINEAR:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::ANISOTROPIC:
+	case SRFilter::MINIMUM_ANISOTROPIC:
+	case SRFilter::MAXIMUM_ANISOTROPIC:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_TRUE;
+		samplerCreateInfo.maxAnisotropy = std::min(16.0f, std::max(1.0f, static_cast<float>(info.maxAnisotropy)));
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	case SRFilter::COMPARISON_MIN_MAG_MIP_POINT:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	case SRFilter::COMPARISON_MIN_MAG_POINT_MIP_LINEAR:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	case SRFilter::COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	case SRFilter::COMPARISON_MIN_POINT_MAG_MIP_LINEAR:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	case SRFilter::COMPARISON_MIN_LINEAR_MAG_MIP_POINT:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	case SRFilter::COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	case SRFilter::COMPARISON_MIN_MAG_LINEAR_MIP_POINT:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	case SRFilter::COMPARISON_MIN_MAG_MIP_LINEAR:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	case SRFilter::COMPARISON_ANISOTROPIC:
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.anisotropyEnable = VK_TRUE;
+		samplerCreateInfo.compareEnable = VK_TRUE;
+		break;
+	default:
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		samplerCreateInfo.anisotropyEnable = VK_FALSE;
+		samplerCreateInfo.compareEnable = VK_FALSE;
+		break;
+	}
+
+	SR_VK_CHECK(vkCreateSampler(m_Device, &samplerCreateInfo, nullptr, &internalSampler->sampler), "Create sampler");
+
+	// Create sampler descriptor
+	// TODO: Move into GraphicsHelpers_Vulkan for cleanup purposes
+	const VkDescriptorImageInfo imageInfo = {
+		.sampler = internalSampler->sampler
+	};
+
+	const VkWriteDescriptorSet write = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = m_ResourceDescriptorSet,
+		.dstBinding = SAMPLER_BINDING,
+		.dstArrayElement = 0,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+		.pImageInfo = &imageInfo
+	};
+
+	vkUpdateDescriptorSets(
+		m_Device,
+		1,
+		&write,
+		0,
+		nullptr
+	);
+}
+
 void SRGraphicsDevice_Vulkan::Impl::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
 	auto internalPipeline = to_vk_internal(pipeline);
 	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdBindPipeline(internalCmdList->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internalPipeline->pipeline);
 	m_ActivePipeline = internalPipeline;
+
+	vkCmdBindDescriptorSets(
+		internalCmdList->cmdBuffer,
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		internalPipeline->pipelineLayout,
+		0,
+		1,
+		&m_ResourceDescriptorSet,
+		0,
+		nullptr
+	);
 }
 
 void SRGraphicsDevice_Vulkan::Impl::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
@@ -1330,6 +1765,75 @@ void SRGraphicsDevice_Vulkan::Impl::bind_root_constant_buffer(const SRBuffer& bu
 		1,
 		&writeDescriptor
 	);
+}
+
+void SRGraphicsDevice_Vulkan::Impl::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
+	assert(data != nullptr);
+	assert(size <= 128);
+	assert(m_ActivePipeline != nullptr);
+
+	auto internalCmdList = to_vk_internal(cmdList);
+
+	vkCmdPushConstants(
+		internalCmdList->cmdBuffer,
+		m_ActivePipeline->pipelineLayout,
+		VK_SHADER_STAGE_ALL,
+		0,
+		size,
+		data
+	);
+}
+
+void SRGraphicsDevice_Vulkan::Impl::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
+	if (!pBarriers || numBarriers <= 0) {
+		return;
+	}
+
+	auto internalCmdList = to_vk_internal(cmdList);
+	std::vector<VkImageMemoryBarrier2> vkBarriers;
+	vkBarriers.reserve(numBarriers);
+
+	// TODO: Allow for UAV and buffer barriers, not only image barriers
+	for (uint32_t i = 0; i < numBarriers; ++i) {
+		const SRBarrier& barrier = pBarriers[i];
+		const bool isDepthFormat = SRGraphicsHelpers::is_depth_format(barrier.image.texture->info.format);
+		auto internalTexture = to_vk_internal(*barrier.image.texture);
+
+		const VkImageAspectFlags aspectFlag = isDepthFormat ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+		const VkImageSubresourceRange subresourceRange = {
+			.aspectMask = aspectFlag,
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1
+		};
+
+		const VkImageMemoryBarrier2 imageBarrier = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.pNext = nullptr,
+			.srcStageMask = to_vk_pipeline_stage(barrier.image.syncBefore),
+			.srcAccessMask = to_vk_access_mask(barrier.image.accessBefore),
+			.dstStageMask = to_vk_pipeline_stage(barrier.image.syncAfter),
+			.dstAccessMask = to_vk_access_mask(barrier.image.accessAfter),
+			.oldLayout = to_vk_resource_state(barrier.image.stateBefore),
+			.newLayout = to_vk_resource_state(barrier.image.stateAfter),
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = internalTexture->image,
+			.subresourceRange = subresourceRange
+		};
+
+		vkBarriers.push_back(imageBarrier);
+	}
+
+	// TODO: Doesn't work for depth attachments nor multiple mips
+	const VkDependencyInfo dependencyInfo = {
+		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.pNext = nullptr,
+		.imageMemoryBarrierCount = static_cast<uint32_t>(vkBarriers.size()),
+		.pImageMemoryBarriers = vkBarriers.data()
+	};
+	vkCmdPipelineBarrier2(internalCmdList->cmdBuffer, &dependencyInfo);
 }
 
 SRCmdList SRGraphicsDevice_Vulkan::Impl::begin_command_list(SRQueue queue) {
@@ -1395,12 +1899,12 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRSwapchain& swapcha
 	const VkClearValue clearColor = {
 		.color = { 0.0f, 0.0f, 0.0f, 1.0f }
 	};
-	
+
 	const VkRenderingAttachmentInfo colorAttachmentInfo = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
 		.imageView = internalSwapchain->imageViews[m_ImageIndex],
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_NONE,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 		.clearValue = clearColor
 	};
@@ -1425,6 +1929,70 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRSwapchain& swapcha
 	vkCmdBeginRendering(internalCmdList->cmdBuffer, &renderInfo);
 }
 
+void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+	auto internalCmdList = to_vk_internal(cmdList);
+
+	std::vector<VkRenderingAttachmentInfo> colorAttachmentInfos;
+	VkRenderingAttachmentInfo depthAttachmentInfo;
+	colorAttachmentInfos.reserve(passInfo.numColorAttachments);
+
+	VkRect2D renderArea = {
+			.offset = { 0, 0 },
+			.extent = { 0, 0 }
+	};
+
+	for (size_t i = 0; i < passInfo.numColorAttachments; ++i) {
+		const SRPassInfo::Attachment& attachment = passInfo.colorAttachments[i];
+		auto internalTexture = to_vk_internal(*attachment.texture);
+		assert(internalTexture);
+
+		renderArea.extent.width = std::max(renderArea.extent.width, attachment.texture->info.width);
+		renderArea.extent.height = std::max(renderArea.extent.height, attachment.texture->info.height);
+
+		const VkRenderingAttachmentInfo attachmentInfo = {
+			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+			.imageView = internalTexture->imageView,
+			.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.loadOp = to_vk_load_op(attachment.loadOp),
+			.storeOp = to_vk_store_op(attachment.storeOp),
+			.clearValue = { .color = { 0.0f, 0.0f, 0.0f, 1.0f } }
+		};
+		colorAttachmentInfos.push_back(attachmentInfo);
+	}
+
+	const bool hasDepthAttachment = passInfo.depthAttachment.texture != nullptr;
+	if (hasDepthAttachment) {
+		const SRPassInfo::Attachment& depthAttachment = passInfo.depthAttachment;
+		auto internalTexture = to_vk_internal(*depthAttachment.texture);
+		assert(internalTexture);
+
+		renderArea.extent.width = std::max(renderArea.extent.width, depthAttachment.texture->info.width);
+		renderArea.extent.height = std::max(renderArea.extent.height, depthAttachment.texture->info.height);
+
+		depthAttachmentInfo = {
+			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+			.imageView = internalTexture->imageView,
+			.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			.loadOp = to_vk_load_op(depthAttachment.loadOp),
+			.storeOp = to_vk_store_op(depthAttachment.storeOp),
+			.clearValue = { .depthStencil = { depthAttachment.clearValue } }
+		};
+	}
+
+	const VkRenderingInfo renderInfo = {
+		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+		.renderArea = renderArea,
+		.layerCount = 1,
+		.viewMask = 0,
+		.colorAttachmentCount = static_cast<uint32_t>(colorAttachmentInfos.size()),
+		.pColorAttachments = colorAttachmentInfos.data(),
+		.pDepthAttachment = hasDepthAttachment ? &depthAttachmentInfo : nullptr,
+		.pStencilAttachment = nullptr
+	};
+
+	vkCmdBeginRendering(internalCmdList->cmdBuffer, &renderInfo);
+}
+
 void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
 	auto internalSwapchain = to_vk_internal(swapchain);
 	auto internalCmdList = to_vk_internal(cmdList);
@@ -1442,6 +2010,12 @@ void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRSwapchain& swapchain
 		.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT
 	};
 	SRVulkanHelpers::transition_image_layout(transitionInfo, internalCmdList->cmdBuffer);
+}
+
+void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+	auto internalCmdList = to_vk_internal(cmdList);
+
+	vkCmdEndRendering(internalCmdList->cmdBuffer);
 }
 
 void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swapchain) {
@@ -1668,6 +2242,17 @@ VKAPI_ATTR VkBool32 VKAPI_CALL SRGraphicsDevice_Vulkan::Impl::debug_callback(
 	return VK_FALSE;
 }
 
+SRDescriptorIndex SRGraphicsDevice_Vulkan::Impl::get_descriptor_index_srv(const SRResource& resource) {
+	assert(resource.type == SRResourceType::Texture); // TODO: Support other SRV types
+
+	if (resource.type == SRResourceType::Texture) {
+		auto internalTexture = (SRTexture_Vulkan*)resource.internalState.get();
+		return internalTexture->srvDescriptor;
+	}
+
+	return ~0;
+}
+
 // --------------------------------- Public API --------------------------------
 SRGraphicsDevice_Vulkan::SRGraphicsDevice_Vulkan(SRWindow& window) : SRGraphicsDevice(window) {
 	m_Impl = new Impl(window);
@@ -1701,6 +2286,14 @@ void SRGraphicsDevice_Vulkan::create_pipeline(const SRPipelineInfo& info, SRPipe
 
 void SRGraphicsDevice_Vulkan::create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data) {
 	m_Impl->create_buffer(info, buffer, data);
+}
+
+void SRGraphicsDevice_Vulkan::create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data) {
+	m_Impl->create_texture(info, texture, data);
+}
+
+void SRGraphicsDevice_Vulkan::create_sampler(const SRSamplerInfo& info, SRSampler& sampler) {
+	m_Impl->create_sampler(info, sampler);
 }
 
 void SRGraphicsDevice_Vulkan::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
@@ -1747,6 +2340,14 @@ void SRGraphicsDevice_Vulkan::bind_root_constant_buffer(const SRBuffer& buffer, 
 	m_Impl->bind_root_constant_buffer(buffer, cmdList);
 }
 
+void SRGraphicsDevice_Vulkan::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
+	m_Impl->push_constants(data, size, cmdList);
+}
+
+void SRGraphicsDevice_Vulkan::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
+	m_Impl->barrier(pBarriers, numBarriers, cmdList);
+}
+
 SRCmdList SRGraphicsDevice_Vulkan::begin_command_list(SRQueue queue) {
 	return m_Impl->begin_command_list(queue);
 }
@@ -1755,8 +2356,16 @@ void SRGraphicsDevice_Vulkan::begin_render_pass(const SRSwapchain& swapchain, co
 	m_Impl->begin_render_pass(swapchain, cmdList);
 }
 
+void SRGraphicsDevice_Vulkan::begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+	m_Impl->begin_render_pass(passInfo, cmdList);
+}
+
 void SRGraphicsDevice_Vulkan::end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
 	m_Impl->end_render_pass(swapchain, cmdList);
+}
+
+void SRGraphicsDevice_Vulkan::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+	m_Impl->end_render_pass(passInfo, cmdList);
 }
 
 void SRGraphicsDevice_Vulkan::submit_command_lists(const SRSwapchain& swapchain) {
@@ -1769,6 +2378,10 @@ void SRGraphicsDevice_Vulkan::draw(uint32_t vtxCount, uint32_t startVtx, const S
 
 void SRGraphicsDevice_Vulkan::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
 	m_Impl->draw_indexed(idxCount, startIdx, baseVtx, cmdList);
+}
+
+SRDescriptorIndex SRGraphicsDevice_Vulkan::get_descriptor_index_srv(const SRResource& resource) {
+	return m_Impl->get_descriptor_index_srv(resource);
 }
 
 SRShaderPlatformInfo SRGraphicsDevice_Vulkan::get_shader_platform_info() {

@@ -20,3 +20,6 @@
 	path = Dependencies/ImGui
 	url = https://github.com/ocornut/imgui
 	branch = docking
+[submodule "Dependencies/MeshOptimizer"]
+	path = Dependencies/MeshOptimizer
+	url = https://github.com/zeux/meshoptimizer

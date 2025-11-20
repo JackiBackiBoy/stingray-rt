@@ -14,21 +14,28 @@ public:
 	virtual void create_swapchain(const SRSwapchainInfo& info, SRSwapchain& swapchain) = 0;
 	virtual void create_pipeline(const SRPipelineInfo& info, SRPipeline& pipeline) = 0;
 	virtual void create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data) = 0;
+	virtual void create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data) = 0;
+	virtual void create_sampler(const SRSamplerInfo& info, SRSampler& sampler) = 0;
 
 	virtual void bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) = 0;
 	virtual void bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList) = 0;
 	virtual void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
 	virtual void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
 	virtual void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
+	virtual void push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) = 0;
+	virtual void barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) = 0;
 
 	virtual SRCmdList begin_command_list(SRQueue quee) = 0;
 	virtual void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) = 0;
+	virtual void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) = 0;
 	virtual void end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) = 0;
+	virtual void end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) = 0;
 	virtual void submit_command_lists(const SRSwapchain& swapchain) = 0;
 
 	virtual void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) = 0;
 	virtual void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) = 0;
 
+	virtual SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource) = 0;
 	virtual SRShaderPlatformInfo get_shader_platform_info() = 0;
 	virtual void wait_for_gpu() = 0;
 	virtual void flush_initial_uploads() = 0; // NOTE: TEMPORARY function, will be removed once we introduce streaming system

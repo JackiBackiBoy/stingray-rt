@@ -54,8 +54,14 @@ set(SOURCE_FILES
 	# Data
 	${SOURCE_DIR}/Data/Camera.cpp
 	${SOURCE_DIR}/Data/Camera.hpp
+	${SOURCE_DIR}/Data/ComponentTypes.cpp
+	${SOURCE_DIR}/Data/ComponentTypes.hpp
 	${SOURCE_DIR}/Data/Model.cpp
 	${SOURCE_DIR}/Data/Model.hpp
+	${SOURCE_DIR}/Data/Scene.cpp
+	${SOURCE_DIR}/Data/Scene.hpp
+	${SOURCE_DIR}/Data/SparseSet.cpp
+	${SOURCE_DIR}/Data/SparseSet.hpp
 
 	# Graphics
 	${SOURCE_DIR}/Graphics/FrameInfo.hpp
@@ -81,6 +87,10 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.hpp
 
 	# Graphics/Renderpasses
+	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.hpp
 	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.cpp
 	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.hpp
 
@@ -118,8 +128,14 @@ source_group("Core/System" FILES
 source_group("Data" FILES
 	${SOURCE_DIR}/Data/Camera.cpp
 	${SOURCE_DIR}/Data/Camera.hpp
+	${SOURCE_DIR}/Data/ComponentTypes.cpp
+	${SOURCE_DIR}/Data/ComponentTypes.hpp
 	${SOURCE_DIR}/Data/Model.cpp
 	${SOURCE_DIR}/Data/Model.hpp
+	${SOURCE_DIR}/Data/Scene.cpp
+	${SOURCE_DIR}/Data/Scene.hpp
+	${SOURCE_DIR}/Data/SparseSet.cpp
+	${SOURCE_DIR}/Data/SparseSet.hpp
 )
 
 source_group("Graphics" FILES
@@ -149,6 +165,10 @@ source_group("Graphics/Vulkan" FILES
 )
 
 source_group("Graphics/Renderpasses" FILES
+	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.hpp
 	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.cpp
 	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.hpp
 )
