@@ -1904,7 +1904,7 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRSwapchain& swapcha
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
 		.imageView = internalSwapchain->imageViews[m_ImageIndex],
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		.loadOp = VK_ATTACHMENT_LOAD_OP_NONE,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 		.clearValue = clearColor
 	};

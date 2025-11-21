@@ -91,8 +91,8 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.hpp
 	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.cpp
 	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.hpp
-	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.hpp
 
 	# Input
 	${SOURCE_DIR}/Input/Input.cpp
@@ -169,8 +169,8 @@ source_group("Graphics/Renderpasses" FILES
 	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.hpp
 	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.cpp
 	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.hpp
-	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/TestingPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.hpp
 )
 
 source_group("Input" FILES
@@ -190,6 +190,7 @@ source_group("Utilities" FILES
 # ----------------------------- Compile Executable -----------------------------
 add_executable(
 	StingrayGraphics
+	WIN32
 	${SOURCE_FILES}
 )
 
@@ -263,6 +264,7 @@ target_link_libraries(StingrayGraphics
 	D3D12MemoryAllocator
 	DXGI
 	DXGUID
+	Dwmapi
 	fastgltf
 	volk::volk
 	slang

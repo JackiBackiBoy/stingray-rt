@@ -4,4 +4,5 @@ namespace SRTime {
 	void initialize();
 	void begin_frame();
 	double get_delta_sec();
+	double get_elapsed_sec();
 }

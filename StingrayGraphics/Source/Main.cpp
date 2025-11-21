@@ -12,7 +12,7 @@
 #include "Graphics/Vulkan/GraphicsDevice_Vulkan.hpp"
 #include "Graphics/Renderpasses/DepthPrepass.hpp"
 #include "Graphics/Renderpasses/GBufferPass.hpp"
-#include "Graphics/Renderpasses/TestingPass.hpp"
+#include "Graphics/Renderpasses/CompositionPass.hpp"
 #include "Graphics/ShaderCompiler.hpp"
 #include "Input/Input.hpp"
 #include "UI/Editor.hpp"
@@ -60,8 +60,16 @@ void init_rendergraph();
 void update(const SRFrameInfo& frameInfo);
 void render(const SRFrameInfo& frameInfo);
 
-int main() {
+int APIENTRY wWinMain(
+	_In_ HINSTANCE hInstance,
+	_In_opt_ HINSTANCE hPrevInstance,
+	_In_ LPWSTR lpCmdLine,
+	_In_ int nCmdShow
+) {
+#ifdef _DEBUG
 	init_console();
+#endif
+
 	init_window();
 	init_graphics();
 	init_resources();
@@ -104,12 +112,29 @@ int main() {
 }
 
 void init_console() {
-	HANDLE handleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-	DWORD consoleMode;
-	GetConsoleMode(handleOut, &consoleMode);
-	consoleMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-	consoleMode |= DISABLE_NEWLINE_AUTO_RETURN;
-	SetConsoleMode(handleOut, consoleMode);
+	if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+		AllocConsole();
+	}
+
+	FILE* fp;
+	freopen_s(&fp, "CONOUT$", "w", stdout);
+	freopen_s(&fp, "CONOUT$", "w", stderr);
+	freopen_s(&fp, "CONIN$", "r", stdin);
+
+	auto enable_vt = [](DWORD stdHandle) {
+		HANDLE h = GetStdHandle(stdHandle);
+		DWORD mode = 0;
+		if (GetConsoleMode(h, &mode)) {
+			mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+			mode |= DISABLE_NEWLINE_AUTO_RETURN;
+			SetConsoleMode(h, mode);
+		}
+		};
+
+	enable_vt(STD_OUTPUT_HANDLE);
+	enable_vt(STD_ERROR_HANDLE);
+
+	SetConsoleTitle(L"Stingray Console");
 }
 
 void init_window() {
@@ -158,7 +183,7 @@ void init_resources() {
 		g_GfxDevice->create_buffer(perFrameBufferInfo, g_PerFrameBuffers[f], &g_PerFrameData);
 	}
 
-	SRModelLoader::load_gltf(RES_DIR "Models/Cube/cube.gltf", g_TestModel, *g_GfxDevice);
+	SRModelLoader::load_gltf(RES_DIR "Models/StanfordBunny/StanfordBunny.gltf", g_TestModel, *g_GfxDevice);
 }
 
 void init_scene() {
@@ -198,8 +223,8 @@ void init_rendergraph() {
 		SRCompositionPass::build(compositionPass, *g_GfxDevice, *g_ShaderCompiler);
 
 	auto& imguiPass = g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::GRAPHICS)
-		.set_execute_callback([](SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
-			g_Editor->update();
+		.set_execute_callback([&](SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+			g_Editor->update(*g_RenderGraph);
 			g_Editor->render(cmdList);
 		});
 
@@ -211,7 +236,7 @@ void update(const SRFrameInfo& frameInfo) {
 	SRMouseState mouse = SRInput::get_mouse_state();
 	//SRLOG_TRACE("Mouse Delta: %d, %d", mouse.dx, mouse.dy);
 
-	const float cameraMoveSpeed = 4.0f;
+	const float cameraMoveSpeed = 0.9f;
 	const float mouseSensitivity = 0.001f;
 	const float dx = mouseSensitivity * mouse.dx;
 	const float dy = mouseSensitivity * mouse.dy;

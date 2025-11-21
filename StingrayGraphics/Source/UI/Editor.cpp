@@ -1,4 +1,5 @@
 #include "Editor.hpp"
+#include "Core/System/Time.hpp"
 #include "Graphics/DX12/GraphicsTypes_DX12.hpp"
 #include "Graphics/Vulkan/GraphicsTypes_Vulkan.hpp"
 
@@ -61,12 +62,76 @@ SREditor::~SREditor() {
 	ImGui::DestroyContext();
 }
 
-void SREditor::update() {
+void SREditor::update(SRRenderGraph& renderGraph) {
 	begin_render_func();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
-	ImGui::ShowDemoWindow();
+	ImGui::Begin("Properties");
+	{
+		// Update FPS counter
+		static uint64_t totalFrames = 0;
+		static double totalFrameTime = 0.0;
+		static double accumulatedTime = 0.0;
+		static uint64_t frameCount = 0;
+		static uint64_t fps = 0;
+
+		const double deltaTime = SRTime::get_delta_sec();
+		totalFrameTime += deltaTime;
+		accumulatedTime += deltaTime;
+		++totalFrames;
+		++frameCount;
+
+		if (accumulatedTime >= 1.0) {
+			const double fpsExact = frameCount / accumulatedTime;
+			fps = static_cast<uint64_t>(fpsExact + 0.5);
+			accumulatedTime = 0.0;
+			frameCount = 0;
+		}
+		const double avgFrameTime = totalFrameTime / totalFrames;
+
+		ImGui::SeparatorText("Performance Metrics");
+		ImGui::Text("FPS: %llu", fps);
+		ImGui::Text("Frame Time: %.2f ms", deltaTime * 1000.0);
+		ImGui::Text("Avg Frame Time: %.2f ms", avgFrameTime * 1000.0);
+
+		ImGui::SeparatorText("Shadows");
+
+		//const auto renderPasses = renderGraph.GetAllPasses();
+
+		//if (ImGui::BeginListBox("Renderpasses")) {
+		//	LOCAL_PERSIST size_t selectedPassIdx = 0;
+		//	LOCAL_PERSIST size_t highlightedPassIdx = 0;
+
+		//	for (size_t i = 0; i < renderPasses.size(); ++i) {
+		//		const bool isSelected = (selectedPassIdx == i);
+
+		//		if (ImGui::Selectable(renderPasses[i]->GetName().c_str(), isSelected)) {
+		//			selectedPassIdx = i;
+		//		}
+
+		//		if (ImGui::IsItemHovered()) {
+		//			highlightedPassIdx = i;
+		//		}
+
+		//		// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+		//		if (isSelected) {
+		//			ImGui::SetItemDefaultFocus();
+		//		}
+		//	}
+		//	ImGui::EndListBox();
+		//}
+
+		//auto* vsmAttachment = renderGraph.GetAttachment("ShadowMap");
+		//ImGui::Image(
+		//	m_GfxDevice.GetGPUDescriptorPointer(
+		//		vsmAttachment->texture,
+		//		SubresourceType::SRV
+		//	),
+		//	{ 256, 256 }
+		//);
+	}
+	ImGui::End();
 }
 
 void SREditor::render(const SRCmdList& cmdList) {

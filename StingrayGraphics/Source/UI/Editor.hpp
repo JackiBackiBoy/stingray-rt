@@ -2,13 +2,14 @@
 
 #include "Core/Window.hpp"
 #include "Graphics/GraphicsDevice.hpp"
+#include "Graphics/RenderGraph.hpp"
 
 class SREditor {
 public:
 	SREditor(SRWindow& window, SRGraphicsDevice& gfxDevice, SRGraphicsAPI api);
 	~SREditor();
 
-	void update();
+	void update(SRRenderGraph& renderGraph);
 	void render(const SRCmdList& cmdList);
 
 private:

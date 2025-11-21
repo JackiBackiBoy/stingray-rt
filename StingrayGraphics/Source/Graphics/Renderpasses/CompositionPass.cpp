@@ -1,4 +1,4 @@
-#include "TestingPass.hpp"
+#include "CompositionPass.hpp"
 #include "Data/ComponentTypes.hpp"
 #include "Data/Model.hpp"
 

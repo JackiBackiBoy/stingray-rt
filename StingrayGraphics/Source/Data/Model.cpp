@@ -46,13 +46,15 @@ namespace {
 					verticesPtr[i].position = glm::vec3(pos.x(), pos.z(), pos.y());
 				}
 			);
-			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(
-				gltfAsset,
-				texCoordAcccesor,
-				[&](fastgltf::math::fvec2 texCoord, size_t i) {
-					verticesPtr[i].texCoord = glm::vec2(texCoord.x(), texCoord.y());
-				}
-			);
+			if (texCoordIt != gltfPrimitive.attributes.cend()) {
+				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(
+					gltfAsset,
+					texCoordAcccesor,
+					[&](fastgltf::math::fvec2 texCoord, size_t i) {
+						verticesPtr[i].texCoord = glm::vec2(texCoord.x(), texCoord.y());
+					}
+				);
+			}
 
 			if (indexAccessor.componentType == fastgltf::ComponentType::UnsignedShort) {
 				fastgltf::iterateAccessorWithIndex<uint16_t>(

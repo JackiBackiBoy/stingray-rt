@@ -32,4 +32,8 @@ namespace SRTime {
 	double get_delta_sec() {
 		return g_Delta;
 	}
+
+	double get_elapsed_sec() {
+		return g_Total;
+	}
 }

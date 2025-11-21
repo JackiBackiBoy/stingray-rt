@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <Windows.h>
+#include <dwmapi.h>
 
 // TODO: Rename this to Window_Win32 and introduce other OS variants
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -118,6 +119,9 @@ void SRWindow::Impl::create_window(const char* title, int width, int height, SRW
 		hInstance,
 		this
 	);
+
+	const BOOL useDarkMode = TRUE;
+	DwmSetWindowAttribute(m_Hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &useDarkMode, sizeof(useDarkMode));
 }
 
 LRESULT SRWindow::Impl::window_proc(UINT msg, WPARAM wParam, LPARAM lParam) {
