@@ -30,8 +30,8 @@ enum class SRSizeClass : uint8_t {
 
 struct SRRenderPassAttachmentSubresource {
 	SRResourceState state = SRResourceState::UNDEFINED;
-	SRBarrierAccess lastBarrierAccess = SRBarrierAccess_None;
-	SRBarrierSync lastBarrierStage = SRBarrierSync_None;
+	SRBarrierAccess lastBarrierAccess = SRBarrierAccess::None;
+	SRBarrierSync lastBarrierStage = SRBarrierSync::None;
 };
 
 struct SRRenderPassAttachment {

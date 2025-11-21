@@ -1211,16 +1211,16 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 		.usage = VMA_MEMORY_USAGE_AUTO
 	};
 
-	if (info.bindFlags & SRBindFlag_VertexBuffer) {
+	if (has_flag(info.bindFlags, SRBindFlag::VertexBuffer)) {
 		createInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 	}
-	else if (info.bindFlags & SRBindFlag_IndexBuffer) {
+	else if (has_flag(info.bindFlags, SRBindFlag::IndexBuffer)) {
 		createInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 	}
-	else if (info.bindFlags & SRBindFlag_ConstantBuffer) {
+	else if (has_flag(info.bindFlags, SRBindFlag::ConstantBuffer)) {
 		createInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	}
-	if (info.miscFlags & SRMiscFlag_StructuredBuffer) {
+	if (has_flag(info.miscFlags, SRMiscFlag::StructuredBuffer)) {
 		createInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	}
 
@@ -1244,8 +1244,8 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 		// Staging buffer
 		SRBufferInfo stagingBufferInfo = info;
 		stagingBufferInfo.usage = SRUsage::UPLOAD;
-		stagingBufferInfo.bindFlags = SRBindFlag_None;
-		stagingBufferInfo.miscFlags = SRMiscFlag_None;
+		stagingBufferInfo.bindFlags = SRBindFlag::None;
+		stagingBufferInfo.miscFlags = SRMiscFlag::None;
 
 		SRBuffer stagingBuffer;
 		create_buffer(stagingBufferInfo, stagingBuffer, data);
@@ -1319,21 +1319,21 @@ void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SR
 
 	VkAccessFlags2 accessFlags = 0;
 
-	if (info.bindFlags & SRBindFlag_ShaderResource) {
+	if (has_flag(info.bindFlags, SRBindFlag::ShaderResource)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 		accessFlags |= VK_ACCESS_2_SHADER_READ_BIT;
 	}
-	if (info.bindFlags & SRBindFlag_UnorderedAccess) {
+	if (has_flag(info.bindFlags, SRBindFlag::UnorderedAccess)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		//accessFlags = VK_ACCESS_2_SHA
 	}
 
-	if (info.bindFlags & SRBindFlag_RenderTarget) {
+	if (has_flag(info.bindFlags, SRBindFlag::RenderTarget)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		accessFlags |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
 		accessFlags |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	}
-	else if (info.bindFlags & SRBindFlag_DepthStencil) {
+	else if (has_flag(info.bindFlags, SRBindFlag::DepthStencil)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 		accessFlags |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
 		accessFlags |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -1473,7 +1473,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SR
 	// TODO: More descriptors
 	// SRV Descriptor
 	// TODO: Cleanup, move descriptor write functions into separate file
-	if (info.bindFlags & SRBindFlag_ShaderResource) {
+	if (has_flag(info.bindFlags, SRBindFlag::ShaderResource)) {
 		const VkDescriptorImageInfo descriptorImageInfo = {
 			.sampler = nullptr,
 			.imageView = internalTexture->imageView,
@@ -1720,7 +1720,7 @@ void SRGraphicsDevice_Vulkan::Impl::bind_pipeline(const SRPipeline& pipeline, co
 }
 
 void SRGraphicsDevice_Vulkan::Impl::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
-	assert(buffer.info.bindFlags & SRBindFlag_VertexBuffer);
+	assert(has_flag(buffer.info.bindFlags, SRBindFlag::VertexBuffer));
 	auto internalBuffer = to_vk_internal(buffer);
 	auto internalCmdList = to_vk_internal(cmdList);
 
@@ -1729,7 +1729,7 @@ void SRGraphicsDevice_Vulkan::Impl::bind_vertex_buffer(const SRBuffer& buffer, c
 }
 
 void SRGraphicsDevice_Vulkan::Impl::bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
-	assert(buffer.info.bindFlags & SRBindFlag_IndexBuffer);
+	assert(has_flag(buffer.info.bindFlags, SRBindFlag::IndexBuffer));
 	auto internalBuffer = to_vk_internal(buffer);
 	auto internalCmdList = to_vk_internal(cmdList);
 
@@ -1737,7 +1737,7 @@ void SRGraphicsDevice_Vulkan::Impl::bind_index_buffer(const SRBuffer& buffer, co
 }
 
 void SRGraphicsDevice_Vulkan::Impl::bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
-	assert(buffer.info.bindFlags & SRBindFlag_ConstantBuffer);
+	assert(has_flag(buffer.info.bindFlags, SRBindFlag::ConstantBuffer));
 	assert(m_ActivePipeline != nullptr);
 
 	auto internalBuffer = to_vk_internal(buffer);

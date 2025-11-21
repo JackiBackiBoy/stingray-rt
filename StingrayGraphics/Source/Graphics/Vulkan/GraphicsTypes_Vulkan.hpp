@@ -305,34 +305,34 @@ inline constexpr VkAttachmentStoreOp to_vk_store_op(SRStoreOp value) {
 inline constexpr VkAccessFlags2 to_vk_access_mask(SRBarrierAccess value) {
 	VkAccessFlags2 result = VK_ACCESS_2_NONE;
 
-	if (value & SRBarrierAccess_VertexBuffer) {
+	if (has_flag(value, SRBarrierAccess::VertexBuffer)) {
 		result |= VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
 	}
-	if (value & SRBarrierAccess_ConstantBuffer) {
+	if (has_flag(value, SRBarrierAccess::ConstantBuffer)) {
 		result |= VK_ACCESS_2_UNIFORM_READ_BIT;
 	}
-	if (value & SRBarrierAccess_IndexBuffer) {
+	if (has_flag(value, SRBarrierAccess::IndexBuffer)) {
 		result |= VK_ACCESS_2_INDEX_READ_BIT;
 	}
-	if (value & SRBarrierAccess_RenderTarget) {
+	if (has_flag(value, SRBarrierAccess::RenderTarget)) {
 		result |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT; // TODO; Might need VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT too?
 	}
-	if (value & SRBarrierAccess_UnorderedAccess) {
+	if (has_flag(value, SRBarrierAccess::UnorderedAccess)) {
 		result |= VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 	}
-	if (value & SRBarrierAccess_DepthStencilRead) {
+	if (has_flag(value, SRBarrierAccess::DepthStencilRead)) {
 		result |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
 	}
-	if (value & SRBarrierAccess_DepthStencilWrite) {
+	if (has_flag(value, SRBarrierAccess::DepthStencilWrite)) {
 		result |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 	}
-	if (value & SRBarrierAccess_ShaderResource) {
+	if (has_flag(value, SRBarrierAccess::ShaderResource)) {
 		result |= VK_ACCESS_2_SHADER_READ_BIT;
 	}
-	if (value & SRBarrierAccess_CopySrc) {
+	if (has_flag(value, SRBarrierAccess::CopySrc)) {
 		result |= VK_ACCESS_2_TRANSFER_READ_BIT;
 	}
-	if (value & SRBarrierAccess_CopyDest) {
+	if (has_flag(value, SRBarrierAccess::CopyDst)) {
 		result |= VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	}
 
@@ -394,37 +394,37 @@ inline constexpr VkSamplerAddressMode to_vk_texture_address_mode(SRTextureAddres
 inline constexpr VkPipelineStageFlags2 to_vk_pipeline_stage(SRBarrierSync value) {
 	VkPipelineStageFlags2 result = VK_PIPELINE_STAGE_2_NONE;
 
-	if (value & SRBarrierSync_AllCommands) {
+	if (has_flag(value, SRBarrierSync::AllCommands)) {
 		result |= VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 	}
-	if (value & SRBarrierSync_Draw) {
+	if (has_flag(value, SRBarrierSync::Draw)) {
 		// TODO: LOOK INTO THIS
 		// Invalid for now
 		assert(false);
 	}
-	if (value & SRBarrierSync_IndexInput) {
+	if (has_flag(value, SRBarrierSync::IndexInput)) {
 		assert(false);
 	}
-	if (value & SRBarrierSync_VertexShader) {
+	if (has_flag(value, SRBarrierSync::VertexShader)) {
 		result |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
 	}
-	if (value & SRBarrierSync_PixelShader) {
+	if (has_flag(value, SRBarrierSync::PixelShader)) {
 		result |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 	}
-	if (value & SRBarrierSync_DepthStencil) {
+	if (has_flag(value, SRBarrierSync::DepthStencil)) {
 		// TODO: Investigate
 		result |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
 	}
-	if (value & SRBarrierSync_RenderTarget) {
+	if (has_flag(value, SRBarrierSync::RenderTarget)) {
 		result |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	}
-	if (value & SRBarrierSync_ComputeShader) {
+	if (has_flag(value, SRBarrierSync::ComputeShader)) {
 		result |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
 	}
-	if (value & SRBarrierSync_RayTracing) {
+	if (has_flag(value, SRBarrierSync::RayTracing)) {
 		assert(false);
 	}
-	if (value & SRBarrierSync_Copy) {
+	if (has_flag(value, SRBarrierSync::Copy)) {
 		result |= VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 	}
 

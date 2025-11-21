@@ -53,7 +53,7 @@ SRRenderPass& SRRenderPass::add_color_output(const std::string& name, int width,
 	for (int i = 0; i < mipLevels; ++i) {
 		SRRenderPassAttachmentSubresource& subresourceState = attachment->subresourceStates[i];
 		//subresourceState.state = SRResourceState::RENDER_TARGET;
-		subresourceState.lastBarrierAccess = SRBarrierAccess_None;
+		subresourceState.lastBarrierAccess = SRBarrierAccess::None;
 	}
 
 	m_OutputAttachments.push_back(attachment);
@@ -90,7 +90,7 @@ SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, int w
 	for (int i = 0; i < mipLevels; ++i) {
 		SRRenderPassAttachmentSubresource& subresourceState = attachment->subresourceStates[i];
 		//subresourceState.state = SRResourceState::UNORDERED_ACCESS;
-		subresourceState.lastBarrierAccess = SRBarrierAccess_None;
+		subresourceState.lastBarrierAccess = SRBarrierAccess::None;
 	}
 
 	m_OutputAttachments.push_back(attachment);
@@ -168,11 +168,11 @@ void SRRenderGraph::build(SRGraphicsDevice& gfxDevice) {
 				.mipLevels = output->mipLevels,
 				.format = output->format,
 				.usage = SRUsage::DEFAULT,
-				.bindFlags = SRBindFlag_None
+				.bindFlags = SRBindFlag::None
 			};
 
 			if (!output->readInPasses.empty() && output->type != SRRenderPassAttachment::Type::DEPTH_STENCIL) {
-				textureInfo.bindFlags |= SRBindFlag_ShaderResource;
+				textureInfo.bindFlags |= SRBindFlag::ShaderResource;
 			}
 
 			bool writtenByCompute = false;
@@ -184,15 +184,15 @@ void SRRenderGraph::build(SRGraphicsDevice& gfxDevice) {
 			}
 
 			if (writtenByCompute) {
-				textureInfo.bindFlags |= SRBindFlag_UnorderedAccess;
+				textureInfo.bindFlags |= SRBindFlag::UnorderedAccess;
 			}
 
 			switch (output->type) {
 			case SRRenderPassAttachment::Type::RENDER_TARGET:
-				textureInfo.bindFlags |= SRBindFlag_RenderTarget;
+				textureInfo.bindFlags |= SRBindFlag::RenderTarget;
 				break;
 			case SRRenderPassAttachment::Type::DEPTH_STENCIL:
-				textureInfo.bindFlags |= SRBindFlag_DepthStencil;
+				textureInfo.bindFlags |= SRBindFlag::DepthStencil;
 				break;
 			default:
 				break;
@@ -224,8 +224,8 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 		std::vector<SRBarrier> barriers;
 		for (SRRenderPassAttachment* output : outputs) {
 			SRResourceState targetState = SRResourceState::UNDEFINED;
-			SRBarrierAccess targetBarrierAccess = SRBarrierAccess_None;
-			SRBarrierSync targetSyncPoint = SRBarrierSync_None;
+			SRBarrierAccess targetBarrierAccess = SRBarrierAccess::None;
+			SRBarrierSync targetSyncPoint = SRBarrierSync::None;
 
 			switch (output->type) {
 			case SRRenderPassAttachment::Type::RENDER_TARGET:
@@ -235,8 +235,8 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 				colorAttachment.loadOp = SRLoadOp::Clear;
 				colorAttachment.storeOp = SRStoreOp::Store;
 				targetState = SRResourceState::RENDER_TARGET;
-				targetBarrierAccess |= SRBarrierAccess_RenderTarget;
-				targetSyncPoint = SRBarrierSync_RenderTarget;
+				targetBarrierAccess |= SRBarrierAccess::RenderTarget;
+				targetSyncPoint = SRBarrierSync::RenderTarget;
 			}
 			break;
 			case SRRenderPassAttachment::Type::DEPTH_STENCIL:
@@ -246,15 +246,15 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 				passInfo.depthAttachment.storeOp = SRStoreOp::Store;
 				passInfo.depthAttachment.clearValue = output->depthClearValue;
 				targetState = SRResourceState::DEPTH_WRITE;
-				targetBarrierAccess |= SRBarrierAccess_DepthStencilWrite;
-				targetSyncPoint = SRBarrierSync_DepthStencil;
+				targetBarrierAccess |= SRBarrierAccess::DepthStencilWrite;
+				targetSyncPoint = SRBarrierSync::DepthStencil;
 			}
 			break;
 			case SRRenderPassAttachment::Type::RW_TEXTURE:
 			{
 				targetState = SRResourceState::UNORDERED_ACCESS;
-				targetBarrierAccess |= SRBarrierAccess_UnorderedAccess;
-				targetSyncPoint = SRBarrierSync_ComputeShader; // TODO: Perhaps not all of the time?
+				targetBarrierAccess |= SRBarrierAccess::UnorderedAccess;
+				targetSyncPoint = SRBarrierSync::ComputeShader; // TODO: Perhaps not all of the time?
 			}
 			break;
 			}
@@ -315,12 +315,12 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 				// will do. So for now, it might work for simple raster, but will likely have to be extended
 				if (input.accessFlags & SRAccessFlag_Read) {
 					if (input.attachment->type == SRRenderPassAttachment::Type::DEPTH_STENCIL) {
-						barrier.image.accessAfter = SRBarrierAccess_DepthStencilRead;
-						barrier.image.syncAfter = SRBarrierSync_DepthStencil;
+						barrier.image.accessAfter = SRBarrierAccess::DepthStencilRead;
+						barrier.image.syncAfter = SRBarrierSync::DepthStencil;
 					}
 					else if (input.attachment->type == SRRenderPassAttachment::Type::RENDER_TARGET) {
-						barrier.image.accessAfter = SRBarrierAccess_ShaderResource;
-						barrier.image.syncAfter = SRBarrierSync_PixelShader;
+						barrier.image.accessAfter = SRBarrierAccess::ShaderResource;
+						barrier.image.syncAfter = SRBarrierSync::PixelShader;
 					}
 				}
 				if (input.accessFlags & SRAccessFlag_Write) {

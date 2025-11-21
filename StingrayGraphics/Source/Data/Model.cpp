@@ -145,13 +145,13 @@ namespace SRModelLoader {
 			.size = numVertices * sizeof(SRVertex),
 			.stride = sizeof(SRVertex),
 			.usage = SRUsage::DEFAULT,
-			.bindFlags = SRBindFlag_VertexBuffer
+			.bindFlags = SRBindFlag::VertexBuffer
 		};
 		const SRBufferInfo indexBufferInfo = {
 			.size = numIndices * sizeof(uint32_t),
 			.stride = sizeof(uint32_t),
 			.usage = SRUsage::DEFAULT,
-			.bindFlags = SRBindFlag_IndexBuffer
+			.bindFlags = SRBindFlag::IndexBuffer
 		};
 
 		gfxDevice.create_buffer(vertexBufferInfo, model.vertexBuffer, vertices);

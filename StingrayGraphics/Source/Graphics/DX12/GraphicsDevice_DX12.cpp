@@ -615,11 +615,11 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 		.Flags = D3D12_RESOURCE_FLAG_NONE
 	};
 
-	if (info.bindFlags & SRBindFlag_UnorderedAccess) {
+	if (has_flag(info.bindFlags, SRBindFlag::UnorderedAccess)) {
 		resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	}
 	// TODO: Look into whether or not this is always correct
-	if (!(info.bindFlags & SRBindFlag_ShaderResource)) {
+	if (!has_flag(info.bindFlags, SRBindFlag::ShaderResource)) {
 		resourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
 	}
 
@@ -650,8 +650,8 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 		// Staging buffer
 		SRBufferInfo stagingBufferInfo = info;
 		stagingBufferInfo.usage = SRUsage::UPLOAD;
-		stagingBufferInfo.bindFlags = SRBindFlag_None;
-		stagingBufferInfo.miscFlags = SRMiscFlag_None;
+		stagingBufferInfo.bindFlags = SRBindFlag::None;
+		stagingBufferInfo.miscFlags = SRMiscFlag::None;
 
 		SRBuffer stagingBuffer;
 		create_buffer(stagingBufferInfo, stagingBuffer, data);
@@ -718,7 +718,7 @@ void SRGraphicsDevice_DX12::Impl::bind_viewport(const SRViewport& viewport, cons
 }
 
 void SRGraphicsDevice_DX12::Impl::bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
-	assert(buffer.info.bindFlags & SRBindFlag_VertexBuffer);
+	assert(has_flag(buffer.info.bindFlags, SRBindFlag::VertexBuffer));
 	auto* internalBuffer = to_dx12_internal(buffer);
 	auto* internalCmdList = to_dx12_internal(cmdList);
 
@@ -732,7 +732,7 @@ void SRGraphicsDevice_DX12::Impl::bind_vertex_buffer(const SRBuffer& buffer, con
 }
 
 void SRGraphicsDevice_DX12::Impl::bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
-	assert(buffer.info.bindFlags & SRBindFlag_IndexBuffer);
+	assert(has_flag(buffer.info.bindFlags, SRBindFlag::IndexBuffer));
 	auto* internalBuffer = to_dx12_internal(buffer);
 	auto* internalCmdList = to_dx12_internal(cmdList);
 
@@ -746,7 +746,7 @@ void SRGraphicsDevice_DX12::Impl::bind_index_buffer(const SRBuffer& buffer, cons
 }
 
 void SRGraphicsDevice_DX12::Impl::bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) {
-	assert(buffer.info.bindFlags & SRBindFlag_ConstantBuffer);
+	assert(has_flag(buffer.info.bindFlags, SRBindFlag::ConstantBuffer));
 	auto* internalBuffer = to_dx12_internal(buffer);
 	auto* internalCmdList = to_dx12_internal(cmdList);
 

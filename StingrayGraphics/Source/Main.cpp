@@ -176,7 +176,7 @@ void init_resources() {
 		.size = sizeof(PerFrameData),
 		.stride = sizeof(PerFrameData),
 		.usage = SRUsage::UPLOAD,
-		.bindFlags = SRBindFlag_ConstantBuffer
+		.bindFlags = SRBindFlag::ConstantBuffer
 	};
 
 	for (uint32_t f = 0; f < SRGraphicsDevice::FRAMES_IN_FLIGHT; ++f) {

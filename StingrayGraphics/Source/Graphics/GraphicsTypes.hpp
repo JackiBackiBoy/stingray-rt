@@ -1,74 +1,75 @@
 #pragma once
 
+#include "Core/EnumBitmask.hpp"
+
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
-typedef uint16_t SRBarrierSync;
-typedef uint16_t SRBarrierAccess;
-typedef uint8_t SRQueue;
-typedef uint8_t SRBindFlag;
-typedef uint8_t SRMiscFlag;
-
 typedef uint32_t SRDescriptorIndex;
 inline constexpr SRDescriptorIndex INVALID_DESCRIPTOR_INDEX = ~0U;
 
-enum SRBarrierSync_ : SRBarrierSync {
-	SRBarrierSync_None          = 0,
-	SRBarrierSync_AllCommands   = 1 << 0,
-	SRBarrierSync_Draw          = 1 << 1,
-	SRBarrierSync_IndexInput    = 1 << 2,
-	SRBarrierSync_VertexShader  = 1 << 3,
-	SRBarrierSync_PixelShader   = 1 << 4,
-	SRBarrierSync_DepthStencil  = 1 << 5,
-	SRBarrierSync_RenderTarget  = 1 << 6,
-	SRBarrierSync_ComputeShader = 1 << 7,
-	SRBarrierSync_RayTracing    = 1 << 8,
-	SRBarrierSync_Copy          = 1 << 9,
-};
-
-enum SRBarrierAccess_ : SRBarrierAccess {
-	SRBarrierAccess_None              = 0,
-	SRBarrierAccess_VertexBuffer      = 1 << 0,
-	SRBarrierAccess_ConstantBuffer    = 1 << 1,
-	SRBarrierAccess_IndexBuffer       = 1 << 2,
-	SRBarrierAccess_RenderTarget      = 1 << 3,
-	SRBarrierAccess_UnorderedAccess   = 1 << 4,
-	SRBarrierAccess_DepthStencilRead  = 1 << 5,
-	SRBarrierAccess_DepthStencilWrite = 1 << 6,
-	SRBarrierAccess_ShaderResource    = 1 << 7,
-	SRBarrierAccess_CopyDest          = 1 << 8,
-	SRBarrierAccess_CopySrc           = 1 << 9
-};
-
-enum SRQueue_ : SRQueue {
+enum SRQueue : uint8_t {
 	SRQueue_Universal, // Graphics + Compute + Copy
 	SRQueue_Compute, // Dedicated compute
 	SRQueue_Copy, // Dedicated copy queue
 	SRQueue_COUNT
 };
 
-enum SRBindFlag_ : SRBindFlag {
-	SRBindFlag_None            = 0,
-	SRBindFlag_VertexBuffer    = 1 << 0,
-	SRBindFlag_IndexBuffer     = 1 << 1,
-	SRBindFlag_ConstantBuffer  = 1 << 2,
-	SRBindFlag_ShaderResource  = 1 << 3,
-	SRBindFlag_RenderTarget    = 1 << 4,
-	SRBindFlag_DepthStencil    = 1 << 5,
-	SRBindFlag_UnorderedAccess = 1 << 6,
-	SRBindFlag_ShadingRate     = 1 << 7 // NOTE: Not supported right now
+enum class SRBarrierSync : uint16_t {
+	None          = 0,
+	AllCommands   = 1 << 0,
+	Draw          = 1 << 1,
+	IndexInput    = 1 << 2,
+	VertexShader  = 1 << 3,
+	PixelShader   = 1 << 4,
+	DepthStencil  = 1 << 5,
+	RenderTarget  = 1 << 6,
+	ComputeShader = 1 << 7,
+	RayTracing    = 1 << 8,
+	Copy          = 1 << 9,
 };
 
-enum SRMiscFlag_ : SRMiscFlag {
-	SRMiscFlag_None              = 0,
-	SRMiscFlag_StructuredBuffer  = 1 << 0,
-	SRMiscFlag_ByteAddressBuffer = 1 << 1,
-	SRMiscFlag_IndirectArgs      = 1 << 2,
-	SRMiscFlag_CubeTexture       = 1 << 3,
-	SRMiscFlag_RayTracing        = 1 << 4,
+enum class SRBarrierAccess : uint16_t {
+	None              = 0,
+	VertexBuffer      = 1 << 0,
+	ConstantBuffer    = 1 << 1,
+	IndexBuffer       = 1 << 2,
+	RenderTarget      = 1 << 3,
+	UnorderedAccess   = 1 << 4,
+	DepthStencilRead  = 1 << 5,
+	DepthStencilWrite = 1 << 6,
+	ShaderResource    = 1 << 7,
+	CopyDst           = 1 << 8,
+	CopySrc           = 1 << 9
 };
+
+enum class SRBindFlag : uint8_t {
+	None            = 0,
+	VertexBuffer    = 1 << 0,
+	IndexBuffer     = 1 << 1,
+	ConstantBuffer  = 1 << 2,
+	ShaderResource  = 1 << 3,
+	RenderTarget    = 1 << 4,
+	DepthStencil    = 1 << 5,
+	UnorderedAccess = 1 << 6,
+	ShadingRate     = 1 << 7 // NOTE: Not supported right now
+};
+
+enum class SRMiscFlag : uint8_t {
+	None              = 0,
+	StructuredBuffer  = 1 << 0,
+	ByteAddressBuffer = 1 << 1,
+	IndirectArgs      = 1 << 2,
+	CubeTexture       = 1 << 3,
+	RayTracing        = 1 << 4,
+};
+
+SR_ENABLE_BITMASK_OPERATORS(SRBarrierSync)
+SR_ENABLE_BITMASK_OPERATORS(SRBarrierAccess)
+SR_ENABLE_BITMASK_OPERATORS(SRBindFlag)
+SR_ENABLE_BITMASK_OPERATORS(SRMiscFlag)
 
 enum class SRGraphicsAPI : uint8_t {
 	DX12,
@@ -350,8 +351,8 @@ struct SRBufferInfo {
 	uint64_t size = 0;
 	uint32_t stride = 0;
 	SRUsage usage = SRUsage::DEFAULT;
-	SRBindFlag bindFlags = SRBindFlag_None;
-	SRMiscFlag miscFlags = SRMiscFlag_None;
+	SRBindFlag bindFlags = SRBindFlag::None;
+	SRMiscFlag miscFlags = SRMiscFlag::None;
 };
 
 struct SRBuffer : public SRResource {
@@ -369,7 +370,7 @@ struct SRTextureInfo {
 	uint32_t sampleCount = 1;
 	SRFormat format = SRFormat::UNKNOWN;
 	SRUsage usage = SRUsage::DEFAULT;
-	SRBindFlag bindFlags = SRBindFlag_None;
+	SRBindFlag bindFlags = SRBindFlag::None;
 };
 
 struct SRTexture : public SRResource {
@@ -404,10 +405,10 @@ struct SRBarrier {
 		const SRTexture* texture = nullptr;
 		SRResourceState stateBefore = SRResourceState::UNDEFINED;
 		SRResourceState stateAfter = SRResourceState::UNDEFINED;
-		SRBarrierAccess accessBefore = SRBarrierAccess_None;
-		SRBarrierAccess accessAfter = SRBarrierAccess_None;
-		SRBarrierSync syncBefore = SRBarrierSync_None;
-		SRBarrierSync syncAfter = SRBarrierSync_None;
+		SRBarrierAccess accessBefore = SRBarrierAccess::None;
+		SRBarrierAccess accessAfter = SRBarrierAccess::None;
+		SRBarrierSync syncBefore = SRBarrierSync::None;
+		SRBarrierSync syncAfter = SRBarrierSync::None;
 		SRSubresourceRange subresourceRange = {};
 	};
 
