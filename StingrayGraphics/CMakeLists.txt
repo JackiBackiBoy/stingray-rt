@@ -40,7 +40,7 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Main.cpp
 
 	# Core
-	${SOURCE_DIR}/Core/EnumBitmask.hpp
+	${SOURCE_DIR}/Core/EnumBitmaskOperators.hpp
 	${SOURCE_DIR}/Core/Logger.cpp
 	${SOURCE_DIR}/Core/Logger.hpp
 	${SOURCE_DIR}/Core/Window.cpp
@@ -113,7 +113,7 @@ source_group("" FILES
 )
 
 source_group("Core" FILES
-	${SOURCE_DIR}/Core/EnumBitmask.hpp
+	${SOURCE_DIR}/Core/EnumBitmaskOperators.hpp
 	${SOURCE_DIR}/Core/Logger.cpp
 	${SOURCE_DIR}/Core/Logger.hpp
 	${SOURCE_DIR}/Core/Window.cpp

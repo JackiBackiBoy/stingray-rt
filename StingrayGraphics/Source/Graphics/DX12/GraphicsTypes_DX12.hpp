@@ -82,6 +82,17 @@ struct SRBuffer_DX12 : public SRResource_DX12 {
 
 };
 
+struct SRTexture_DX12 : public SRResource_DX12 {
+	SRDescriptorIndex rtvDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex srvDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex dsvDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex dsvReadOnlyDescriptor = INVALID_DESCRIPTOR_INDEX;
+};
+
+struct SRSampler_DX12 {
+	SRDescriptorIndex samplerDescriptor = INVALID_DESCRIPTOR_INDEX;
+};
+
 struct SRCmdList_DX12 {
 	ComPtr<ID3D12GraphicsCommandList7> graphicsCmdList;
 };
@@ -102,6 +113,10 @@ inline SRBuffer_DX12* to_dx12_internal(const SRBuffer& buffer) {
 	return (SRBuffer_DX12*)buffer.internalState.get();
 }
 
+inline SRTexture_DX12* to_dx12_internal(const SRTexture& texture) {
+	return (SRTexture_DX12*)texture.internalState.get();
+}
+
 inline SRCmdList_DX12* to_dx12_internal(const SRCmdList& cmdList) {
 	return (SRCmdList_DX12*)cmdList.internalState;
 }
@@ -112,6 +127,30 @@ inline SRPipeline_DX12* to_dx12_internal(const SRPipeline& pipeline) {
 
 inline SRSwapchain_DX12* to_dx12_internal(const SRSwapchain& swapchain) {
 	return (SRSwapchain_DX12*)swapchain.internalState.get();
+}
+
+inline constexpr D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE to_dx12_load_op(SRLoadOp value) {
+	switch (value) {
+	case SRLoadOp::None:
+		return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS;
+	case SRLoadOp::Load:
+		return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
+	case SRLoadOp::Clear:
+		return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
+	case SRLoadOp::DontCare:
+		return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+	}
+}
+
+inline constexpr D3D12_RENDER_PASS_ENDING_ACCESS_TYPE to_dx12_store_op(SRStoreOp value) {
+	switch (value) {
+	case SRStoreOp::None:
+		return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS;
+	case SRStoreOp::Store:
+		return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
+	case SRStoreOp::DontCare:
+		return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD;
+	}
 }
 
 inline constexpr D3D12_BLEND to_dx12_blend(SRBlend value) {
@@ -253,6 +292,85 @@ inline constexpr D3D12_FILL_MODE to_dx12_fill_mode(SRFillMode value) {
 		return D3D12_FILL_MODE_SOLID;
 	default:
 		return D3D12_FILL_MODE_WIREFRAME;
+	}
+}
+
+inline constexpr D3D12_FILTER to_dx12_filter(SRFilter value) {
+	switch (value) {
+	case SRFilter::MIN_MAG_MIP_POINT:
+		return D3D12_FILTER_MIN_MAG_MIP_POINT;
+	case SRFilter::MIN_MAG_POINT_MIP_LINEAR:
+		return D3D12_FILTER_MIN_MAG_POINT_MIP_LINEAR;
+	case SRFilter::MIN_POINT_MAG_LINEAR_MIP_POINT:
+		return D3D12_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT;
+	case SRFilter::MIN_POINT_MAG_MIP_LINEAR:
+		return D3D12_FILTER_MIN_POINT_MAG_MIP_LINEAR;
+	case SRFilter::MIN_LINEAR_MAG_MIP_POINT:
+		return D3D12_FILTER_MIN_LINEAR_MAG_MIP_POINT;
+	case SRFilter::MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+		return D3D12_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
+	case SRFilter::MIN_MAG_LINEAR_MIP_POINT:
+		return D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+	case SRFilter::MIN_MAG_MIP_LINEAR:
+		return D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	case SRFilter::ANISOTROPIC:
+		return D3D12_FILTER_ANISOTROPIC;
+	case SRFilter::COMPARISON_MIN_MAG_MIP_POINT:
+		return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+	case SRFilter::COMPARISON_MIN_MAG_POINT_MIP_LINEAR:
+		return D3D12_FILTER_COMPARISON_MIN_MAG_POINT_MIP_LINEAR;
+	case SRFilter::COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT:
+		return D3D12_FILTER_COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT;
+	case SRFilter::COMPARISON_MIN_POINT_MAG_MIP_LINEAR:
+		return D3D12_FILTER_COMPARISON_MIN_POINT_MAG_MIP_LINEAR;
+	case SRFilter::COMPARISON_MIN_LINEAR_MAG_MIP_POINT:
+		return D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT;
+	case SRFilter::COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+		return D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
+	case SRFilter::COMPARISON_MIN_MAG_LINEAR_MIP_POINT:
+		return D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	case SRFilter::COMPARISON_MIN_MAG_MIP_LINEAR:
+		return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+	case SRFilter::COMPARISON_ANISOTROPIC:
+		return D3D12_FILTER_COMPARISON_ANISOTROPIC;
+	case SRFilter::MINIMUM_MIN_MAG_MIP_POINT:
+		return D3D12_FILTER_MINIMUM_MIN_MAG_MIP_POINT;
+	case SRFilter::MINIMUM_MIN_MAG_POINT_MIP_LINEAR:
+		return D3D12_FILTER_MINIMUM_MIN_MAG_POINT_MIP_LINEAR;
+	case SRFilter::MINIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT:
+		return D3D12_FILTER_MINIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT;
+	case SRFilter::MINIMUM_MIN_POINT_MAG_MIP_LINEAR:
+		return D3D12_FILTER_MINIMUM_MIN_POINT_MAG_MIP_LINEAR;
+	case SRFilter::MINIMUM_MIN_LINEAR_MAG_MIP_POINT:
+		return D3D12_FILTER_MINIMUM_MIN_LINEAR_MAG_MIP_POINT;
+	case SRFilter::MINIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+		return D3D12_FILTER_MINIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
+	case SRFilter::MINIMUM_MIN_MAG_LINEAR_MIP_POINT:
+		return D3D12_FILTER_MINIMUM_MIN_MAG_LINEAR_MIP_POINT;
+	case SRFilter::MINIMUM_MIN_MAG_MIP_LINEAR:
+		return D3D12_FILTER_MINIMUM_MIN_MAG_MIP_LINEAR;
+	case SRFilter::MINIMUM_ANISOTROPIC:
+		return D3D12_FILTER_MINIMUM_ANISOTROPIC;
+	case SRFilter::MAXIMUM_MIN_MAG_MIP_POINT:
+		return D3D12_FILTER_MAXIMUM_MIN_MAG_MIP_POINT;
+	case SRFilter::MAXIMUM_MIN_MAG_POINT_MIP_LINEAR:
+		return D3D12_FILTER_MAXIMUM_MIN_MAG_POINT_MIP_LINEAR;
+	case SRFilter::MAXIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT:
+		return D3D12_FILTER_MAXIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT;
+	case SRFilter::MAXIMUM_MIN_POINT_MAG_MIP_LINEAR:
+		return D3D12_FILTER_MAXIMUM_MIN_POINT_MAG_MIP_LINEAR;
+	case SRFilter::MAXIMUM_MIN_LINEAR_MAG_MIP_POINT:
+		return D3D12_FILTER_MAXIMUM_MIN_LINEAR_MAG_MIP_POINT;
+	case SRFilter::MAXIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+		return D3D12_FILTER_MAXIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
+	case SRFilter::MAXIMUM_MIN_MAG_LINEAR_MIP_POINT:
+		return D3D12_FILTER_MAXIMUM_MIN_MAG_LINEAR_MIP_POINT;
+	case SRFilter::MAXIMUM_MIN_MAG_MIP_LINEAR:
+		return D3D12_FILTER_MAXIMUM_MIN_MAG_MIP_LINEAR;
+	case SRFilter::MAXIMUM_ANISOTROPIC:
+		return D3D12_FILTER_MAXIMUM_ANISOTROPIC;
+	default:
+		return D3D12_FILTER_MIN_MAG_MIP_POINT;
 	}
 }
 
@@ -401,5 +519,122 @@ inline constexpr D3D12_INPUT_CLASSIFICATION to_dx12_input_class(SRInputClass val
 		return D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA;
 	default:
 		return D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+	}
+}
+
+inline constexpr D3D12_BARRIER_ACCESS to_dx12_access_mask(SRBarrierAccess value) {
+	if (value == SRBarrierAccess::None) {
+		return D3D12_BARRIER_ACCESS_NO_ACCESS;
+	}
+
+	D3D12_BARRIER_ACCESS result = D3D12_BARRIER_ACCESS_COMMON;
+
+	if (has_flag(value, SRBarrierAccess::VertexBuffer)) {
+		result |= D3D12_BARRIER_ACCESS_VERTEX_BUFFER;
+	}
+	if (has_flag(value, SRBarrierAccess::ConstantBuffer)) {
+		result |= D3D12_BARRIER_ACCESS_CONSTANT_BUFFER;
+	}
+	if (has_flag(value, SRBarrierAccess::IndexBuffer)) {
+		result |= D3D12_BARRIER_ACCESS_INDEX_BUFFER;
+	}
+	if (has_flag(value, SRBarrierAccess::RenderTarget)) {
+		result |= D3D12_BARRIER_ACCESS_RENDER_TARGET;
+	}
+	if (has_flag(value, SRBarrierAccess::UnorderedAccess)) {
+		result |= D3D12_BARRIER_ACCESS_UNORDERED_ACCESS;
+	}
+	if (has_flag(value, SRBarrierAccess::DepthStencilRead)) {
+		result |= D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ;
+	}
+	if (has_flag(value, SRBarrierAccess::DepthStencilWrite)) {
+		result |= D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE;
+	}
+	if (has_flag(value, SRBarrierAccess::ShaderResource)) {
+		result |= D3D12_BARRIER_ACCESS_SHADER_RESOURCE;
+	}
+	if (has_flag(value, SRBarrierAccess::CopySrc)) {
+		result |= D3D12_BARRIER_ACCESS_COPY_SOURCE;
+	}
+	if (has_flag(value, SRBarrierAccess::CopyDst)) {
+		result |= D3D12_BARRIER_ACCESS_COPY_DEST;
+	}
+
+	return result;
+}
+
+inline constexpr D3D12_BARRIER_LAYOUT to_dx12_resource_state(SRResourceState value) {
+	switch (value) {
+	case SRResourceState::UNDEFINED:
+		return D3D12_BARRIER_LAYOUT_UNDEFINED;
+	case SRResourceState::RENDER_TARGET:
+		return D3D12_BARRIER_LAYOUT_RENDER_TARGET;
+	case SRResourceState::DEPTH_WRITE:
+		return D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_WRITE;
+	case SRResourceState::DEPTH_READ:
+		return D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_READ;
+	case SRResourceState::SHADER_RESOURCE:
+		return D3D12_BARRIER_LAYOUT_SHADER_RESOURCE;
+	case SRResourceState::UNORDERED_ACCESS:
+		return D3D12_BARRIER_LAYOUT_UNORDERED_ACCESS;
+	default:
+		return D3D12_BARRIER_LAYOUT_COMMON;
+	}
+}
+
+inline constexpr D3D12_BARRIER_SYNC to_dx12_pipeline_stage(SRBarrierSync value) {
+	D3D12_BARRIER_SYNC result = D3D12_BARRIER_SYNC_NONE;
+
+	if (has_flag(value, SRBarrierSync::AllCommands)) {
+		result |= D3D12_BARRIER_SYNC_ALL;
+	}
+	if (has_flag(value, SRBarrierSync::Draw)) {
+		// TODO: LOOK INTO THIS
+		// Invalid for now
+		assert(false);
+	}
+	if (has_flag(value, SRBarrierSync::IndexInput)) {
+		assert(false);
+	}
+	if (has_flag(value, SRBarrierSync::VertexShader)) {
+		result |= D3D12_BARRIER_SYNC_VERTEX_SHADING;
+	}
+	if (has_flag(value, SRBarrierSync::PixelShader)) {
+		result |= D3D12_BARRIER_SYNC_PIXEL_SHADING;
+	}
+	if (has_flag(value, SRBarrierSync::DepthStencil)) {
+		// TODO: Investigate
+		result |= D3D12_BARRIER_SYNC_DEPTH_STENCIL;
+	}
+	if (has_flag(value, SRBarrierSync::RenderTarget)) {
+		result |= D3D12_BARRIER_SYNC_RENDER_TARGET;
+	}
+	if (has_flag(value, SRBarrierSync::ComputeShader)) {
+		result |= D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+	}
+	if (has_flag(value, SRBarrierSync::RayTracing)) {
+		assert(false);
+	}
+	if (has_flag(value, SRBarrierSync::Copy)) {
+		result |= D3D12_BARRIER_SYNC_COPY;
+	}
+
+	return result;
+}
+
+inline constexpr D3D12_TEXTURE_ADDRESS_MODE to_dx12_texture_address_mode(SRTextureAddressMode value) {
+	switch (value) {
+	case SRTextureAddressMode::WRAP:
+		return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	case SRTextureAddressMode::MIRROR:
+		return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+	case SRTextureAddressMode::CLAMP:
+		return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	case SRTextureAddressMode::BORDER:
+		return D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	case SRTextureAddressMode::MIRROR_ONCE:
+		return D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE;
+	default:
+		return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	}
 }

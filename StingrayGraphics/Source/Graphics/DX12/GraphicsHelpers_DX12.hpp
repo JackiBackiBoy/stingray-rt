@@ -92,4 +92,40 @@ namespace SRDX12Helpers {
 
 		graphicsCmdList->Barrier(1, &barrierGroup);
 	}
+
+	inline SRDescriptorIndex init_rtv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_RENDER_TARGET_VIEW_DESC& desc, SRDescriptorHeap_DX12& descriptorHeap) {
+		const SRDescriptorIndex descriptor = descriptorHeap.get_next_index();
+
+		device->CreateRenderTargetView(
+			res,
+			&desc,
+			descriptorHeap.get_cpu_handle(descriptor)
+		);
+
+		return descriptor;
+	}
+
+	inline SRDescriptorIndex init_dsv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc, SRDescriptorHeap_DX12& descriptorHeap) {
+		const SRDescriptorIndex descriptor = descriptorHeap.get_next_index();
+
+		device->CreateDepthStencilView(
+			res,
+			&desc,
+			descriptorHeap.get_cpu_handle(descriptor)
+		);
+
+		return descriptor;
+	}
+
+	inline SRDescriptorIndex init_srv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc, SRDescriptorHeap_DX12& descriptorHeap) {
+		const SRDescriptorIndex descriptor = descriptorHeap.get_next_index();
+
+		device->CreateShaderResourceView(
+			res,
+			&desc,
+			descriptorHeap.get_cpu_handle(descriptor)
+		);
+
+		return descriptor;
+	}
 }

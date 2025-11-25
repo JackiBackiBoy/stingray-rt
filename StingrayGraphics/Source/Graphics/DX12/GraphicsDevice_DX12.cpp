@@ -35,22 +35,29 @@ struct SRGraphicsDevice_DX12::Impl {
 	void create_swapchain(const SRSwapchainInfo& info, SRSwapchain& swapchain);
 	void create_pipeline(const SRPipelineInfo& info, SRPipeline& pipeline);
 	void create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data);
+	void create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data);
+	void create_sampler(const SRSamplerInfo& info, SRSampler& sampler);
 
 	void bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList);
 	void bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList);
 	void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
+	void push_constants(const void* data, uint32_t size, const SRCmdList& cmdList);
+	void barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList);
 
 	SRCmdList begin_command_list(SRQueue queue);
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
+	void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
 	void end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
+	void end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
 	void submit_command_lists(const SRSwapchain& swapchain);
 
 	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList);
 	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList);
 
 	SRShaderPlatformInfo get_shader_platform_info();
+	SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource);
 	void wait_for_gpu();
 
 	// NOTE: TEMPORARY STUFF
@@ -421,30 +428,38 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 		.NodeMask = 0
 	};
 
-	const D3D12_DESCRIPTOR_RANGE1 texture2DRange = {
+	const D3D12_ROOT_PARAMETER1 rootConstant = {
+		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
+		.Constants = {.ShaderRegister = 0, .RegisterSpace = 101, .Num32BitValues = 32 /* 128 bytes */ },
+		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
+	};
+	const D3D12_DESCRIPTOR_RANGE1 texture2DRange = { 
 		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		.NumDescriptors = UINT_MAX,
 		.RegisterSpace = 0,
 		.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE,
 		.OffsetInDescriptorsFromTableStart = 0
 	};
-	const D3D12_DESCRIPTOR_RANGE1 texture3DRange = {
-		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+	const D3D12_DESCRIPTOR_RANGE1 samplerRange = {
+		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER,
 		.NumDescriptors = UINT_MAX,
-		.RegisterSpace = 1,
+		.RegisterSpace = 0,
 		.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE,
 		.OffsetInDescriptorsFromTableStart = 0
 	};
-	const D3D12_DESCRIPTOR_RANGE1 srvRanges[] = {
-		texture2DRange,
-		texture3DRange
-	};
-
 	const D3D12_ROOT_PARAMETER1 srvTable = {
 		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
 		.DescriptorTable = {
-			.NumDescriptorRanges = static_cast<UINT>(std::size(srvRanges)),
-			.pDescriptorRanges = srvRanges
+			.NumDescriptorRanges = 1,
+			.pDescriptorRanges = &texture2DRange
+		},
+		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
+	};
+	const D3D12_ROOT_PARAMETER1 samplerTable = {
+		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+		.DescriptorTable = {
+			.NumDescriptorRanges = 1,
+			.pDescriptorRanges = &samplerRange
 		},
 		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
 	};
@@ -458,8 +473,10 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
 	};
 	const D3D12_ROOT_PARAMETER1 rootParameters[] = {
-		srvTable,
-		perFrameCBV
+		rootConstant, // Root Parameter 0
+		srvTable,     // Root Parameter 1
+		samplerTable, // Root Parameter 2
+		perFrameCBV   // Root Parameter 3
 	};
 
 	struct D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc {
@@ -691,6 +708,185 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 	// TODO: CBV
 }
 
+void SRGraphicsDevice_DX12::Impl::create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data) {
+	assert(info.usage == SRUsage::DEFAULT);
+	auto internalTexture = std::make_shared<SRTexture_DX12>();
+
+	texture.info = info;
+	texture.internalState = internalTexture;
+	texture.type = SRResourceType::Texture;
+
+	D3D12_RESOURCE_DESC1 resourceDesc = {
+		.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+		.Alignment = 0,
+		.Width = static_cast<UINT64>(info.width),
+		.Height = info.height,
+		.DepthOrArraySize = static_cast<UINT16>(info.depth),
+		.MipLevels = static_cast<UINT16>(info.mipLevels),
+		.Format = to_dx12_format(info.format),
+		.SampleDesc = {.Count = info.sampleCount, .Quality = 0 },
+		.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+		.Flags = D3D12_RESOURCE_FLAG_NONE
+	};
+
+	// Bind flags
+	if (has_flag(info.bindFlags, SRBindFlag::DepthStencil)) {
+		resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	}
+	if (has_flag(info.bindFlags, SRBindFlag::UnorderedAccess)) {
+		resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	}
+	if (has_flag(info.bindFlags, SRBindFlag::RenderTarget)) {
+		resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	}
+
+	D3D12MA::ALLOCATION_DESC allocDesc = {
+		.HeapType = D3D12_HEAP_TYPE_DEFAULT,
+	};
+	SR_DX12_CHECK(m_Allocator->CreateResource3(
+		&allocDesc,
+		&resourceDesc,
+		D3D12_BARRIER_LAYOUT_UNDEFINED,
+		nullptr,
+		0,
+		nullptr,
+		&internalTexture->allocation,
+		IID_NULL, nullptr
+	), "CreateResource3");
+
+	// TODO: Implement subresource data copying
+	if (data && data->data) {
+
+	}
+
+	// RTV Descriptor
+	if (has_flag(info.bindFlags, SRBindFlag::RenderTarget)) {
+		const D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {
+			.Format = resourceDesc.Format,
+			.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D
+		};
+
+		internalTexture->rtvDescriptor = SRDX12Helpers::init_rtv_descriptor(
+			m_Device.Get(),
+			internalTexture->allocation->GetResource(),
+			rtvDesc,
+			m_RTVDescriptorHeap
+		);
+	}
+
+	// DSV Descriptors
+	if (has_flag(info.bindFlags, SRBindFlag::DepthStencil)) {
+		const D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {
+			.Format = resourceDesc.Format,
+			.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
+			.Flags = D3D12_DSV_FLAG_NONE
+		};
+
+		const D3D12_DEPTH_STENCIL_VIEW_DESC dsvReadOnlyDesc = {
+			.Format = resourceDesc.Format,
+			.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
+			.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH
+		};
+
+		internalTexture->dsvDescriptor = SRDX12Helpers::init_dsv_descriptor(
+			m_Device.Get(),
+			internalTexture->allocation->GetResource(),
+			dsvDesc,
+			m_DSVDescriptorHeap
+		);
+		internalTexture->dsvReadOnlyDescriptor = SRDX12Helpers::init_dsv_descriptor(
+			m_Device.Get(),
+			internalTexture->allocation->GetResource(),
+			dsvReadOnlyDesc,
+			m_DSVDescriptorHeap
+		);
+	}
+
+	// SRV Descriptor
+	if (has_flag(info.bindFlags, SRBindFlag::ShaderResource)) {
+		DXGI_FORMAT srvFormat = resourceDesc.Format;
+
+		if (info.format == SRFormat::D32_FLOAT) {
+			srvFormat = DXGI_FORMAT_R32_FLOAT;
+		}
+		else if (info.format == SRFormat::D16_UNORM) {
+			srvFormat = DXGI_FORMAT_R16_UNORM;
+		}
+
+		const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = srvFormat,
+			.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
+			.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+			.Texture2D = {
+				.MostDetailedMip = 0,
+				.MipLevels = info.mipLevels,
+			}
+		};
+
+		internalTexture->srvDescriptor = SRDX12Helpers::init_srv_descriptor(
+			m_Device.Get(),
+			internalTexture->allocation->GetResource(),
+			srvDesc,
+			m_ResourceDescriptorHeap
+		);
+	}
+}
+
+void SRGraphicsDevice_DX12::Impl::create_sampler(const SRSamplerInfo& info, SRSampler& sampler) {
+	auto internalSampler = std::make_shared<SRSampler_DX12>();
+
+	sampler.info = info;
+	sampler.type = SRResourceType::Sampler;
+	sampler.internalState = internalSampler;
+
+	D3D12_SAMPLER_DESC samplerDesc = {
+		.Filter = to_dx12_filter(info.filter),
+		.AddressU = to_dx12_texture_address_mode(info.addressU),
+		.AddressV = to_dx12_texture_address_mode(info.addressV),
+		.AddressW = to_dx12_texture_address_mode(info.addressW),
+		.MipLODBias = info.mipLODBias,
+		.MaxAnisotropy = info.maxAnisotropy,
+		.ComparisonFunc = to_dx12_comparison_func(info.comparisonFunc),
+		.MinLOD = info.minLOD,
+		.MaxLOD = info.maxLOD
+	};
+
+	switch (info.borderColor) {
+	case SRBorderColor::OPAQUE_BLACK:
+	{
+		samplerDesc.BorderColor[0] = 0.0F;
+		samplerDesc.BorderColor[1] = 0.0F;
+		samplerDesc.BorderColor[2] = 0.0F;
+		samplerDesc.BorderColor[3] = 1.0F;
+	}
+	break;
+	case SRBorderColor::OPAQUE_WHITE:
+	{
+		samplerDesc.BorderColor[0] = 1.0F;
+		samplerDesc.BorderColor[1] = 1.0F;
+		samplerDesc.BorderColor[2] = 1.0F;
+		samplerDesc.BorderColor[3] = 1.0F;
+	}
+	break;
+	default:
+	{
+		samplerDesc.BorderColor[0] = 0.0F;
+		samplerDesc.BorderColor[1] = 0.0F;
+		samplerDesc.BorderColor[2] = 0.0F;
+		samplerDesc.BorderColor[3] = 0.0F;
+	}
+	break;
+	}
+
+	const uint32_t index = m_SamplerDescriptorHeap.get_next_index();
+
+	internalSampler->samplerDescriptor = index;
+	m_Device->CreateSampler(
+		&samplerDesc,
+		m_SamplerDescriptorHeap.get_cpu_handle(index)
+	);
+}
+
 void SRGraphicsDevice_DX12::Impl::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
 	auto* internalPipeline = to_dx12_internal(pipeline);
 	auto* internalCmdList = to_dx12_internal(cmdList);
@@ -699,7 +895,10 @@ void SRGraphicsDevice_DX12::Impl::bind_pipeline(const SRPipeline& pipeline, cons
 	internalCmdList->graphicsCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	internalCmdList->graphicsCmdList->SetGraphicsRootSignature(internalPipeline->rootSignature.Get());
 	internalCmdList->graphicsCmdList->SetGraphicsRootDescriptorTable(
-		0, m_ResourceDescriptorHeap.get_heap_object()->GetGPUDescriptorHandleForHeapStart()
+		1, m_ResourceDescriptorHeap.get_heap_object()->GetGPUDescriptorHandleForHeapStart()
+	);
+	internalCmdList->graphicsCmdList->SetGraphicsRootDescriptorTable(
+		2, m_SamplerDescriptorHeap.get_heap_object()->GetGPUDescriptorHandleForHeapStart()
 	);
 }
 
@@ -751,9 +950,61 @@ void SRGraphicsDevice_DX12::Impl::bind_root_constant_buffer(const SRBuffer& buff
 	auto* internalCmdList = to_dx12_internal(cmdList);
 
 	internalCmdList->graphicsCmdList->SetGraphicsRootConstantBufferView(
-		1,
+		3,
 		internalBuffer->allocation->GetResource()->GetGPUVirtualAddress()
 	);
+}
+
+void SRGraphicsDevice_DX12::Impl::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
+	auto* internalCmdList = to_dx12_internal(cmdList);
+	assert(size <= 128);
+
+	internalCmdList->graphicsCmdList->SetGraphicsRoot32BitConstants(
+		0,
+		size >> 2,
+		data,
+		0
+	);
+}
+
+void SRGraphicsDevice_DX12::Impl::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
+	if (!pBarriers || numBarriers <= 0) {
+		return;
+	}
+
+	// TODO: Support UAV and buffer barriers
+	auto* internalCmdList = to_dx12_internal(cmdList);
+	std::vector<D3D12_TEXTURE_BARRIER> dx12Barriers;
+	dx12Barriers.reserve(numBarriers);
+
+	for (uint32_t i = 0; i < numBarriers; ++i) {
+		const SRBarrier& barrier = pBarriers[i];
+		auto* internalTexture = to_dx12_internal(*barrier.image.texture);
+
+		D3D12_TEXTURE_BARRIER dx12Barrier = {
+			.SyncBefore = to_dx12_pipeline_stage(barrier.image.syncBefore),
+			.SyncAfter = to_dx12_pipeline_stage(barrier.image.syncAfter),
+			.AccessBefore = to_dx12_access_mask(barrier.image.accessBefore),
+			.AccessAfter = to_dx12_access_mask(barrier.image.accessAfter),
+			.LayoutBefore = to_dx12_resource_state(barrier.image.stateBefore),
+			.LayoutAfter = to_dx12_resource_state(barrier.image.stateAfter),
+			.pResource = internalTexture->allocation->GetResource(),
+			.Subresources = { 0xffffffff, 0, 0, 0, 0, 0 },
+			.Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE
+		};
+
+		if (barrier.image.stateBefore == SRResourceState::UNDEFINED) {
+			dx12Barrier.Flags = D3D12_TEXTURE_BARRIER_FLAG_DISCARD;
+		}
+		dx12Barriers.push_back(dx12Barrier);
+	}
+
+	const D3D12_BARRIER_GROUP barrierGroup = {
+		.Type = D3D12_BARRIER_TYPE_TEXTURE,
+		.NumBarriers = numBarriers,
+		.pTextureBarriers = dx12Barriers.data()
+	};
+	internalCmdList->graphicsCmdList->Barrier(1, &barrierGroup);
 }
 
 SRCmdList SRGraphicsDevice_DX12::Impl::begin_command_list(SRQueue queue) {
@@ -786,7 +1037,8 @@ SRCmdList SRGraphicsDevice_DX12::Impl::begin_command_list(SRQueue queue) {
 	), "Begin command list recording");
 
 	ID3D12DescriptorHeap* const descriptorHeaps[] = {
-		m_ResourceDescriptorHeap.get_heap_object()
+		m_ResourceDescriptorHeap.get_heap_object(),
+		m_SamplerDescriptorHeap.get_heap_object()
 	};
 	internalCmdList->graphicsCmdList->SetDescriptorHeaps(std::size(descriptorHeaps), descriptorHeaps);
 
@@ -840,9 +1092,79 @@ void SRGraphicsDevice_DX12::Impl::begin_render_pass(const SRSwapchain& swapchain
 	);
 }
 
+void SRGraphicsDevice_DX12::Impl::begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+	auto* internalCmdList = to_dx12_internal(cmdList);
+
+	// RTVs
+	std::vector<D3D12_RENDER_PASS_RENDER_TARGET_DESC> passRTVDescs;
+	D3D12_RENDER_PASS_DEPTH_STENCIL_DESC passDSVDesc = {};
+	passRTVDescs.reserve(passInfo.numColorAttachments);
+
+	for (uint32_t i = 0; i < passInfo.numColorAttachments; ++i) {
+		const SRPassInfo::Attachment& attachment = passInfo.colorAttachments[i];
+		auto internalTexture = to_dx12_internal(*attachment.texture);
+		assert(internalTexture);
+
+		D3D12_RENDER_PASS_RENDER_TARGET_DESC rtvDesc = {
+			.cpuDescriptor = m_RTVDescriptorHeap.get_cpu_handle(internalTexture->rtvDescriptor),
+		};
+
+		if (attachment.loadOp == SRLoadOp::Clear) {
+			rtvDesc.BeginningAccess.Clear.ClearValue = {
+				.Format = to_dx12_format(attachment.texture->info.format),
+				.Color = { 0.0F, 0.0F, 0.0F, 1.0F }
+			};
+		}
+
+		rtvDesc.BeginningAccess.Type = to_dx12_load_op(attachment.loadOp);
+		rtvDesc.EndingAccess.Type = to_dx12_store_op(attachment.storeOp);
+
+		passRTVDescs.push_back(rtvDesc);
+	}
+
+	// DSV
+	const bool hasDepthAttachment = passInfo.depthAttachment.texture != nullptr;
+	bool isReadOnlyDepth = false;
+	if (hasDepthAttachment) {
+		const SRPassInfo::Attachment& depthAttachment = passInfo.depthAttachment;
+		auto internalTexture = to_dx12_internal(*depthAttachment.texture);
+		assert(internalTexture);
+
+		if (depthAttachment.loadOp == SRLoadOp::Clear) {
+			passDSVDesc.cpuDescriptor = m_DSVDescriptorHeap.get_cpu_handle(internalTexture->dsvDescriptor);
+			passDSVDesc.DepthBeginningAccess.Clear.ClearValue = {
+				.Format = to_dx12_format(depthAttachment.texture->info.format),
+				.DepthStencil = {
+					.Depth = depthAttachment.clearValue,
+					.Stencil = 0
+				}
+			};
+		}
+		else if (depthAttachment.loadOp == SRLoadOp::Load) {
+			passDSVDesc.cpuDescriptor = m_DSVDescriptorHeap.get_cpu_handle(internalTexture->dsvReadOnlyDescriptor);
+			isReadOnlyDepth = true;
+		}
+		else {
+			assert(false); // INVALID
+		}
+
+		passDSVDesc.DepthBeginningAccess.Type = to_dx12_load_op(depthAttachment.loadOp);
+		passDSVDesc.DepthEndingAccess.Type = to_dx12_store_op(depthAttachment.storeOp);
+		passDSVDesc.StencilBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS;
+		passDSVDesc.StencilEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS;
+	}
+
+	internalCmdList->graphicsCmdList->BeginRenderPass(
+		passInfo.numColorAttachments,
+		passRTVDescs.data(),
+		hasDepthAttachment ? &passDSVDesc : nullptr,
+		isReadOnlyDepth ? D3D12_RENDER_PASS_FLAG_BIND_READ_ONLY_DEPTH : D3D12_RENDER_PASS_FLAG_NONE
+	);
+}
+
 void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
-	auto internalSwapchain = to_dx12_internal(swapchain);
-	auto internalCmdList = to_dx12_internal(cmdList);
+	auto* internalSwapchain = to_dx12_internal(swapchain);
+	auto* internalCmdList = to_dx12_internal(cmdList);
 	internalCmdList->graphicsCmdList->EndRenderPass();
 
 	const SRImageTransitionInfo_DX12 transitionInfo = {
@@ -855,6 +1177,11 @@ void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRSwapchain& swapchain, 
 		.dstStageMask = D3D12_BARRIER_SYNC_NONE,
 	};
 	SRDX12Helpers::transition_image_layout(transitionInfo, internalCmdList->graphicsCmdList.Get());
+}
+
+void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+	auto* internalCmdList = to_dx12_internal(cmdList);
+	internalCmdList->graphicsCmdList->EndRenderPass();
 }
 
 void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapchain) {
@@ -999,6 +1326,17 @@ void SRGraphicsDevice_DX12::Impl::setup_imgui_init_info(SRFormat swapchainFormat
 	ImGui_ImplDX12_Init(&initInfo);
 }
 
+SRDescriptorIndex SRGraphicsDevice_DX12::Impl::get_descriptor_index_srv(const SRResource& resource) {
+	assert(resource.type == SRResourceType::Texture); // TODO: Support other SRV types
+
+	if (resource.type == SRResourceType::Texture) {
+		auto* internalTexture = (SRTexture_DX12*)resource.internalState.get();
+		return internalTexture->srvDescriptor;
+	}
+
+	return ~0;
+}
+
 // --------------------------------- Public API --------------------------------
 SRGraphicsDevice_DX12::SRGraphicsDevice_DX12(SRWindow& window) : SRGraphicsDevice(window) {
 	m_Impl = new Impl(window);
@@ -1035,11 +1373,11 @@ void SRGraphicsDevice_DX12::create_buffer(const SRBufferInfo& info, SRBuffer& bu
 }
 
 void SRGraphicsDevice_DX12::create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data) {
-	// TODO
+	m_Impl->create_texture(info, texture, data);
 }
 
 void SRGraphicsDevice_DX12::create_sampler(const SRSamplerInfo& info, SRSampler& sampler) {
-
+	m_Impl->create_sampler(info, sampler);
 }
 
 void SRGraphicsDevice_DX12::bind_pipeline(const SRPipeline& pipeline, const SRCmdList& cmdList) {
@@ -1063,11 +1401,11 @@ void SRGraphicsDevice_DX12::bind_root_constant_buffer(const SRBuffer& buffer, co
 }
 
 void SRGraphicsDevice_DX12::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
-
+	m_Impl->push_constants(data, size, cmdList);
 }
 
 void SRGraphicsDevice_DX12::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
-
+	m_Impl->barrier(pBarriers, numBarriers, cmdList);
 }
 
 SRCmdList SRGraphicsDevice_DX12::begin_command_list(SRQueue queue) {
@@ -1079,7 +1417,7 @@ void SRGraphicsDevice_DX12::begin_render_pass(const SRSwapchain& swapchain, cons
 }
 
 void SRGraphicsDevice_DX12::begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
-
+	m_Impl->begin_render_pass(passInfo, cmdList);
 }
 
 void SRGraphicsDevice_DX12::end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
@@ -1087,7 +1425,7 @@ void SRGraphicsDevice_DX12::end_render_pass(const SRSwapchain& swapchain, const 
 }
 
 void SRGraphicsDevice_DX12::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
-
+	m_Impl->end_render_pass(passInfo, cmdList);
 }
 
 void SRGraphicsDevice_DX12::submit_command_lists(const SRSwapchain& swapchain) {
@@ -1103,8 +1441,7 @@ void SRGraphicsDevice_DX12::draw_indexed(uint32_t idxCount, uint32_t startIdx, u
 }
 
 SRDescriptorIndex SRGraphicsDevice_DX12::get_descriptor_index_srv(const SRResource& resource) {
-	assert(false);
-	return ~0;
+	return m_Impl->get_descriptor_index_srv(resource);
 }
 
 SRShaderPlatformInfo SRGraphicsDevice_DX12::get_shader_platform_info() {

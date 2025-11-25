@@ -1820,7 +1820,7 @@ void SRGraphicsDevice_Vulkan::Impl::barrier(const SRBarrier* pBarriers, uint32_t
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.image = internalTexture->image,
-			.subresourceRange = subresourceRange
+			.subresourceRange = subresourceRange // TODO: Fix barrier subresource range to work for multiple mips if requested
 		};
 
 		vkBarriers.push_back(imageBarrier);
@@ -1937,8 +1937,8 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRPassInfo& passInfo
 	colorAttachmentInfos.reserve(passInfo.numColorAttachments);
 
 	VkRect2D renderArea = {
-			.offset = { 0, 0 },
-			.extent = { 0, 0 }
+		.offset = { 0, 0 },
+		.extent = { 0, 0 }
 	};
 
 	for (size_t i = 0; i < passInfo.numColorAttachments; ++i) {

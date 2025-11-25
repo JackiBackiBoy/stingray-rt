@@ -33,7 +33,7 @@ struct alignas(256) PerFrameData {
 
 // NOTE: Trick for making sure that the logger exists longer than all other objects
 static auto& logger = SRLogger::get();
-static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::VULKAN;
+static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::DX12;
 static constexpr int WIDTH = 1920;
 static constexpr int HEIGHT = 1080;
 
@@ -93,7 +93,7 @@ int APIENTRY wWinMain(
 	while (g_Window->poll_events()) {
 		SRTime::begin_frame();
 		frameInfo.perFrameBuffer = &g_PerFrameBuffers[g_GfxDevice->get_frame_index()];
-		frameInfo.dt = SRTime::get_delta_sec();
+		frameInfo.dt = static_cast<float>(SRTime::get_delta_sec());
 		frameInfo.width = WIDTH;
 		frameInfo.height = HEIGHT;
 
