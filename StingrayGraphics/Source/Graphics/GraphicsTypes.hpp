@@ -17,7 +17,7 @@ enum SRQueue : uint8_t {
 	SRQueue_COUNT
 };
 
-enum class SRBarrierSync : uint16_t {
+enum class SRPipelineStage : uint16_t {
 	None          = 0,
 	AllCommands   = 1 << 0,
 	Draw          = 1 << 1,
@@ -31,7 +31,7 @@ enum class SRBarrierSync : uint16_t {
 	Copy          = 1 << 9,
 };
 
-enum class SRBarrierAccess : uint16_t {
+enum class SRAccessMask : uint16_t {
 	None              = 0,
 	VertexBuffer      = 1 << 0,
 	ConstantBuffer    = 1 << 1,
@@ -66,118 +66,118 @@ enum class SRMiscFlag : uint8_t {
 	RayTracing        = 1 << 4,
 };
 
-SR_ENABLE_BITMASK_OPERATORS(SRBarrierSync)
-SR_ENABLE_BITMASK_OPERATORS(SRBarrierAccess)
-SR_ENABLE_BITMASK_OPERATORS(SRBindFlag)
-SR_ENABLE_BITMASK_OPERATORS(SRMiscFlag)
+SR_ENABLE_BITMASK_OPERATORS(SRPipelineStage);
+SR_ENABLE_BITMASK_OPERATORS(SRAccessMask);
+SR_ENABLE_BITMASK_OPERATORS(SRBindFlag);
+SR_ENABLE_BITMASK_OPERATORS(SRMiscFlag);
 
 enum class SRGraphicsAPI : uint8_t {
 	DX12,
-	VULKAN
+	Vulkan
 };
 
 enum class SRBlend : uint8_t {
-	ZERO,
-	ONE,
-	SRC_COLOR,
-	INV_SRC_COLOR,
-	SRC_ALPHA,
-	INV_SRC_ALPHA,
-	DEST_ALPHA,
-	INV_DEST_ALPHA,
-	DEST_COLOR,
-	INV_DEST_COLOR,
-	SRC_ALPHA_SAT,
-	BLEND_FACTOR,
-	INV_BLEND_FACTOR,
-	SRC1_COLOR,
-	INV_SRC1_COLOR,
-	SRC1_ALPHA,
-	INV_SRC1_ALPHA
+	Zero,
+	One,
+	SrcColor,
+	InvSrcColor,
+	SrcAlpha,
+	InvSrcAlpha,
+	DstAlpha,
+	InvDstAlpha,
+	DstColor,
+	InvDstColor,
+	SrcAlphaSat,
+	BlendFactor,
+	InvBlendFator,
+	Src1Color,
+	InvSrc1Color,
+	Src1Alpha,
+	InvSrc1Alpha
 };
 
 enum class SRBlendOp : uint8_t {
-	ADD,
-	SUBTRACT,
-	REV_SUBTRACT,
-	MIN,
-	MAX
+	Add,
+	Subtract,
+	RevSubtract,
+	Min,
+	Max
 };
 
 enum class SRBorderColor : uint8_t {
-	TRANSPARENT_BLACK,
-	OPAQUE_BLACK,
-	OPAQUE_WHITE
+	TransparentBlack,
+	OpaqueBlack,
+	OpaqueWhite
 };
 
 enum class SRComparisonFunc : uint8_t {
-	NEVER,
-	LESS,
-	EQUAL,
-	LESS_EQUAL,
-	GREATER,
-	NOT_EQUAL,
-	GREATER_EQUAL,
-	ALWAYS
+	Never,
+	Less,
+	Equal,
+	LessEqual,
+	Greater,
+	NotEqual,
+	GreaterEqual,
+	Always
 };
 
 enum class SRCullMode : uint8_t {
-	NONE,
-	FRONT,
-	BACK
+	None,
+	Front,
+	Back
 };
 
 enum class SRDepthWriteMask : uint8_t {
-	ZERO, // Disables depth write
-	ALL // Enables depth write
+	Zero, // Disables depth write
+	All // Enables depth write
 };
 
 enum class SRFillMode : uint8_t {
-	WIREFRAME,
-	SOLID
+	Wireframe,
+	Solid
 };
 
 enum class SRFilter : uint8_t {
-	MIN_MAG_MIP_POINT,
-	MIN_MAG_POINT_MIP_LINEAR,
-	MIN_POINT_MAG_LINEAR_MIP_POINT,
-	MIN_POINT_MAG_MIP_LINEAR,
-	MIN_LINEAR_MAG_MIP_POINT,
-	MIN_LINEAR_MAG_POINT_MIP_LINEAR,
-	MIN_MAG_LINEAR_MIP_POINT,
-	MIN_MAG_MIP_LINEAR,
-	ANISOTROPIC,
-	COMPARISON_MIN_MAG_MIP_POINT,
-	COMPARISON_MIN_MAG_POINT_MIP_LINEAR,
-	COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT,
-	COMPARISON_MIN_POINT_MAG_MIP_LINEAR,
-	COMPARISON_MIN_LINEAR_MAG_MIP_POINT,
-	COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
-	COMPARISON_MIN_MAG_LINEAR_MIP_POINT,
-	COMPARISON_MIN_MAG_MIP_LINEAR,
-	COMPARISON_ANISOTROPIC,
-	MINIMUM_MIN_MAG_MIP_POINT,
-	MINIMUM_MIN_MAG_POINT_MIP_LINEAR,
-	MINIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT,
-	MINIMUM_MIN_POINT_MAG_MIP_LINEAR,
-	MINIMUM_MIN_LINEAR_MAG_MIP_POINT,
-	MINIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
-	MINIMUM_MIN_MAG_LINEAR_MIP_POINT,
-	MINIMUM_MIN_MAG_MIP_LINEAR,
-	MINIMUM_ANISOTROPIC,
-	MAXIMUM_MIN_MAG_MIP_POINT,
-	MAXIMUM_MIN_MAG_POINT_MIP_LINEAR,
-	MAXIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT,
-	MAXIMUM_MIN_POINT_MAG_MIP_LINEAR,
-	MAXIMUM_MIN_LINEAR_MAG_MIP_POINT,
-	MAXIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR,
-	MAXIMUM_MIN_MAG_LINEAR_MIP_POINT,
-	MAXIMUM_MIN_MAG_MIP_LINEAR,
-	MAXIMUM_ANISOTROPIC
+	MinMagMipPoint,
+	MinMagPointMipLinear,
+	MinPointMagLinearMipPoint,
+	MinPointMagMipLinear,
+	MinLinearMagMipPoint,
+	MinLinearMagPointMipLinear,
+	MinMagLinearMipPoint,
+	MinMagMipLinear,
+	Anisotropic,
+	ComparisonMinMagMipPoint,
+	ComparisonMinMagPointMipLinear,
+	ComparisonMinPointMagLinearMipPoint,
+	ComparisonMinPointMagMipLinear,
+	ComparisonMinLinearMagMipPoint,
+	ComparisonMinLinearMagPointMipLinear,
+	ComparisonMinMagLinearMipPoint,
+	ComparisonMinMagMipLinear,
+	ComparisonAnisotropic,
+	MinimumMinMagMipPoint,
+	MinimumMinMagPointMipLinear,
+	MinimumMinPointMagLinearMipPoint,
+	MinimumMinPointMagMipLinear,
+	MinimumMinLinearMagMipPoint,
+	MinimumMinLinearMagPointMipLinear,
+	MinimumMinMagLinearMipPoint,
+	MinimumMinMagMipLinear,
+	MinimumAnisotropic,
+	MaximumMinMagMipPoint,
+	MaximumMinMagPointMipLinear,
+	MaximumMinPointMagLinearMipPoint,
+	MaximumMinPointMagMipLinear,
+	MaximumMinLinearMagMipPoint,
+	MaximumMinLinearMagPointMipLinear,
+	MaximumMinMagLinearMipPoint,
+	MaximumMinMagMipLinear,
+	MaximumAnisotropic
 };
 
 enum class SRFormat : uint8_t {
-	UNKNOWN,
+	Unknown,
 
 	RGBA32_FLOAT,
 	RGBA32_UINT,
@@ -256,19 +256,19 @@ enum class SRFormat : uint8_t {
 };
 
 enum class SRInputClass : uint8_t {
-	PER_VERTEX,
-	PER_INSTANCE,
+	PerVertex,
+	PerInstance,
 };
 
 enum class SRResourceState : uint8_t {
-	UNDEFINED        = 0,
-	SHADER_RESOURCE  = 1 << 0,
-	UNORDERED_ACCESS = 1 << 1,
-	RENDER_TARGET    = 1 << 2,
-	DEPTH_WRITE      = 1 << 3,
-	DEPTH_READ       = 1 << 4,
-	COPY_SRC         = 1 << 5,
-	COPY_DST         = 1 << 6,
+	Undefined       = 0,
+	ShaderResource  = 1 << 0,
+	UnorderedAccess = 1 << 1,
+	RenderTarget    = 1 << 2,
+	DepthWrite      = 1 << 3,
+	DepthRead       = 1 << 4,
+	CopySrc         = 1 << 5,
+	CopyDst         = 1 << 6,
 };
 
 enum class SRResourceType : uint8_t {
@@ -292,13 +292,13 @@ enum class SRStoreOp : uint8_t {
 };
 
 enum class SRShaderStage : uint8_t {
-	VERTEX,
-	PIXEL,
-	COMPUTE
+	Vertex,
+	Pixel,
+	Compute
 };
 
 enum class SRShaderCompileTarget : uint8_t {
-	UNKNOWN,
+	Unknown,
 	GLSL,
 	HLSL,
 	SPIRV,
@@ -306,23 +306,23 @@ enum class SRShaderCompileTarget : uint8_t {
 };
 
 enum class SRTextureAddressMode : uint8_t {
-	WRAP,
-	MIRROR,
-	CLAMP,
-	BORDER,
-	MIRROR_ONCE
+	Wrap,
+	Mirror,
+	Clamp,
+	Border,
+	MirrorOnce
 };
 
 enum class SRUsage : uint8_t {
-	DEFAULT, // CPU no access, GPU read/write
-	UPLOAD, // CPU write, GPU read
-	COPY // Copy from GPU to CPU
+	Default, // CPU no access, GPU read/write
+	Upload, // CPU write, GPU read
+	Copy // Copy from GPU to CPU
 };
 
 enum class SRBarrierType : uint8_t {
 	UAV,
-	IMAGE,
-	BUFFER
+	Image,
+	Buffer
 };
 
 struct SRSubresourceData {
@@ -337,9 +337,7 @@ struct SRSubresourceRange {
 	uint32_t baseSlice = 0;
 	uint32_t sliceCount = 1;
 
-	static constexpr SRSubresourceRange All() {
-		return { 0U, ~0U, 0U, ~0U };
-	}
+	static constexpr SRSubresourceRange All() { return { 0U, ~0U, 0U, ~0U }; }
 };
 
 struct SRResource {
@@ -350,7 +348,7 @@ struct SRResource {
 struct SRBufferInfo {
 	uint64_t size = 0;
 	uint32_t stride = 0;
-	SRUsage usage = SRUsage::DEFAULT;
+	SRUsage usage = SRUsage::Default;
 	SRBindFlag bindFlags = SRBindFlag::None;
 	SRMiscFlag miscFlags = SRMiscFlag::None;
 };
@@ -368,8 +366,8 @@ struct SRTextureInfo {
 	uint32_t arraySize = 1;
 	uint32_t mipLevels = 1;
 	uint32_t sampleCount = 1;
-	SRFormat format = SRFormat::UNKNOWN;
-	SRUsage usage = SRUsage::DEFAULT;
+	SRFormat format = SRFormat::Unknown;
+	SRUsage usage = SRUsage::Default;
 	SRBindFlag bindFlags = SRBindFlag::None;
 };
 
@@ -378,14 +376,14 @@ struct SRTexture : public SRResource {
 };
 
 struct SRSamplerInfo {
-	SRFilter filter = SRFilter::MIN_MAG_MIP_LINEAR;
-	SRTextureAddressMode addressU = SRTextureAddressMode::WRAP;
-	SRTextureAddressMode addressV = SRTextureAddressMode::WRAP;
-	SRTextureAddressMode addressW = SRTextureAddressMode::WRAP;
+	SRFilter filter = SRFilter::MinMagMipLinear;
+	SRTextureAddressMode addressU = SRTextureAddressMode::Wrap;
+	SRTextureAddressMode addressV = SRTextureAddressMode::Wrap;
+	SRTextureAddressMode addressW = SRTextureAddressMode::Wrap;
 	float mipLODBias = 0.0f;
 	uint32_t maxAnisotropy = 0;
-	SRComparisonFunc comparisonFunc = SRComparisonFunc::NEVER;
-	SRBorderColor borderColor = SRBorderColor::TRANSPARENT_BLACK;
+	SRComparisonFunc comparisonFunc = SRComparisonFunc::Never;
+	SRBorderColor borderColor = SRBorderColor::TransparentBlack;
 	float minLOD = 0.0f;
 	float maxLOD = std::numeric_limits<float>::max();
 };
@@ -395,7 +393,7 @@ struct SRSampler : public SRResource {
 };
 
 struct SRBarrier {
-	SRBarrierType type = SRBarrierType::IMAGE;
+	SRBarrierType type = SRBarrierType::Image;
 
 	struct UAV {
 		// TODO
@@ -403,12 +401,12 @@ struct SRBarrier {
 
 	struct Image {
 		const SRTexture* texture = nullptr;
-		SRResourceState stateBefore = SRResourceState::UNDEFINED;
-		SRResourceState stateAfter = SRResourceState::UNDEFINED;
-		SRBarrierAccess accessBefore = SRBarrierAccess::None;
-		SRBarrierAccess accessAfter = SRBarrierAccess::None;
-		SRBarrierSync syncBefore = SRBarrierSync::None;
-		SRBarrierSync syncAfter = SRBarrierSync::None;
+		SRResourceState stateBefore = SRResourceState::Undefined;
+		SRResourceState stateAfter = SRResourceState::Undefined;
+		SRAccessMask accessBefore = SRAccessMask::None;
+		SRAccessMask accessAfter = SRAccessMask::None;
+		SRPipelineStage syncBefore = SRPipelineStage::None;
+		SRPipelineStage syncAfter = SRPipelineStage::None;
 		SRSubresourceRange subresourceRange = {};
 	};
 
@@ -424,7 +422,7 @@ struct SRBarrier {
 };
 
 struct SRShaderPlatformInfo {
-	SRShaderCompileTarget target = SRShaderCompileTarget::UNKNOWN;
+	SRShaderCompileTarget target = SRShaderCompileTarget::Unknown;
 	const char* profileName = nullptr;
 	// TODO: Add features such a block scalar layout and such
 };
@@ -439,12 +437,12 @@ struct SRBlendState {
 
 	struct RenderTargetBlendState {
 		bool blendEnable = false;
-		SRBlend srcBlend = SRBlend::SRC_ALPHA;
-		SRBlend dstBlend = SRBlend::INV_SRC_ALPHA;
-		SRBlendOp blendOp = SRBlendOp::ADD;
-		SRBlend srcBlendAlpha = SRBlend::ONE;
-		SRBlend dstBlendAlpha = SRBlend::ONE;
-		SRBlendOp blendOpAlpha = SRBlendOp::ADD;
+		SRBlend srcBlend = SRBlend::SrcAlpha;
+		SRBlend dstBlend = SRBlend::InvSrcAlpha;
+		SRBlendOp blendOp = SRBlendOp::Add;
+		SRBlend srcBlendAlpha = SRBlend::One;
+		SRBlend dstBlendAlpha = SRBlend::One;
+		SRBlendOp blendOpAlpha = SRBlendOp::Add;
 	};
 	RenderTargetBlendState renderTargetBlendStates[8];
 };
@@ -452,23 +450,23 @@ struct SRBlendState {
 struct SRDepthStencilState {
 	bool depthEnable = false;
 	bool stencilEnable = false;
-	SRDepthWriteMask depthWriteMask = SRDepthWriteMask::ZERO;
-	SRComparisonFunc depthFunction = SRComparisonFunc::NEVER;
+	SRDepthWriteMask depthWriteMask = SRDepthWriteMask::Zero;
+	SRComparisonFunc depthFunction = SRComparisonFunc::Never;
 };
 
 struct SRInputLayout {
 	struct Element {
 		std::string name;
-		SRFormat format = SRFormat::UNKNOWN;
-		SRInputClass inputClass = SRInputClass::PER_VERTEX;
+		SRFormat format = SRFormat::Unknown;
+		SRInputClass inputClass = SRInputClass::PerVertex;
 	};
 
 	std::vector<Element> elements = {};
 };
 
 struct SRRasterizerState {
-	SRFillMode fillMode = SRFillMode::SOLID;
-	SRCullMode cullMode = SRCullMode::NONE;
+	SRFillMode fillMode = SRFillMode::Solid;
+	SRCullMode cullMode = SRCullMode::None;
 	bool frontCW = true;
 	bool depthClipEnable = false;
 	int32_t depthBias = 0;
@@ -488,8 +486,8 @@ struct SRPipelineInfo {
 	SRDepthStencilState depthStencilState = {};
 	SRBlendState blendState = {};
 	uint32_t numRenderTargets = 0;
-	SRFormat renderTargetFormats[8] = { SRFormat::UNKNOWN };
-	SRFormat depthStencilFormat = SRFormat::UNKNOWN;
+	SRFormat renderTargetFormats[8] = { SRFormat::Unknown };
+	SRFormat depthStencilFormat = SRFormat::Unknown;
 };
 
 struct SRPipeline {

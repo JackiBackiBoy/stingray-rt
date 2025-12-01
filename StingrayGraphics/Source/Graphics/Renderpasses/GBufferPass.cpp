@@ -11,8 +11,8 @@ namespace SRGBufferPass {
 
 	void build(SRRenderPass& self, SRGraphicsDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<GBufferPassData>();
-		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.slang", { SRShaderStage::VERTEX, "vertexMain" }, passData.vertexShader);
-		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.slang", { SRShaderStage::PIXEL, "pixelMain" }, passData.pixelShader);
+		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.slang", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);
+		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.slang", { SRShaderStage::Pixel, "pixelMain" }, passData.pixelShader);
 
 
 		const SRPipelineInfo pipelineInfo = {
@@ -25,14 +25,14 @@ namespace SRGBufferPass {
 				}
 			},
 			.rasterizerState = {
-				.cullMode = SRCullMode::BACK,
+				.cullMode = SRCullMode::Back,
 				.depthClipEnable = true
 			},
 			.depthStencilState = {
 				.depthEnable = true,
 				.stencilEnable = false,
-				.depthWriteMask = SRDepthWriteMask::ZERO,
-				.depthFunction = SRComparisonFunc::EQUAL
+				.depthWriteMask = SRDepthWriteMask::Zero,
+				.depthFunction = SRComparisonFunc::Equal
 			},
 			.numRenderTargets = 1,
 			.renderTargetFormats = { SRFormat::RGBA8_UNORM },

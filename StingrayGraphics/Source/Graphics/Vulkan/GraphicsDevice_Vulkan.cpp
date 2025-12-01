@@ -1149,7 +1149,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 		.pNext = nullptr,
 		.flags = 0,
 		.depthTestEnable = info.depthStencilState.depthEnable ? VK_TRUE : VK_FALSE,
-		.depthWriteEnable = info.depthStencilState.depthWriteMask == SRDepthWriteMask::ZERO ? VK_FALSE : VK_TRUE,
+		.depthWriteEnable = info.depthStencilState.depthWriteMask == SRDepthWriteMask::Zero ? VK_FALSE : VK_TRUE,
 		.depthCompareOp = to_vk_comparison_func(info.depthStencilState.depthFunction),
 		.depthBoundsTestEnable = VK_FALSE,
 		.stencilTestEnable = VK_FALSE,
@@ -1225,7 +1225,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 	}
 
 	switch (info.usage) {
-	case SRUsage::UPLOAD:
+	case SRUsage::Upload:
 		allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 		break;
 	}
@@ -1240,10 +1240,10 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 		&allocInfo
 	), "Create buffer");
 
-	if (info.usage == SRUsage::DEFAULT && data != nullptr) {
+	if (info.usage == SRUsage::Default && data != nullptr) {
 		// Staging buffer
 		SRBufferInfo stagingBufferInfo = info;
-		stagingBufferInfo.usage = SRUsage::UPLOAD;
+		stagingBufferInfo.usage = SRUsage::Upload;
 		stagingBufferInfo.bindFlags = SRBindFlag::None;
 		stagingBufferInfo.miscFlags = SRMiscFlag::None;
 
@@ -1276,7 +1276,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 			&copyRegion
 		);
 	}
-	else if (info.usage == SRUsage::UPLOAD) {
+	else if (info.usage == SRUsage::Upload) {
 		buffer.mappedData = internalBuffer->allocation->GetMappedData();
 		buffer.mappedSize = info.size;
 
@@ -1289,7 +1289,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_buffer(const SRBufferInfo& info, SRBu
 }
 
 void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data) {
-	assert(info.usage == SRUsage::DEFAULT);
+	assert(info.usage == SRUsage::Default);
 
 	auto internalTexture = std::make_shared<SRTexture_Vulkan>();
 	internalTexture->destructionHandler = m_DestructionHandler.get();
@@ -1381,7 +1381,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SR
 		// Staging buffer
 		SRBufferInfo stagingBufferInfo = {
 			.size = static_cast<uint64_t>(data->rowPitch * info.height),
-			.usage = SRUsage::UPLOAD
+			.usage = SRUsage::Upload
 		};
 
 		SRBuffer stagingBuffer;
@@ -1446,7 +1446,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SR
 			}
 		}
 
-		// Transition image to be COPY_DST
+		// Transition image to be CopyDst
 		// TODO: Use the GLOBAL image transition interface instead (i.e. barrier())
 		const SRImageTransitionInfo transitionInfo = {
 			.image = internalTexture->image,
@@ -1519,81 +1519,81 @@ void SRGraphicsDevice_Vulkan::Impl::create_sampler(const SRSamplerInfo& info, SR
 	};
 
 	switch (info.filter) {
-	case SRFilter::MIN_MAG_MIP_POINT:
-	case SRFilter::MINIMUM_MIN_MAG_MIP_POINT:
-	case SRFilter::MAXIMUM_MIN_MAG_MIP_POINT:
+	case SRFilter::MinMagMipPoint:
+	case SRFilter::MinimumMinMagMipPoint:
+	case SRFilter::MaximumMinMagMipPoint:
 		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::MIN_MAG_POINT_MIP_LINEAR:
-	case SRFilter::MINIMUM_MIN_MAG_POINT_MIP_LINEAR:
-	case SRFilter::MAXIMUM_MIN_MAG_POINT_MIP_LINEAR:
+	case SRFilter::MinMagPointMipLinear:
+	case SRFilter::MinimumMinMagPointMipLinear:
+	case SRFilter::MaximumMinMagPointMipLinear:
 		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::MIN_POINT_MAG_LINEAR_MIP_POINT:
-	case SRFilter::MINIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT:
-	case SRFilter::MAXIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT:
+	case SRFilter::MinPointMagLinearMipPoint:
+	case SRFilter::MinimumMinPointMagLinearMipPoint:
+	case SRFilter::MaximumMinPointMagLinearMipPoint:
 		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::MIN_POINT_MAG_MIP_LINEAR:
-	case SRFilter::MINIMUM_MIN_POINT_MAG_MIP_LINEAR:
-	case SRFilter::MAXIMUM_MIN_POINT_MAG_MIP_LINEAR:
+	case SRFilter::MinPointMagMipLinear:
+	case SRFilter::MinimumMinPointMagMipLinear:
+	case SRFilter::MaximumMinPointMagMipLinear:
 		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::MIN_LINEAR_MAG_MIP_POINT:
-	case SRFilter::MINIMUM_MIN_LINEAR_MAG_MIP_POINT:
-	case SRFilter::MAXIMUM_MIN_LINEAR_MAG_MIP_POINT:
+	case SRFilter::MinLinearMagMipPoint:
+	case SRFilter::MinimumMinLinearMagMipPoint:
+	case SRFilter::MaximumMinLinearMagMipPoint:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::MIN_LINEAR_MAG_POINT_MIP_LINEAR:
-	case SRFilter::MINIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
-	case SRFilter::MAXIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+	case SRFilter::MinLinearMagPointMipLinear:
+	case SRFilter::MinimumMinLinearMagPointMipLinear:
+	case SRFilter::MaximumMinLinearMagPointMipLinear:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::MIN_MAG_LINEAR_MIP_POINT:
-	case SRFilter::MINIMUM_MIN_MAG_LINEAR_MIP_POINT:
-	case SRFilter::MAXIMUM_MIN_MAG_LINEAR_MIP_POINT:
+	case SRFilter::MinMagLinearMipPoint:
+	case SRFilter::MinimumMinMagLinearMipPoint:
+	case SRFilter::MaximumMinMagLinearMipPoint:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::MIN_MAG_MIP_LINEAR:
-	case SRFilter::MINIMUM_MIN_MAG_MIP_LINEAR:
-	case SRFilter::MAXIMUM_MIN_MAG_MIP_LINEAR:
+	case SRFilter::MinMagMipLinear:
+	case SRFilter::MinimumMinMagMipLinear:
+	case SRFilter::MaximumMinMagMipLinear:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::ANISOTROPIC:
-	case SRFilter::MINIMUM_ANISOTROPIC:
-	case SRFilter::MAXIMUM_ANISOTROPIC:
+	case SRFilter::Anisotropic:
+	case SRFilter::MinimumAnisotropic:
+	case SRFilter::MaximumAnisotropic:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -1601,63 +1601,63 @@ void SRGraphicsDevice_Vulkan::Impl::create_sampler(const SRSamplerInfo& info, SR
 		samplerCreateInfo.maxAnisotropy = std::min(16.0f, std::max(1.0f, static_cast<float>(info.maxAnisotropy)));
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
-	case SRFilter::COMPARISON_MIN_MAG_MIP_POINT:
+	case SRFilter::ComparisonMinMagMipPoint:
 		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_TRUE;
 		break;
-	case SRFilter::COMPARISON_MIN_MAG_POINT_MIP_LINEAR:
+	case SRFilter::ComparisonMinMagPointMipLinear:
 		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_TRUE;
 		break;
-	case SRFilter::COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT:
+	case SRFilter::ComparisonMinPointMagLinearMipPoint:
 		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_TRUE;
 		break;
-	case SRFilter::COMPARISON_MIN_POINT_MAG_MIP_LINEAR:
+	case SRFilter::ComparisonMinPointMagMipLinear:
 		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_TRUE;
 		break;
-	case SRFilter::COMPARISON_MIN_LINEAR_MAG_MIP_POINT:
+	case SRFilter::ComparisonMinLinearMagMipPoint:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_TRUE;
 		break;
-	case SRFilter::COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+	case SRFilter::ComparisonMinLinearMagPointMipLinear:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_TRUE;
 		break;
-	case SRFilter::COMPARISON_MIN_MAG_LINEAR_MIP_POINT:
+	case SRFilter::ComparisonMinMagLinearMipPoint:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_TRUE;
 		break;
-	case SRFilter::COMPARISON_MIN_MAG_MIP_LINEAR:
+	case SRFilter::ComparisonMinMagMipLinear:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.anisotropyEnable = VK_FALSE;
 		samplerCreateInfo.compareEnable = VK_TRUE;
 		break;
-	case SRFilter::COMPARISON_ANISOTROPIC:
+	case SRFilter::ComparisonAnisotropic:
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;

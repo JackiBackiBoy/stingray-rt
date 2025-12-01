@@ -35,11 +35,11 @@ inline constexpr SlangCompileTarget to_slang_target(SRShaderCompileTarget target
 
 inline constexpr SlangStage to_slang_stage(SRShaderStage stage) {
 	switch (stage) {
-	case SRShaderStage::VERTEX:
+	case SRShaderStage::Vertex:
 		return SLANG_STAGE_VERTEX;
-	case SRShaderStage::PIXEL:
+	case SRShaderStage::Pixel:
 		return SLANG_STAGE_FRAGMENT;
-	case SRShaderStage::COMPUTE:
+	case SRShaderStage::Compute:
 		return SLANG_STAGE_COMPUTE;
 	default:
 		return SLANG_STAGE_NONE;

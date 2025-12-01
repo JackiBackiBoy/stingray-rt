@@ -144,13 +144,13 @@ namespace SRModelLoader {
 		const SRBufferInfo vertexBufferInfo = {
 			.size = numVertices * sizeof(SRVertex),
 			.stride = sizeof(SRVertex),
-			.usage = SRUsage::DEFAULT,
+			.usage = SRUsage::Default,
 			.bindFlags = SRBindFlag::VertexBuffer
 		};
 		const SRBufferInfo indexBufferInfo = {
 			.size = numIndices * sizeof(uint32_t),
 			.stride = sizeof(uint32_t),
-			.usage = SRUsage::DEFAULT,
+			.usage = SRUsage::Default,
 			.bindFlags = SRBindFlag::IndexBuffer
 		};
 

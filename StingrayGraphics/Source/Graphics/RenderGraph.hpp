@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/EnumBitmaskOperators.hpp"
 #include "Graphics/GraphicsDevice.hpp"
 #include "Graphics/FrameInfo.hpp"
 
@@ -10,28 +11,27 @@
 #include <unordered_map>
 #include <vector>
 
-typedef uint8_t SRAccessFlag;
-
 enum class SRPassType : uint8_t {
-	GRAPHICS,
-	COMPUTE
+	Graphics,
+	Compute
 };
 
-enum SRAccessFlag_ : uint8_t {
-	SRAccessFlag_None  = 0,
-	SRAccessFlag_Read  = 1 << 0,
-	SRAccessFlag_Write = 1 << 1
+enum SRAccessFlag : uint8_t {
+	None  = 0,
+	Read  = 1 << 0,
+	Write = 1 << 1
 };
+SR_ENABLE_BITMASK_OPERATORS(SRAccessFlag);
 
 enum class SRSizeClass : uint8_t {
-	NONE,
-	SWAPCHAIN_RELATIVE
+	None,
+	SwapchainRelative
 };
 
 struct SRRenderPassAttachmentSubresource {
-	SRResourceState state = SRResourceState::UNDEFINED;
-	SRBarrierAccess lastBarrierAccess = SRBarrierAccess::None;
-	SRBarrierSync lastBarrierStage = SRBarrierSync::None;
+	SRResourceState state = SRResourceState::Undefined;
+	SRAccessMask lastBarrierAccess = SRAccessMask::None;
+	SRPipelineStage lastBarrierStage = SRPipelineStage::None;
 };
 
 struct SRRenderPassAttachment {
@@ -59,13 +59,13 @@ struct SRRenderPassAttachment {
 	uint32_t height;
 	uint32_t mipLevels = 1;
 	float depthClearValue; // NOTE: Only used for depth attachment
-	SRFormat format = SRFormat::UNKNOWN;
-	SRSizeClass sizeClass = SRSizeClass::SWAPCHAIN_RELATIVE;
+	SRFormat format = SRFormat::Unknown;
+	SRSizeClass sizeClass = SRSizeClass::SwapchainRelative;
 	enum class Type : uint8_t {
-		RENDER_TARGET,
-		DEPTH_STENCIL,
-		RW_TEXTURE
-	} type = Type::RENDER_TARGET;
+		RenderTarget,
+		DepthStencil,
+		ReadWriteTexture
+	} type = Type::RenderTarget;
 	std::vector<SRRenderPassAttachmentSubresource> subresourceStates;
 	std::string name;
 
@@ -75,8 +75,8 @@ struct SRRenderPassAttachment {
 
 struct SRRenderPassAttachmentInput {
 	SRRenderPassAttachment* attachment = nullptr;
-	SRResourceState targetState = SRResourceState::UNDEFINED;
-	SRAccessFlag accessFlags = 0;
+	SRResourceState targetState = SRResourceState::Undefined;
+	SRAccessFlag accessFlags = SRAccessFlag::None;
 	SRSubresourceRange subresources = SRSubresourceRange::All();
 };
 
@@ -118,9 +118,9 @@ public:
 
 	// ------------------------------ Outputs ------------------------------
 	// TODO: Use an AttachmentInfo struct instead of this long signature
-	SRRenderPass& add_color_output(const std::string& name, int width, int height, SRFormat format, int mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SWAPCHAIN_RELATIVE);
-	SRRenderPass& add_depth_output(const std::string& name, int width, int height, SRFormat format, float clearValue = 0.0f, SRSizeClass sizeClass = SRSizeClass::SWAPCHAIN_RELATIVE);
-	SRRenderPass& add_rw_texture_output(const std::string& name, int width, int height, SRFormat format, int mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SWAPCHAIN_RELATIVE);
+	SRRenderPass& add_color_output(const std::string& name, int width, int height, SRFormat format, int mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
+	SRRenderPass& add_depth_output(const std::string& name, int width, int height, SRFormat format, float clearValue = 0.0f, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
+	SRRenderPass& add_rw_texture_output(const std::string& name, int width, int height, SRFormat format, int mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
 	SRRenderPass& set_execute_callback(std::function<void(SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> callback);
 
 	// --------------------------- Miscellaneous ---------------------------

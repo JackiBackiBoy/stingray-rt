@@ -645,10 +645,10 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 	};
 
 	switch (info.usage) {
-	case SRUsage::DEFAULT:
+	case SRUsage::Default:
 		allocDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
 		break;
-	case SRUsage::UPLOAD:
+	case SRUsage::Upload:
 		allocDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
 		break;
 	}
@@ -663,10 +663,10 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 		IID_NULL, nullptr
 	), "CreateResource3");
 
-	if (info.usage == SRUsage::DEFAULT && data != nullptr) {
+	if (info.usage == SRUsage::Default && data != nullptr) {
 		// Staging buffer
 		SRBufferInfo stagingBufferInfo = info;
-		stagingBufferInfo.usage = SRUsage::UPLOAD;
+		stagingBufferInfo.usage = SRUsage::Upload;
 		stagingBufferInfo.bindFlags = SRBindFlag::None;
 		stagingBufferInfo.miscFlags = SRMiscFlag::None;
 
@@ -691,7 +691,7 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 		ID3D12Resource* dstResource = internalBuffer->allocation->GetResource();
 		m_UploadCmdList->CopyResource(dstResource, srcResource);
 	}
-	else if (info.usage == SRUsage::UPLOAD) {
+	else if (info.usage == SRUsage::Upload) {
 		internalBuffer->allocation->GetResource()->Map(0, nullptr, &buffer.mappedData);
 		buffer.mappedSize = info.size;
 
@@ -709,7 +709,7 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 }
 
 void SRGraphicsDevice_DX12::Impl::create_texture(const SRTextureInfo& info, SRTexture& texture, const SRSubresourceData* data) {
-	assert(info.usage == SRUsage::DEFAULT);
+	assert(info.usage == SRUsage::Default);
 	auto internalTexture = std::make_shared<SRTexture_DX12>();
 
 	texture.info = info;
@@ -852,7 +852,7 @@ void SRGraphicsDevice_DX12::Impl::create_sampler(const SRSamplerInfo& info, SRSa
 	};
 
 	switch (info.borderColor) {
-	case SRBorderColor::OPAQUE_BLACK:
+	case SRBorderColor::OpaqueBlack:
 	{
 		samplerDesc.BorderColor[0] = 0.0F;
 		samplerDesc.BorderColor[1] = 0.0F;
@@ -860,7 +860,7 @@ void SRGraphicsDevice_DX12::Impl::create_sampler(const SRSamplerInfo& info, SRSa
 		samplerDesc.BorderColor[3] = 1.0F;
 	}
 	break;
-	case SRBorderColor::OPAQUE_WHITE:
+	case SRBorderColor::OpaqueWhite:
 	{
 		samplerDesc.BorderColor[0] = 1.0F;
 		samplerDesc.BorderColor[1] = 1.0F;
@@ -993,7 +993,7 @@ void SRGraphicsDevice_DX12::Impl::barrier(const SRBarrier* pBarriers, uint32_t n
 			.Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE
 		};
 
-		if (barrier.image.stateBefore == SRResourceState::UNDEFINED) {
+		if (barrier.image.stateBefore == SRResourceState::Undefined) {
 			dx12Barrier.Flags = D3D12_TEXTURE_BARRIER_FLAG_DISCARD;
 		}
 		dx12Barriers.push_back(dx12Barrier);

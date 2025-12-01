@@ -45,4 +45,4 @@ has_flag(E lhs, E rhs) {
 
 #define SR_ENABLE_BITMASK_OPERATORS(EnumType)                                  \
     template<>                                                                 \
-    struct SREnableBitmaskOperators<EnumType> : std::true_type {};
+    struct SREnableBitmaskOperators<EnumType> : std::true_type {}

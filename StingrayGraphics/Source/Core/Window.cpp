@@ -59,16 +59,17 @@ void SRWindow::Impl::create_window(const char* title, int width, int height, SRW
 	// TODO: We might eventually want multiple windows, and as such it
 	// does not make sense to create a new window class for each window.
 	// Instead we should move this logic elsewhere.
+	HICON icon = LoadIcon(hInstance, MAKEINTRESOURCE(101));
 	const WNDCLASSEX wndClassEx = {
 		.cbSize = sizeof(WNDCLASSEX),
 		.style = CS_OWNDC,
 		.lpfnWndProc = window_proc_thunk,
 		.hInstance = hInstance,
-		.hIcon = nullptr,
+		.hIcon = icon,
 		.hCursor = LoadCursor(nullptr, IDC_ARROW),
 		.hbrBackground = nullptr,
 		.lpszClassName = L"SRWindowClass",
-		.hIconSm = nullptr
+		.hIconSm = icon
 	};
 	RegisterClassEx(&wndClassEx);
 

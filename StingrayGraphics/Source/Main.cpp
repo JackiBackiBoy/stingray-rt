@@ -25,8 +25,8 @@
 #include <vector>
 
 struct alignas(256) PerFrameData {
-	glm::mat4 view = { 1.0f };
-	glm::mat4 proj = { 1.0f };
+	glm::mat4 view    = { 1.0f };
+	glm::mat4 proj    = { 1.0f };
 	glm::mat4 invView = { 1.0f };
 	glm::mat4 invProj = { 1.0f };
 };
@@ -138,12 +138,12 @@ void init_console() {
 }
 
 void init_window() {
-	const char* windowTitle = (g_API == SRGraphicsAPI::VULKAN ? "Stingray (Vulkan)" : "Stingray (DX12)");
+	const char* windowTitle = (g_API == SRGraphicsAPI::Vulkan ? "Stingray (Vulkan)" : "Stingray (DX12)");
 	g_Window = std::make_unique<SRWindow>(windowTitle, WIDTH, HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
 }
 
 void init_graphics() {
-	if (g_API == SRGraphicsAPI::VULKAN) {
+	if (g_API == SRGraphicsAPI::Vulkan) {
 		g_GfxDevice = std::make_unique<SRGraphicsDevice_Vulkan>(*g_Window);
 	}
 	else if (g_API == SRGraphicsAPI::DX12) {
@@ -163,10 +163,10 @@ void init_graphics() {
 
 	// Samplers
 	const SRSamplerInfo linearSamplerInfo = {
-		.filter = SRFilter::MIN_MAG_MIP_LINEAR,
-		.addressU = SRTextureAddressMode::WRAP,
-		.addressV = SRTextureAddressMode::WRAP,
-		.addressW = SRTextureAddressMode::WRAP
+		.filter = SRFilter::MinMagMipLinear,
+		.addressU = SRTextureAddressMode::Wrap,
+		.addressV = SRTextureAddressMode::Wrap,
+		.addressW = SRTextureAddressMode::Wrap
 	};
 	g_GfxDevice->create_sampler(linearSamplerInfo, g_LinearSampler);
 }
@@ -175,7 +175,7 @@ void init_resources() {
 	const SRBufferInfo perFrameBufferInfo = {
 		.size = sizeof(PerFrameData),
 		.stride = sizeof(PerFrameData),
-		.usage = SRUsage::UPLOAD,
+		.usage = SRUsage::Upload,
 		.bindFlags = SRBindFlag::ConstantBuffer
 	};
 
@@ -198,7 +198,7 @@ void init_scene() {
 		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
 		60.0f,
 		g_Window->get_client_aspect_ratio(),
-		0.1f,
+		0.01f,
 		20.0f
 	);
 }
@@ -206,23 +206,23 @@ void init_scene() {
 void init_rendergraph() {
 	g_RenderGraph = std::make_unique<SRRenderGraph>();
 
-	auto& depthPrepass = g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::GRAPHICS)
+	auto& depthPrepass = g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::Graphics)
 		.add_depth_output("Depth", WIDTH, HEIGHT, SRFormat::D32_FLOAT)
 		.set_execute_callback(SRDepthPrepass::execute);
 		SRDepthPrepass::build(depthPrepass, *g_GfxDevice, *g_ShaderCompiler);
 
-	auto& gBufferPass = g_RenderGraph->add_render_pass("GBufferPass", SRPassType::GRAPHICS)
+	auto& gBufferPass = g_RenderGraph->add_render_pass("GBufferPass", SRPassType::Graphics)
 		.add_depth_input("Depth")
 		.add_color_output("GBufferAlbedo", WIDTH, HEIGHT, SRFormat::RGBA8_UNORM)
 		.set_execute_callback(SRGBufferPass::execute);
 		SRGBufferPass::build(gBufferPass, *g_GfxDevice, *g_ShaderCompiler);
 
-	auto& compositionPass = g_RenderGraph->add_render_pass("CompositionPass", SRPassType::GRAPHICS)
-		.add_color_input("GBufferAlbedo", SRAccessFlag_Read)
+	auto& compositionPass = g_RenderGraph->add_render_pass("CompositionPass", SRPassType::Graphics)
+		.add_color_input("GBufferAlbedo", SRAccessFlag::Read)
 		.set_execute_callback(SRCompositionPass::execute);
 		SRCompositionPass::build(compositionPass, *g_GfxDevice, *g_ShaderCompiler);
 
-	auto& imguiPass = g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::GRAPHICS)
+	auto& imguiPass = g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::Graphics)
 		.set_execute_callback([&](SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 			g_Editor->update(*g_RenderGraph);
 			g_Editor->render(cmdList);

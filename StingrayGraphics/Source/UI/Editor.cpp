@@ -37,7 +37,7 @@ SREditor::SREditor(SRWindow& window, SRGraphicsDevice& gfxDevice, SRGraphicsAPI 
 		end_render_func = end_render_dx12;
 		shutdown_func = ImGui_ImplDX12_Shutdown;
 		break;
-	case SRGraphicsAPI::VULKAN:
+	case SRGraphicsAPI::Vulkan:
 		begin_render_func = begin_render_vulkan;
 		end_render_func = end_render_vulkan;
 		shutdown_func = ImGui_ImplVulkan_Shutdown;

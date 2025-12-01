@@ -302,37 +302,37 @@ inline constexpr VkAttachmentStoreOp to_vk_store_op(SRStoreOp value) {
 	}
 }
 
-inline constexpr VkAccessFlags2 to_vk_access_mask(SRBarrierAccess value) {
+inline constexpr VkAccessFlags2 to_vk_access_mask(SRAccessMask value) {
 	VkAccessFlags2 result = VK_ACCESS_2_NONE;
 
-	if (has_flag(value, SRBarrierAccess::VertexBuffer)) {
+	if (has_flag(value, SRAccessMask::VertexBuffer)) {
 		result |= VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
 	}
-	if (has_flag(value, SRBarrierAccess::ConstantBuffer)) {
+	if (has_flag(value, SRAccessMask::ConstantBuffer)) {
 		result |= VK_ACCESS_2_UNIFORM_READ_BIT;
 	}
-	if (has_flag(value, SRBarrierAccess::IndexBuffer)) {
+	if (has_flag(value, SRAccessMask::IndexBuffer)) {
 		result |= VK_ACCESS_2_INDEX_READ_BIT;
 	}
-	if (has_flag(value, SRBarrierAccess::RenderTarget)) {
+	if (has_flag(value, SRAccessMask::RenderTarget)) {
 		result |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT; // TODO; Might need VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT too?
 	}
-	if (has_flag(value, SRBarrierAccess::UnorderedAccess)) {
+	if (has_flag(value, SRAccessMask::UnorderedAccess)) {
 		result |= VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 	}
-	if (has_flag(value, SRBarrierAccess::DepthStencilRead)) {
+	if (has_flag(value, SRAccessMask::DepthStencilRead)) {
 		result |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
 	}
-	if (has_flag(value, SRBarrierAccess::DepthStencilWrite)) {
+	if (has_flag(value, SRAccessMask::DepthStencilWrite)) {
 		result |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 	}
-	if (has_flag(value, SRBarrierAccess::ShaderResource)) {
+	if (has_flag(value, SRAccessMask::ShaderResource)) {
 		result |= VK_ACCESS_2_SHADER_READ_BIT;
 	}
-	if (has_flag(value, SRBarrierAccess::CopySrc)) {
+	if (has_flag(value, SRAccessMask::CopySrc)) {
 		result |= VK_ACCESS_2_TRANSFER_READ_BIT;
 	}
-	if (has_flag(value, SRBarrierAccess::CopyDst)) {
+	if (has_flag(value, SRAccessMask::CopyDst)) {
 		result |= VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	}
 
@@ -341,17 +341,17 @@ inline constexpr VkAccessFlags2 to_vk_access_mask(SRBarrierAccess value) {
 
 inline constexpr VkImageLayout to_vk_resource_state(SRResourceState value) {
 	switch (value) {
-	case SRResourceState::UNDEFINED:
+	case SRResourceState::Undefined:
 		return VK_IMAGE_LAYOUT_UNDEFINED;
-	case SRResourceState::RENDER_TARGET:
+	case SRResourceState::RenderTarget:
 		return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	case SRResourceState::DEPTH_WRITE: // TODO: Might be wrong
+	case SRResourceState::DepthWrite: // TODO: Might be wrong
 		return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	case SRResourceState::DEPTH_READ:
+	case SRResourceState::DepthRead:
 		return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-	case SRResourceState::SHADER_RESOURCE:
+	case SRResourceState::ShaderResource:
 		return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	case SRResourceState::UNORDERED_ACCESS:
+	case SRResourceState::UnorderedAccess:
 		return VK_IMAGE_LAYOUT_GENERAL;
 	default:
 		return VK_IMAGE_LAYOUT_GENERAL;
@@ -360,11 +360,11 @@ inline constexpr VkImageLayout to_vk_resource_state(SRResourceState value) {
 
 inline constexpr VkBorderColor to_vk_sampler_border_color(SRBorderColor value) {
 	switch (value) {
-	case SRBorderColor::TRANSPARENT_BLACK:
+	case SRBorderColor::TransparentBlack:
 		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-	case SRBorderColor::OPAQUE_BLACK:
+	case SRBorderColor::OpaqueBlack:
 		return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-	case SRBorderColor::OPAQUE_WHITE:
+	case SRBorderColor::OpaqueWhite:
 		return VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 	default:
 		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
@@ -373,15 +373,15 @@ inline constexpr VkBorderColor to_vk_sampler_border_color(SRBorderColor value) {
 
 inline constexpr VkSamplerAddressMode to_vk_texture_address_mode(SRTextureAddressMode value) {
 	switch (value) {
-	case SRTextureAddressMode::WRAP:
+	case SRTextureAddressMode::Wrap:
 		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	case SRTextureAddressMode::MIRROR:
+	case SRTextureAddressMode::Mirror:
 		return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-	case SRTextureAddressMode::CLAMP:
+	case SRTextureAddressMode::Clamp:
 		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	case SRTextureAddressMode::BORDER:
+	case SRTextureAddressMode::Border:
 		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-		//case TextureAddressMode::MIRROR_ONCE:
+		//case TextureAddressMode::MirrorOnce:
 		//	if (features_1_2.samplerMirrorClampToEdge == VK_TRUE) {
 		//		return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
 		//	}
@@ -391,40 +391,40 @@ inline constexpr VkSamplerAddressMode to_vk_texture_address_mode(SRTextureAddres
 	}
 }
 
-inline constexpr VkPipelineStageFlags2 to_vk_pipeline_stage(SRBarrierSync value) {
+inline constexpr VkPipelineStageFlags2 to_vk_pipeline_stage(SRPipelineStage value) {
 	VkPipelineStageFlags2 result = VK_PIPELINE_STAGE_2_NONE;
 
-	if (has_flag(value, SRBarrierSync::AllCommands)) {
+	if (has_flag(value, SRPipelineStage::AllCommands)) {
 		result |= VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 	}
-	if (has_flag(value, SRBarrierSync::Draw)) {
+	if (has_flag(value, SRPipelineStage::Draw)) {
 		// TODO: LOOK INTO THIS
 		// Invalid for now
 		assert(false);
 	}
-	if (has_flag(value, SRBarrierSync::IndexInput)) {
+	if (has_flag(value, SRPipelineStage::IndexInput)) {
 		assert(false);
 	}
-	if (has_flag(value, SRBarrierSync::VertexShader)) {
+	if (has_flag(value, SRPipelineStage::VertexShader)) {
 		result |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
 	}
-	if (has_flag(value, SRBarrierSync::PixelShader)) {
+	if (has_flag(value, SRPipelineStage::PixelShader)) {
 		result |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 	}
-	if (has_flag(value, SRBarrierSync::DepthStencil)) {
+	if (has_flag(value, SRPipelineStage::DepthStencil)) {
 		// TODO: Investigate
 		result |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
 	}
-	if (has_flag(value, SRBarrierSync::RenderTarget)) {
+	if (has_flag(value, SRPipelineStage::RenderTarget)) {
 		result |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	}
-	if (has_flag(value, SRBarrierSync::ComputeShader)) {
+	if (has_flag(value, SRPipelineStage::ComputeShader)) {
 		result |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
 	}
-	if (has_flag(value, SRBarrierSync::RayTracing)) {
+	if (has_flag(value, SRPipelineStage::RayTracing)) {
 		assert(false);
 	}
-	if (has_flag(value, SRBarrierSync::Copy)) {
+	if (has_flag(value, SRPipelineStage::Copy)) {
 		result |= VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 	}
 
@@ -433,39 +433,39 @@ inline constexpr VkPipelineStageFlags2 to_vk_pipeline_stage(SRBarrierSync value)
 
 inline constexpr VkBlendFactor to_vk_blend(SRBlend value) {
 	switch (value) {
-	case SRBlend::ZERO:
+	case SRBlend::Zero:
 		return VK_BLEND_FACTOR_ZERO;
-	case SRBlend::ONE:
+	case SRBlend::One:
 		return VK_BLEND_FACTOR_ONE;
-	case SRBlend::SRC_COLOR:
+	case SRBlend::SrcColor:
 		return VK_BLEND_FACTOR_SRC_COLOR;
-	case SRBlend::INV_SRC_COLOR:
+	case SRBlend::InvSrcColor:
 		return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-	case SRBlend::SRC_ALPHA:
+	case SRBlend::SrcAlpha:
 		return VK_BLEND_FACTOR_SRC_ALPHA;
-	case SRBlend::INV_SRC_ALPHA:
+	case SRBlend::InvSrcAlpha:
 		return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	case SRBlend::DEST_ALPHA:
+	case SRBlend::DstAlpha:
 		return VK_BLEND_FACTOR_DST_ALPHA;
-	case SRBlend::INV_DEST_ALPHA:
+	case SRBlend::InvDstAlpha:
 		return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-	case SRBlend::DEST_COLOR:
+	case SRBlend::DstColor:
 		return VK_BLEND_FACTOR_DST_COLOR;
-	case SRBlend::INV_DEST_COLOR:
+	case SRBlend::InvDstColor:
 		return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-	case SRBlend::SRC_ALPHA_SAT:
+	case SRBlend::SrcAlphaSat:
 		return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
-	case SRBlend::BLEND_FACTOR:
+	case SRBlend::BlendFactor:
 		return VK_BLEND_FACTOR_CONSTANT_COLOR;
-	case SRBlend::INV_BLEND_FACTOR:
+	case SRBlend::InvBlendFator:
 		return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
-	case SRBlend::SRC1_COLOR:
+	case SRBlend::Src1Color:
 		return VK_BLEND_FACTOR_SRC1_COLOR;
-	case SRBlend::INV_SRC1_COLOR:
+	case SRBlend::InvSrc1Color:
 		return VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
-	case SRBlend::SRC1_ALPHA:
+	case SRBlend::Src1Alpha:
 		return VK_BLEND_FACTOR_SRC1_ALPHA;
-	case SRBlend::INV_SRC1_ALPHA:
+	case SRBlend::InvSrc1Alpha:
 		return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
 	default:
 		return VK_BLEND_FACTOR_ZERO;
@@ -474,15 +474,15 @@ inline constexpr VkBlendFactor to_vk_blend(SRBlend value) {
 
 inline constexpr VkBlendOp to_vk_blend_op(SRBlendOp value) {
 	switch (value) {
-	case SRBlendOp::ADD:
+	case SRBlendOp::Add:
 		return VK_BLEND_OP_ADD;
-	case SRBlendOp::SUBTRACT:
+	case SRBlendOp::Subtract:
 		return VK_BLEND_OP_SUBTRACT;
-	case SRBlendOp::REV_SUBTRACT:
+	case SRBlendOp::RevSubtract:
 		return VK_BLEND_OP_REVERSE_SUBTRACT;
-	case SRBlendOp::MIN:
+	case SRBlendOp::Min:
 		return VK_BLEND_OP_MIN;
-	case SRBlendOp::MAX:
+	case SRBlendOp::Max:
 		return VK_BLEND_OP_MAX;
 	default:
 		return VK_BLEND_OP_ADD;
@@ -491,21 +491,21 @@ inline constexpr VkBlendOp to_vk_blend_op(SRBlendOp value) {
 
 inline constexpr VkCompareOp to_vk_comparison_func(SRComparisonFunc value) {
 	switch (value) {
-	case SRComparisonFunc::NEVER:
+	case SRComparisonFunc::Never:
 		return VK_COMPARE_OP_NEVER;
-	case SRComparisonFunc::LESS:
+	case SRComparisonFunc::Less:
 		return VK_COMPARE_OP_LESS;
-	case SRComparisonFunc::EQUAL:
+	case SRComparisonFunc::Equal:
 		return VK_COMPARE_OP_EQUAL;
-	case SRComparisonFunc::LESS_EQUAL:
+	case SRComparisonFunc::LessEqual:
 		return VK_COMPARE_OP_LESS_OR_EQUAL;
-	case SRComparisonFunc::GREATER:
+	case SRComparisonFunc::Greater:
 		return VK_COMPARE_OP_GREATER;
-	case SRComparisonFunc::NOT_EQUAL:
+	case SRComparisonFunc::NotEqual:
 		return VK_COMPARE_OP_NOT_EQUAL;
-	case SRComparisonFunc::GREATER_EQUAL:
+	case SRComparisonFunc::GreaterEqual:
 		return VK_COMPARE_OP_GREATER_OR_EQUAL;
-	case SRComparisonFunc::ALWAYS:
+	case SRComparisonFunc::Always:
 		return VK_COMPARE_OP_ALWAYS;
 	default:
 		return VK_COMPARE_OP_NEVER;
@@ -514,9 +514,9 @@ inline constexpr VkCompareOp to_vk_comparison_func(SRComparisonFunc value) {
 
 inline constexpr VkCullModeFlags to_vk_cull_mode(SRCullMode value) {
 	switch (value) {
-	case SRCullMode::FRONT:
+	case SRCullMode::Front:
 		return VK_CULL_MODE_FRONT_BIT;
-	case SRCullMode::BACK:
+	case SRCullMode::Back:
 		return VK_CULL_MODE_BACK_BIT;
 	default:
 		return VK_CULL_MODE_NONE;
@@ -525,7 +525,7 @@ inline constexpr VkCullModeFlags to_vk_cull_mode(SRCullMode value) {
 
 inline constexpr VkFormat to_vk_format(SRFormat format) {
 	switch (format) {
-	case SRFormat::UNKNOWN:
+	case SRFormat::Unknown:
 		return VK_FORMAT_UNDEFINED;
 	case SRFormat::RGBA32_FLOAT:
 		return VK_FORMAT_R32G32B32A32_SFLOAT;

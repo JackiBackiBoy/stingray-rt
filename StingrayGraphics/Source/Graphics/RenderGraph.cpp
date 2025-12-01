@@ -17,13 +17,13 @@ SRRenderPass& SRRenderPass::add_color_input(const std::string& name, SRAccessFla
 	inputAttachment.accessFlags = accessFlags;
 	inputAttachment.subresources = subrange;
 
-	if (accessFlags & SRAccessFlag_Read) {
+	if (has_flag(accessFlags, SRAccessFlag::Read)) {
 		attachment->readInPasses.push_back(m_Index);
-		inputAttachment.targetState = SRResourceState::SHADER_RESOURCE;
+		inputAttachment.targetState = SRResourceState::ShaderResource;
 	}
-	if (accessFlags & SRAccessFlag_Write) {
+	if (has_flag(accessFlags, SRAccessFlag::Write)) {
 		attachment->writtenInPasses.push_back(m_Index);
-		inputAttachment.targetState = SRResourceState::UNORDERED_ACCESS;
+		inputAttachment.targetState = SRResourceState::UnorderedAccess;
 	}
 
 	m_InputAttachments.push_back(inputAttachment);
@@ -34,11 +34,11 @@ SRRenderPass& SRRenderPass::add_depth_input(const std::string& name) {
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
 	attachment->readInPasses.push_back(m_Index);
 
-	m_InputAttachments.push_back({ attachment, SRResourceState::DEPTH_READ, SRAccessFlag_Read, { 0, 1, 0, 0 } });
+	m_InputAttachments.push_back({ attachment, SRResourceState::DepthRead, SRAccessFlag::Read, { 0, 1, 0, 0 } });
 	return *this;
 }
 
-SRRenderPass& SRRenderPass::add_color_output(const std::string& name, int width, int height, SRFormat format, int mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SWAPCHAIN_RELATIVE*/) {
+SRRenderPass& SRRenderPass::add_color_output(const std::string& name, int width, int height, SRFormat format, int mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	// TODO: Base mip?
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
 	attachment->width = static_cast<uint32_t>(width);
@@ -46,29 +46,29 @@ SRRenderPass& SRRenderPass::add_color_output(const std::string& name, int width,
 	attachment->mipLevels = static_cast<uint32_t>(mipLevels);
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
-	attachment->type = SRRenderPassAttachment::Type::RENDER_TARGET;
+	attachment->type = SRRenderPassAttachment::Type::RenderTarget;
 	attachment->writtenInPasses.push_back(m_Index);
 
 	attachment->subresourceStates.resize(static_cast<size_t>(mipLevels));
 	for (int i = 0; i < mipLevels; ++i) {
 		SRRenderPassAttachmentSubresource& subresourceState = attachment->subresourceStates[i];
-		//subresourceState.state = SRResourceState::RENDER_TARGET;
-		subresourceState.lastBarrierAccess = SRBarrierAccess::None;
+		//subresourceState.state = SRResourceState::RenderTarget;
+		subresourceState.lastBarrierAccess = SRAccessMask::None;
 	}
 
 	m_OutputAttachments.push_back(attachment);
 	return *this;
 }
 
-SRRenderPass& SRRenderPass::add_depth_output(const std::string& name, int width, int height, SRFormat format, float clearValue /*= 0.0f*/, SRSizeClass sizeClass /*= SRSizeClass::SWAPCHAIN_RELATIVE*/) {
+SRRenderPass& SRRenderPass::add_depth_output(const std::string& name, int width, int height, SRFormat format, float clearValue /*= 0.0f*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
 	attachment->width = static_cast<uint32_t>(width);
 	attachment->height = static_cast<uint32_t>(height);
 	attachment->mipLevels = 1;
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
-	attachment->subresourceStates.push_back({ SRResourceState::UNDEFINED });
-	attachment->type = SRRenderPassAttachment::Type::DEPTH_STENCIL;
+	attachment->subresourceStates.push_back({ SRResourceState::Undefined });
+	attachment->type = SRRenderPassAttachment::Type::DepthStencil;
 	attachment->writtenInPasses.push_back(m_Index);
 	attachment->depthClearValue = clearValue;
 
@@ -76,21 +76,21 @@ SRRenderPass& SRRenderPass::add_depth_output(const std::string& name, int width,
 	return *this;
 }
 
-SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, int width, int height, SRFormat format, int mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SWAPCHAIN_RELATIVE*/) {
+SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, int width, int height, SRFormat format, int mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
 	attachment->width = static_cast<uint32_t>(width);
 	attachment->height = static_cast<uint32_t>(height);
 	attachment->mipLevels = mipLevels;
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
-	attachment->type = SRRenderPassAttachment::Type::RW_TEXTURE;
+	attachment->type = SRRenderPassAttachment::Type::ReadWriteTexture;
 	attachment->writtenInPasses.push_back(m_Index);
 
 	attachment->subresourceStates.resize(static_cast<size_t>(mipLevels));
 	for (int i = 0; i < mipLevels; ++i) {
 		SRRenderPassAttachmentSubresource& subresourceState = attachment->subresourceStates[i];
-		//subresourceState.state = SRResourceState::UNORDERED_ACCESS;
-		subresourceState.lastBarrierAccess = SRBarrierAccess::None;
+		//subresourceState.state = SRResourceState::UnorderedAccess;
+		subresourceState.lastBarrierAccess = SRAccessMask::None;
 	}
 
 	m_OutputAttachments.push_back(attachment);
@@ -167,17 +167,17 @@ void SRRenderGraph::build(SRGraphicsDevice& gfxDevice) {
 				.height = output->height,
 				.mipLevels = output->mipLevels,
 				.format = output->format,
-				.usage = SRUsage::DEFAULT,
+				.usage = SRUsage::Default,
 				.bindFlags = SRBindFlag::None
 			};
 
-			if (!output->readInPasses.empty() && output->type != SRRenderPassAttachment::Type::DEPTH_STENCIL) {
+			if (!output->readInPasses.empty() && output->type != SRRenderPassAttachment::Type::DepthStencil) {
 				textureInfo.bindFlags |= SRBindFlag::ShaderResource;
 			}
 
 			bool writtenByCompute = false;
 			for (uint32_t passIndex : output->writtenInPasses) {
-				if (m_RenderPasses[passIndex]->get_type() == SRPassType::COMPUTE) {
+				if (m_RenderPasses[passIndex]->get_type() == SRPassType::Compute) {
 					writtenByCompute = true;
 					break;
 				}
@@ -188,10 +188,10 @@ void SRRenderGraph::build(SRGraphicsDevice& gfxDevice) {
 			}
 
 			switch (output->type) {
-			case SRRenderPassAttachment::Type::RENDER_TARGET:
+			case SRRenderPassAttachment::Type::RenderTarget:
 				textureInfo.bindFlags |= SRBindFlag::RenderTarget;
 				break;
-			case SRRenderPassAttachment::Type::DEPTH_STENCIL:
+			case SRRenderPassAttachment::Type::DepthStencil:
 				textureInfo.bindFlags |= SRBindFlag::DepthStencil;
 				break;
 			default:
@@ -213,7 +213,7 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 		SRPassInfo passInfo = {};
 		bool isFirstRootPass = false;
 
-		if (!encounteredFirstRootPass && outputs.empty() && pass->get_type() == SRPassType::GRAPHICS) {
+		if (!encounteredFirstRootPass && outputs.empty() && pass->get_type() == SRPassType::Graphics) {
 			encounteredFirstRootPass = true;
 			isFirstRootPass = true;
 			// NOTE: From here, we assume that all the passes that occur
@@ -223,38 +223,38 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 		// Output attachments
 		std::vector<SRBarrier> barriers;
 		for (SRRenderPassAttachment* output : outputs) {
-			SRResourceState targetState = SRResourceState::UNDEFINED;
-			SRBarrierAccess targetBarrierAccess = SRBarrierAccess::None;
-			SRBarrierSync targetSyncPoint = SRBarrierSync::None;
+			SRResourceState targetState = SRResourceState::Undefined;
+			SRAccessMask targetBarrierAccess = SRAccessMask::None;
+			SRPipelineStage targetSyncPoint = SRPipelineStage::None;
 
 			switch (output->type) {
-			case SRRenderPassAttachment::Type::RENDER_TARGET:
+			case SRRenderPassAttachment::Type::RenderTarget:
 			{
 				auto& colorAttachment = passInfo.colorAttachments[passInfo.numColorAttachments++];
 				colorAttachment.texture = &output->texture;
 				colorAttachment.loadOp = SRLoadOp::Clear;
 				colorAttachment.storeOp = SRStoreOp::Store;
-				targetState = SRResourceState::RENDER_TARGET;
-				targetBarrierAccess |= SRBarrierAccess::RenderTarget;
-				targetSyncPoint = SRBarrierSync::RenderTarget;
+				targetState = SRResourceState::RenderTarget;
+				targetBarrierAccess |= SRAccessMask::RenderTarget;
+				targetSyncPoint = SRPipelineStage::RenderTarget;
 			}
 			break;
-			case SRRenderPassAttachment::Type::DEPTH_STENCIL:
+			case SRRenderPassAttachment::Type::DepthStencil:
 			{
 				passInfo.depthAttachment.texture = &output->texture;
 				passInfo.depthAttachment.loadOp = SRLoadOp::Clear;
 				passInfo.depthAttachment.storeOp = SRStoreOp::Store;
 				passInfo.depthAttachment.clearValue = output->depthClearValue;
-				targetState = SRResourceState::DEPTH_WRITE;
-				targetBarrierAccess |= SRBarrierAccess::DepthStencilWrite;
-				targetSyncPoint = SRBarrierSync::DepthStencil;
+				targetState = SRResourceState::DepthWrite;
+				targetBarrierAccess |= SRAccessMask::DepthStencilWrite;
+				targetSyncPoint = SRPipelineStage::DepthStencil;
 			}
 			break;
-			case SRRenderPassAttachment::Type::RW_TEXTURE:
+			case SRRenderPassAttachment::Type::ReadWriteTexture:
 			{
-				targetState = SRResourceState::UNORDERED_ACCESS;
-				targetBarrierAccess |= SRBarrierAccess::UnorderedAccess;
-				targetSyncPoint = SRBarrierSync::ComputeShader; // TODO: Perhaps not all of the time?
+				targetState = SRResourceState::UnorderedAccess;
+				targetBarrierAccess |= SRAccessMask::UnorderedAccess;
+				targetSyncPoint = SRPipelineStage::ComputeShader; // TODO: Perhaps not all of the time?
 			}
 			break;
 			}
@@ -264,7 +264,7 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 				if (subresource.state != targetState) {
 					// TODO: MAKE THESE BARRIERS WORK
 					SRBarrier barrier = {
-						.type = SRBarrierType::IMAGE,
+						.type = SRBarrierType::Image,
 						.image = {
 							.texture = &output->texture,
 							.stateBefore = subresource.state,
@@ -291,7 +291,7 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 			// NOTE: Some passes might use the depth pre-pass output as its
 			// depth buffer input, thus it's important that we do not alter
 			// the input depth buffer in any way. Hence why we use SRStoreOp::None.
-			if (input.attachment->type == SRRenderPassAttachment::Type::DEPTH_STENCIL) {
+			if (input.attachment->type == SRRenderPassAttachment::Type::DepthStencil) {
 				passInfo.depthAttachment.texture = &input.attachment->texture;
 				passInfo.depthAttachment.loadOp = SRLoadOp::Load;
 				passInfo.depthAttachment.storeOp = SRStoreOp::None; // TODO: Might break
@@ -301,7 +301,7 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 				SRRenderPassAttachmentSubresource& subresource = input.attachment->subresourceStates[mip];
 				
 				SRBarrier barrier = {
-					.type = SRBarrierType::IMAGE,
+					.type = SRBarrierType::Image,
 					.image = {
 						.texture = &input.attachment->texture,
 						.stateBefore = subresource.state,
@@ -313,22 +313,22 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 
 				// TODO: syncAfter (dstStageMask) depends entirely on what the current pass
 				// will do. So for now, it might work for simple raster, but will likely have to be extended
-				if (input.accessFlags & SRAccessFlag_Read) {
-					if (input.attachment->type == SRRenderPassAttachment::Type::DEPTH_STENCIL) {
-						barrier.image.accessAfter = SRBarrierAccess::DepthStencilRead;
-						barrier.image.syncAfter = SRBarrierSync::DepthStencil;
+				if (has_flag(input.accessFlags, SRAccessFlag::Read)) {
+					if (input.attachment->type == SRRenderPassAttachment::Type::DepthStencil) {
+						barrier.image.accessAfter = SRAccessMask::DepthStencilRead;
+						barrier.image.syncAfter = SRPipelineStage::DepthStencil;
 					}
-					else if (input.attachment->type == SRRenderPassAttachment::Type::RENDER_TARGET) {
-						barrier.image.accessAfter = SRBarrierAccess::ShaderResource;
-						barrier.image.syncAfter = SRBarrierSync::PixelShader;
+					else if (input.attachment->type == SRRenderPassAttachment::Type::RenderTarget) {
+						barrier.image.accessAfter = SRAccessMask::ShaderResource;
+						barrier.image.syncAfter = SRPipelineStage::PixelShader;
 					}
 				}
-				if (input.accessFlags & SRAccessFlag_Write) {
-					if (input.attachment->type == SRRenderPassAttachment::Type::DEPTH_STENCIL) {
+				if (has_flag(input.accessFlags, SRAccessFlag::Write)) {
+					if (input.attachment->type == SRRenderPassAttachment::Type::DepthStencil) {
 						// invalid
 						assert(false);
 					}
-					else if (input.attachment->type == SRRenderPassAttachment::Type::RENDER_TARGET) {
+					else if (input.attachment->type == SRRenderPassAttachment::Type::RenderTarget) {
 						// invalid
 						assert(false);
 					}
@@ -378,12 +378,12 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 		}
 
 		// "Normal" render passes
-		if (pass->get_type() == SRPassType::GRAPHICS) {
+		if (pass->get_type() == SRPassType::Graphics) {
 			gfxDevice.begin_render_pass(passInfo, cmdList);
 		}
 
 		pass->execute(gfxDevice, cmdList, frameInfo);
-		if (pass->get_type() == SRPassType::GRAPHICS) {
+		if (pass->get_type() == SRPassType::Graphics) {
 			gfxDevice.end_render_pass(passInfo, cmdList);
 		}
 	}
@@ -394,7 +394,7 @@ void SRRenderGraph::notify_swapchain_resize(SRGraphicsDevice& gfxDevice, int new
 		// TODO: Right now we assume that "swapchain relative" means that an
 		// attachment will have the EXACT dimensions as the swapchain. But
 		// we might want it to only scale with the swapchain instead.
-		if (attachment->sizeClass == SRSizeClass::SWAPCHAIN_RELATIVE) {
+		if (attachment->sizeClass == SRSizeClass::SwapchainRelative) {
 			SRTextureInfo newTextureInfo = attachment->texture.info;
 			newTextureInfo.width = newWidth;
 			newTextureInfo.height = newHeight;
@@ -405,19 +405,19 @@ void SRRenderGraph::notify_swapchain_resize(SRGraphicsDevice& gfxDevice, int new
 			// the resource type.
 			//for (SRResourceState& resourceState : attachment->subresourceStates) {
 			//	switch (attachment->type) {
-			//	case SRRenderPassAttachment::Type::RENDER_TARGET:
+			//	case SRRenderPassAttachment::Type::RenderTarget:
 			//	{
-			//		resourceState = SRResourceState::RENDER_TARGET;
+			//		resourceState = SRResourceState::RenderTarget;
 			//	}
 			//	break;
-			//	case SRRenderPassAttachment::Type::DEPTH_STENCIL:
+			//	case SRRenderPassAttachment::Type::DepthStencil:
 			//	{
-			//		resourceState = SRResourceState::DEPTH_WRITE;
+			//		resourceState = SRResourceState::DepthWrite;
 			//	}
 			//	break;
-			//	case SRRenderPassAttachment::Type::RW_TEXTURE:
+			//	case SRRenderPassAttachment::Type::ReadWriteTexture:
 			//	{
-			//		resourceState = SRResourceState::UNORDERED_ACCESS;
+			//		resourceState = SRResourceState::UnorderedAccess;
 			//	}
 			//	break;
 			//	}
