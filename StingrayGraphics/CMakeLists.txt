@@ -23,16 +23,18 @@ else()
 endif()
 
 # -------------------------------- Dependencies --------------------------------
-set(DEPENDENCY_DIR ${CMAKE_SOURCE_DIR}/Dependencies)
-set(D3D12MA_INCLUDE_DIR ${DEPENDENCY_DIR}/D3D12MA/include/)
-set(DXSDK_BIN_DIR ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/bin/x64/)
-set(DXSDK_INCLUDE_DIR ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/include/)
-set(FASTGLTF_INCLUDE_DIR ${DEPENDENCY_DIR}/FastGLTF/include/)
-set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/GLM/)
-set(IMGUI_INCLUDE_DIR ${DEPENDENCY_DIR}/ImGui/)
-set(SLANG_INCLUDE_DIR ${DEPENDENCY_DIR}/Slang/include/)
-set(SLANG_LIBRARY_DIR ${DEPENDENCY_DIR}/Slang/lib/)
-set(VMA_INCLUDE_DIR ${DEPENDENCY_DIR}/VMA/include/)
+set(DEPENDENCY_DIR             ${CMAKE_SOURCE_DIR}/Dependencies)
+
+set(D3D12MA_INCLUDE_DIR        ${DEPENDENCY_DIR}/D3D12MA/include/)
+set(DXSDK_BIN_DIR              ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/bin/x64/)
+set(DXSDK_INCLUDE_DIR          ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/include/)
+set(FASTGLTF_INCLUDE_DIR       ${DEPENDENCY_DIR}/FastGLTF/include/)
+set(GLM_INCLUDE_DIR            ${DEPENDENCY_DIR}/GLM/)
+set(IMGUI_INCLUDE_DIR          ${DEPENDENCY_DIR}/ImGui/)
+set(MESH_OPTIMIZER_INCLUDE_DIR ${DEPENDENCY_DIR}/MeshOptimizer/src/)
+set(SLANG_INCLUDE_DIR          ${DEPENDENCY_DIR}/Slang/include/)
+set(SLANG_LIBRARY_DIR          ${DEPENDENCY_DIR}/Slang/lib/)
+set(VMA_INCLUDE_DIR            ${DEPENDENCY_DIR}/VMA/include/)
 
 # -------------------------------- Source Files --------------------------------
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Source)
@@ -251,6 +253,7 @@ target_include_directories(StingrayGraphics PRIVATE
 	${GLM_INCLUDE_DIR}
 	${IMGUI_INCLUDE_DIR}
 	${IMGUI_INCLUDE_DIR}backends/
+	${MESH_OPTIMIZER_INCLUDE_DIR}
 	${SLANG_INCLUDE_DIR}
 	${VMA_INCLUDE_DIR}
 	${WIN32_RES_DIR}

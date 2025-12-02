@@ -60,7 +60,7 @@ public:
 	inline const std::vector<T>& get_data() const { return m_Dense; }
 
 private:
-	static constexpr size_t NULL_INDEX = ~0;
+	static constexpr size_t NULL_INDEX = ~0ULL;
 
 	inline size_t get_dense_index(size_t id) {
 		return m_Sparse[id];

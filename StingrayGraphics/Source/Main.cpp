@@ -241,15 +241,18 @@ void update(const SRFrameInfo& frameInfo) {
 	const float dx = mouseSensitivity * mouse.dx;
 	const float dy = mouseSensitivity * mouse.dy;
 
-	glm::quat orientation = g_Camera->get_orientation();
-	orientation = orientation * glm::angleAxis(dy, glm::vec3(1.0f, 0.0f, 0.0f)); // pitch
-	orientation = glm::angleAxis(dx, glm::vec3(0.0f, 1.0f, 0.0f)) * orientation; // yaw
-	g_Camera->set_orientation(orientation);
+	if (mouse.buttonStates & SRMouseButton_Middle) {
+		glm::quat orientation = g_Camera->get_orientation();
+		orientation = orientation * glm::angleAxis(dy, glm::vec3(1.0f, 0.0f, 0.0f)); // pitch
+		orientation = glm::angleAxis(dx, glm::vec3(0.0f, 1.0f, 0.0f)) * orientation; // yaw
+		g_Camera->set_orientation(orientation);
+	}
 
 	const glm::vec3 camRight = g_Camera->get_right();
 	const glm::vec3 camUp = g_Camera->get_up();
 	const glm::vec3 camForward = g_Camera->get_forward();
 	glm::vec3 newPosition = g_Camera->get_position();
+
 	if (SRInput::is_key_down(SRKey_W)) {
 		newPosition += cameraMoveSpeed * frameInfo.dt * camForward;
 	}

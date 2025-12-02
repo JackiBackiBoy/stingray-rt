@@ -54,7 +54,7 @@ public:
 	SRDestructionHandler_Vulkan(VkDevice device, VkInstance instance, VmaAllocator allocator) :
 		m_Device(device), m_Instance(instance), m_Allocator(allocator) {}
 	~SRDestructionHandler_Vulkan() {
-		update(~0, 0);
+		update(~0ULL, 0U);
 
 		vmaDestroyAllocator(m_Allocator);
 		vkDestroyDevice(m_Device, nullptr);

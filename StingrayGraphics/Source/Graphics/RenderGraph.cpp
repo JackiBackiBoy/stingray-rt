@@ -384,7 +384,7 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 
 		pass->execute(gfxDevice, cmdList, frameInfo);
 		if (pass->get_type() == SRPassType::Graphics) {
-			gfxDevice.end_render_pass(passInfo, cmdList);
+			gfxDevice.end_render_pass(cmdList);
 		}
 	}
 }

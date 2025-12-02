@@ -45,4 +45,8 @@ set(D3D12MA_AGILITY_SDK_DIRECTORY ${DEPENDENCY_DIR}/DXAgilitySDK CACHE STRING "A
 add_subdirectory(Dependencies/D3D12MA)
 set_property(TARGET D3D12MemoryAllocator PROPERTY FOLDER "Dependencies")
 
+# 5. MeshOptimizer
+add_subdirectory(Dependencies/MeshOptimizer)
+set_property(TARGET meshoptimizer PROPERTY FOLDER "Dependencies")
+
 add_subdirectory(StingrayGraphics)

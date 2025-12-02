@@ -27,11 +27,12 @@ public:
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) override;
 	void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) override;
 	void end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) override;
-	void end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) override;
+	void end_render_pass(const SRCmdList& cmdList) override;
 	void submit_command_lists(const SRSwapchain& swapchain) override;
 
 	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) override;
 	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) override;
+	void dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) override;
 
 	SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource) override;
 	SRShaderPlatformInfo get_shader_platform_info() override;

@@ -106,7 +106,7 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
 	void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
 	void end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
-	void end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
+	void end_render_pass(const SRCmdList& cmdList);
 	void submit_command_lists(const SRSwapchain& swapchain);
 
 	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList);
@@ -2012,7 +2012,7 @@ void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRSwapchain& swapchain
 	SRVulkanHelpers::transition_image_layout(transitionInfo, internalCmdList->cmdBuffer);
 }
 
-void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRCmdList& cmdList) {
 	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdEndRendering(internalCmdList->cmdBuffer);
@@ -2364,8 +2364,8 @@ void SRGraphicsDevice_Vulkan::end_render_pass(const SRSwapchain& swapchain, cons
 	m_Impl->end_render_pass(swapchain, cmdList);
 }
 
-void SRGraphicsDevice_Vulkan::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
-	m_Impl->end_render_pass(passInfo, cmdList);
+void SRGraphicsDevice_Vulkan::end_render_pass(const SRCmdList& cmdList) {
+	m_Impl->end_render_pass(cmdList);
 }
 
 void SRGraphicsDevice_Vulkan::submit_command_lists(const SRSwapchain& swapchain) {
@@ -2378,6 +2378,10 @@ void SRGraphicsDevice_Vulkan::draw(uint32_t vtxCount, uint32_t startVtx, const S
 
 void SRGraphicsDevice_Vulkan::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
 	m_Impl->draw_indexed(idxCount, startIdx, baseVtx, cmdList);
+}
+
+void SRGraphicsDevice_Vulkan::dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) {
+
 }
 
 SRDescriptorIndex SRGraphicsDevice_Vulkan::get_descriptor_index_srv(const SRResource& resource) {

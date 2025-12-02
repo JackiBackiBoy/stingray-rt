@@ -8,6 +8,7 @@
 #include <imgui_impl_dx12.h>
 
 #include "d3d12.h"
+#include "d3dx12/d3dx12_pipeline_state_stream.h"
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
 #include <wrl/client.h>
@@ -50,11 +51,12 @@ struct SRGraphicsDevice_DX12::Impl {
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
 	void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
 	void end_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
-	void end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
+	void end_render_pass(const SRCmdList& cmdList);
 	void submit_command_lists(const SRSwapchain& swapchain);
 
 	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList);
 	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList);
+	void dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList);
 
 	SRShaderPlatformInfo get_shader_platform_info();
 	SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource);
@@ -81,7 +83,7 @@ struct SRGraphicsDevice_DX12::Impl {
 	ComPtr<IDXGIFactory2> m_DXGIFactory;
 	ComPtr<IDXGIAdapter1> m_Adapter;
 	D3D12MA::Allocator* m_Allocator = nullptr;
-	ComPtr<ID3D12Device> m_Device;
+	ComPtr<ID3D12Device10> m_Device;
 	SRDeviceCapabilities_DX12 m_DeviceCapabilities = {};
 	ComPtr<ID3D12CommandAllocator> m_CommandAllocators[SRQueue_COUNT][FRAMES_IN_FLIGHT];
 	ComPtr<ID3D12CommandQueue> m_CommandQueues[SRQueue_COUNT];
@@ -185,7 +187,7 @@ void SRGraphicsDevice_DX12::Impl::create_dxgi_factory() {
 }
 
 void SRGraphicsDevice_DX12::Impl::create_device() {
-	uint32_t pickedDeviceIdx = ~0;
+	uint32_t pickedDeviceIdx = ~0U;
 	std::string deviceName;
 
 	// NOTE: We prefer IDXGIFactory6 since it allows us to enumerate adapters
@@ -253,7 +255,7 @@ void SRGraphicsDevice_DX12::Impl::create_device() {
 			continue;
 		}
 
-		m_Device = device;
+		SR_DX12_CHECK(device.As(&m_Device), "Create as ID3D12Device10");
 		m_Adapter = adapter;
 
 		#ifdef _DEBUG
@@ -393,8 +395,6 @@ void SRGraphicsDevice_DX12::Impl::create_swapchain(const SRSwapchainInfo& info, 
 	SR_DX12_CHECK(dxgiSwapchain1.As(&internalSwapchain->swapchain), "Convert IDXGISwapchain1 to IDXGISwapchain3");
 	SR_DX12_CHECK(m_DXGIFactory->MakeWindowAssociation(windowHandle, DXGI_MWA_NO_ALT_ENTER), "Disable Alt+Enter");
 
-	// TODO: Store this backbuffer index into m_ImageIndex
-	const UINT bufferIndex = internalSwapchain->swapchain->GetCurrentBackBufferIndex();
 	internalSwapchain->images.resize(info.numBuffers);
 	internalSwapchain->rtvDescriptors.reserve(info.numBuffers);
 
@@ -416,17 +416,25 @@ void SRGraphicsDevice_DX12::Impl::create_swapchain(const SRSwapchainInfo& info, 
 
 void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SRPipeline& pipeline) {
 	auto internalPipeline = std::make_shared<SRPipeline_DX12>();
-
 	pipeline.info = info;
 	pipeline.internalState = internalPipeline;
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc = {
-		.pRootSignature = nullptr,
-		.SampleMask = UINT_MAX,
-		.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-		.SampleDesc = { .Count = 1, .Quality = 0 },
-		.NodeMask = 0
-	};
+	struct PSOStream {
+		CD3DX12_PIPELINE_STATE_STREAM_VS                    vertexShader;
+		CD3DX12_PIPELINE_STATE_STREAM_PS                    pixelShader;
+		CD3DX12_PIPELINE_STATE_STREAM_MS                    meshShader;
+		CD3DX12_PIPELINE_STATE_STREAM_AS                    taskShader;
+		CD3DX12_PIPELINE_STATE_STREAM_RASTERIZER            rasterizerState;
+		CD3DX12_PIPELINE_STATE_STREAM_DEPTH_STENCIL1        depthStencilState;
+		CD3DX12_PIPELINE_STATE_STREAM_BLEND_DESC            blendDesc;
+		CD3DX12_PIPELINE_STATE_STREAM_PRIMITIVE_TOPOLOGY    primitiveTopology;
+		CD3DX12_PIPELINE_STATE_STREAM_INPUT_LAYOUT          inputLayout;
+		CD3DX12_PIPELINE_STATE_STREAM_DEPTH_STENCIL_FORMAT  depthStencilFormat;
+		CD3DX12_PIPELINE_STATE_STREAM_RENDER_TARGET_FORMATS formats;
+		CD3DX12_PIPELINE_STATE_STREAM_SAMPLE_DESC           sampleDesc;
+		CD3DX12_PIPELINE_STATE_STREAM_SAMPLE_MASK           sampleMask;
+		CD3DX12_PIPELINE_STATE_STREAM_ROOT_SIGNATURE        rootSignature;
+	} psoStream = {};
 
 	const D3D12_ROOT_PARAMETER1 rootConstant = {
 		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
@@ -486,11 +494,7 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 			.pParameters = rootParameters,
 			.NumStaticSamplers = 0,
 			.pStaticSamplers = nullptr,
-			.Flags = (
-				D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT //|
-				//D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED //|
-				//D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED
-			)
+			.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
 		}
 	};
 
@@ -508,41 +512,23 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 		rootSignatureBlob->GetBufferSize(),
 		IID_PPV_ARGS(&internalPipeline->rootSignature)
 	), "Create root signature");
-	pipelineDesc.pRootSignature = internalPipeline->rootSignature.Get();
+	psoStream.rootSignature = internalPipeline->rootSignature.Get();
 
 	if (info.vertexShader != nullptr) {
-		pipelineDesc.VS.BytecodeLength = info.vertexShader->byteCode.size();
-		pipelineDesc.VS.pShaderBytecode = info.vertexShader->byteCode.data();
+		psoStream.vertexShader = { info.vertexShader->byteCode.data(), info.vertexShader->byteCode.size(), };
 	}
 	if (info.pixelShader != nullptr) {
-		pipelineDesc.PS.BytecodeLength = info.pixelShader->byteCode.size();
-		pipelineDesc.PS.pShaderBytecode = info.pixelShader->byteCode.data();
+		psoStream.pixelShader = { info.pixelShader->byteCode.data(), info.pixelShader->byteCode.size() };
 	}
-
-	// Blend state
-	D3D12_BLEND_DESC& blendDesc = pipelineDesc.BlendState;
-	blendDesc.AlphaToCoverageEnable = info.blendState.alphaToCoverage ? TRUE : FALSE;
-	blendDesc.IndependentBlendEnable = info.blendState.independentBlend ? TRUE : FALSE;
-
-	// Render target blend states (always 8 such states available)
-	for (size_t i = 0; i < 8; ++i) {
-		const auto& blendState = info.blendState.renderTargetBlendStates[i];
-		auto& dx12BlendState = blendDesc.RenderTarget[i];
-
-		dx12BlendState.BlendEnable = blendState.blendEnable ? TRUE : FALSE;
-		dx12BlendState.SrcBlend = to_dx12_blend(blendState.srcBlend);
-		dx12BlendState.DestBlend = to_dx12_blend(blendState.dstBlend);
-		dx12BlendState.BlendOp = to_dx12_blend_op(blendState.blendOp);
-		dx12BlendState.SrcBlendAlpha = to_dx12_alpha_blend(blendState.srcBlendAlpha);
-		dx12BlendState.DestBlendAlpha = to_dx12_alpha_blend(blendState.dstBlendAlpha);
-		dx12BlendState.BlendOpAlpha = to_dx12_blend_op(blendState.blendOpAlpha);
-		dx12BlendState.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL; // TODO: Very unlikely to need anything else, but we should make it dynamic
+	if (info.meshShader != nullptr) {
+		psoStream.meshShader = { info.meshShader->byteCode.data(), info.meshShader->byteCode.size() };
 	}
-
-	// TODO: SampleMask
+	if (info.taskShader != nullptr) {
+		psoStream.taskShader = { info.taskShader->byteCode.data(), info.taskShader->byteCode.size() };
+	}
 
 	// Rasterizer state
-	D3D12_RASTERIZER_DESC& rasterizerDesc = pipelineDesc.RasterizerState;
+	CD3DX12_RASTERIZER_DESC rasterizerDesc = {};
 	rasterizerDesc.FillMode = to_dx12_fill_mode(info.rasterizerState.fillMode);
 	rasterizerDesc.CullMode = to_dx12_cull_mode(info.rasterizerState.cullMode);
 	rasterizerDesc.FrontCounterClockwise = info.rasterizerState.frontCW ? TRUE : FALSE;
@@ -554,9 +540,10 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 	rasterizerDesc.AntialiasedLineEnable = info.rasterizerState.antialisedLineEnable ? TRUE : FALSE;
 	rasterizerDesc.ForcedSampleCount = 0U;
 	rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+	psoStream.rasterizerState = rasterizerDesc;
 
 	// Depth stencil state
-	D3D12_DEPTH_STENCIL_DESC& depthStencilDesc = pipelineDesc.DepthStencilState;
+	CD3DX12_DEPTH_STENCIL_DESC1 depthStencilDesc = {};
 	depthStencilDesc.DepthEnable = info.depthStencilState.depthEnable ? TRUE : FALSE;
 	depthStencilDesc.DepthWriteMask = to_dx12_depth_write_mask(info.depthStencilState.depthWriteMask);
 	depthStencilDesc.DepthFunc = to_dx12_comparison_func(info.depthStencilState.depthFunction);
@@ -571,44 +558,83 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 	depthStencilDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
 	depthStencilDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
 	depthStencilDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-	pipelineDesc.DSVFormat = to_dx12_format(info.depthStencilFormat);
+	depthStencilDesc.DepthBoundsTestEnable = FALSE;
+	psoStream.depthStencilState = depthStencilDesc;
+
+	// Blend state
+	CD3DX12_BLEND_DESC blendDesc = {};
+	blendDesc.AlphaToCoverageEnable = info.blendState.alphaToCoverage ? TRUE : FALSE;
+	blendDesc.IndependentBlendEnable = info.blendState.independentBlend ? TRUE : FALSE;
+	for (size_t i = 0; i < 8; ++i) {
+		const auto& blendState = info.blendState.renderTargetBlendStates[i];
+		auto& dx12BlendState = blendDesc.RenderTarget[i];
+
+		dx12BlendState.BlendEnable = blendState.blendEnable ? TRUE : FALSE;
+		dx12BlendState.SrcBlend = to_dx12_blend(blendState.srcBlend);
+		dx12BlendState.DestBlend = to_dx12_blend(blendState.dstBlend);
+		dx12BlendState.BlendOp = to_dx12_blend_op(blendState.blendOp);
+		dx12BlendState.SrcBlendAlpha = to_dx12_alpha_blend(blendState.srcBlendAlpha);
+		dx12BlendState.DestBlendAlpha = to_dx12_alpha_blend(blendState.dstBlendAlpha);
+		dx12BlendState.BlendOpAlpha = to_dx12_blend_op(blendState.blendOpAlpha);
+		dx12BlendState.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	}
+	psoStream.blendDesc = blendDesc;
+
+	// Primitive topology
+	psoStream.primitiveTopology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
 	// Input layout
-	D3D12_INPUT_LAYOUT_DESC& inputLayoutDesc = pipelineDesc.InputLayout;
+	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
 	inputLayoutDesc.NumElements = static_cast<UINT>(info.inputLayout.elements.size());
-
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputElements;
 	inputElements.reserve(info.inputLayout.elements.size());
 
 	for (size_t i = 0; i < info.inputLayout.elements.size(); ++i) {
 		const auto& element = info.inputLayout.elements[i];
-
 		const D3D12_INPUT_ELEMENT_DESC dx12Element = {
 			.SemanticName = element.name.c_str(),
 			.SemanticIndex = 0U, // TODO: Pretty certain this doesn't matter
 			.Format = to_dx12_format(element.format),
-			.InputSlot = 0U, // NOTE: No more than 1 vertex buffer will be bound at a time, so this will alwasy be 0 in our case
+			.InputSlot = 0U, // NOTE: No more than 1 vertex buffer will be bound at a time, so this will always be 0 in our case
 			.AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT,
 			.InputSlotClass = to_dx12_input_class(element.inputClass),
 			.InstanceDataStepRate = 0U, // TODO: Fix if per-instance data is used, right now it will not work with 0
 		};
-
 		inputElements.push_back(dx12Element);
 	}
 
 	inputLayoutDesc.pInputElementDescs = inputElements.data();
+	psoStream.inputLayout = inputLayoutDesc;
+
+	// Depth stencil format
+	psoStream.depthStencilFormat = to_dx12_format(info.depthStencilFormat);
 
 	// RTV formats
-	pipelineDesc.NumRenderTargets = info.numRenderTargets;
-
+	D3D12_RT_FORMAT_ARRAY rtvFormats = {};
+	rtvFormats.NumRenderTargets = info.numRenderTargets;
 	for (size_t i = 0; i < info.numRenderTargets; ++i) {
-		pipelineDesc.RTVFormats[i] = to_dx12_format(info.renderTargetFormats[i]);
+		rtvFormats.RTFormats[i] = to_dx12_format(info.renderTargetFormats[i]);
 	}
+	psoStream.formats = rtvFormats;
 
-	SR_DX12_CHECK(m_Device->CreateGraphicsPipelineState(
-		&pipelineDesc,
+	// Sample desc
+	DXGI_SAMPLE_DESC sampleDesc = {};
+	sampleDesc.Count = 1U;
+	sampleDesc.Quality = 0U;
+	psoStream.sampleDesc = sampleDesc;
+
+	// Sample mask
+	psoStream.sampleMask = UINT_MAX;
+
+	const D3D12_PIPELINE_STATE_STREAM_DESC psoStreamDesc = {
+		.SizeInBytes = sizeof(PSOStream),
+		.pPipelineStateSubobjectStream = &psoStream
+	};
+
+	SR_DX12_CHECK(m_Device->CreatePipelineState(
+		&psoStreamDesc,
 		IID_PPV_ARGS(&internalPipeline->pipeline)
-	), "Create graphics pipeline");
+	), "Create pipeline state");
 }
 
 void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data) {
@@ -1179,7 +1205,7 @@ void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRSwapchain& swapchain, 
 	SRDX12Helpers::transition_image_layout(transitionInfo, internalCmdList->graphicsCmdList.Get());
 }
 
-void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRCmdList& cmdList) {
 	auto* internalCmdList = to_dx12_internal(cmdList);
 	internalCmdList->graphicsCmdList->EndRenderPass();
 }
@@ -1187,7 +1213,7 @@ void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRPassInfo& passInfo, co
 void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapchain) {
 	auto internalSwapchain = to_dx12_internal(swapchain);
 	const uint32_t numSubmittedCmdLists = m_PerFrameCmdListCounters[m_FrameIndex];
-	m_PerFrameCmdListCounters[m_FrameIndex] = 0;
+	m_PerFrameCmdListCounters[m_FrameIndex] = 0ULL;
 
 	std::vector<ID3D12CommandList*> cmdListsToSubmit;
 	cmdListsToSubmit.reserve(numSubmittedCmdLists);
@@ -1334,7 +1360,13 @@ SRDescriptorIndex SRGraphicsDevice_DX12::Impl::get_descriptor_index_srv(const SR
 		return internalTexture->srvDescriptor;
 	}
 
-	return ~0;
+	return ~0U;
+}
+
+void SRGraphicsDevice_DX12::Impl::dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) {
+	auto* internalCmdList = to_dx12_internal(cmdList);
+
+	internalCmdList->graphicsCmdList->DispatchMesh(groupCountX, groupCountY, groupCountZ);
 }
 
 // --------------------------------- Public API --------------------------------
@@ -1424,8 +1456,8 @@ void SRGraphicsDevice_DX12::end_render_pass(const SRSwapchain& swapchain, const 
 	m_Impl->end_render_pass(swapchain, cmdList);
 }
 
-void SRGraphicsDevice_DX12::end_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) {
-	m_Impl->end_render_pass(passInfo, cmdList);
+void SRGraphicsDevice_DX12::end_render_pass(const SRCmdList& cmdList) {
+	m_Impl->end_render_pass(cmdList);
 }
 
 void SRGraphicsDevice_DX12::submit_command_lists(const SRSwapchain& swapchain) {
@@ -1438,6 +1470,10 @@ void SRGraphicsDevice_DX12::draw(uint32_t vtxCount, uint32_t startVtx, const SRC
 
 void SRGraphicsDevice_DX12::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
 	m_Impl->draw_indexed(idxCount, startIdx, baseVtx, cmdList);
+}
+
+void SRGraphicsDevice_DX12::dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) {
+	m_Impl->dispatch_mesh(groupCountX, groupCountY, groupCountZ, cmdList);
 }
 
 SRDescriptorIndex SRGraphicsDevice_DX12::get_descriptor_index_srv(const SRResource& resource) {

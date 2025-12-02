@@ -294,7 +294,9 @@ enum class SRStoreOp : uint8_t {
 enum class SRShaderStage : uint8_t {
 	Vertex,
 	Pixel,
-	Compute
+	Compute,
+	Task, // NOTE: Also referred to as "amplification shader"
+	Mesh
 };
 
 enum class SRShaderCompileTarget : uint8_t {
@@ -481,6 +483,8 @@ struct SRPipelineInfo {
 	const SRShader* vertexShader = nullptr;
 	const SRShader* pixelShader = nullptr;
 	const SRShader* computeShader = nullptr;
+	const SRShader* meshShader = nullptr;
+	const SRShader* taskShader = nullptr;
 	SRInputLayout inputLayout = {};
 	SRRasterizerState rasterizerState = {};
 	SRDepthStencilState depthStencilState = {};

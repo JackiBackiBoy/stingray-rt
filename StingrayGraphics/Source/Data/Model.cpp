@@ -3,6 +3,7 @@
 
 #include "fastgltf/core.hpp"
 #include "fastgltf/tools.hpp"
+#include <meshoptimizer.h>
 
 namespace {
 	void load_gltf_mesh(
@@ -117,9 +118,9 @@ namespace SRModelLoader {
 		model.meshes.reserve(gltfAsset->meshes.size());
 
 		// Pre-allocate index and vertex buffer data
-		uint32_t numVertices = 0;
-		uint32_t numIndices = 0;
-		uint32_t numPrimitives = 0;
+		size_t numVertices = 0;
+		size_t numIndices = 0;
+		size_t numPrimitives = 0;
 		for (const auto& gltfMesh : gltfAsset->meshes) {
 			for (const auto& gltfPrimitive : gltfMesh.primitives) {
 				auto* positionIt = gltfPrimitive.findAttribute("POSITION");
@@ -140,6 +141,31 @@ namespace SRModelLoader {
 			load_gltf_mesh(model, vertices, indices, gltfAsset.get(), gltfMesh);
 		}
 
+		// Generate meshlets
+		// TODO: We will have to look into if this should be done per mesh, or per model
+		// For now we assume ONE mesh per model
+		//std::vector<uint32_t> remap(numIndices);
+		//const size_t vertexCount = meshopt_generateVertexRemap(
+		//	remap.data(),
+		//	indices,
+		//	numIndices,
+		//	vertices,
+		//	numVertices,
+		//	sizeof(SRVertex)
+		//);
+
+		//meshopt_remapIndexBuffer(indices, indices, numIndices, remap.data());
+		//meshopt_remapVertexBuffer(vertices, vertices, numVertices, sizeof(SRVertex), remap.data());
+
+		//meshopt_optimizeVertexCache(indices, indices, numIndices, numVertices);
+		//meshopt_optimizeOverdraw(indices, indices, numIndices, (const float*)vertices, numVertices, sizeof(SRVertex), 1.05f);
+
+		//uint32_t* indicesCopy = new uint32_t[numIndices];
+		//std::memcpy(indicesCopy, indices, numIndices * sizeof(uint32_t));
+		//meshopt_optimizeVertexFetchRemap(remap.data(), indices, numIndices, numVertices);
+
+		//meshopt_remapIndexBuffer(indices, )
+
 		// Create buffers
 		const SRBufferInfo vertexBufferInfo = {
 			.size = numVertices * sizeof(SRVertex),
@@ -159,5 +185,6 @@ namespace SRModelLoader {
 
 		delete[] vertices;
 		delete[] indices;
+		//delete[] indicesCopy;
 	}
 }
