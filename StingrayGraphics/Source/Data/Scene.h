@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Data/SparseSet.hpp"
-#include "Graphics/GraphicsDevice.hpp"
+#include "Data/SparseSet.h"
+#include "Graphics/GraphicsDevice.h"
 
 #include <cassert>
 #include <cstdint>

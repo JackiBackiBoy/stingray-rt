@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Graphics/GraphicsTypes.hpp"
+#include "Graphics/GraphicsTypes.h"
 
 struct SRShaderCompileInfo {
 	SRShaderStage stage = {};

@@ -1,6 +1,6 @@
-#include "MonitorEnumerator.hpp"
+#include "MonitorEnumerator.h"
 #include <Windows.h>
-#include "Utilities/TextUtilities.hpp"
+#include "Utilities/TextUtilities.h"
 
 #include <cassert>
 #include <unordered_map>

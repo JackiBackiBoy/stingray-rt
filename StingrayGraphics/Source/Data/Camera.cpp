@@ -1,4 +1,4 @@
-#include "Camera.hpp"
+#include "Camera.h"
 
 SRCamera::SRCamera(
 	const glm::vec3& position,

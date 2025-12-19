@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Core/Window.hpp"
-#include "Graphics/GraphicsTypes.hpp"
+#include "Core/Window.h"
+#include "Graphics/GraphicsTypes.h"
 #include <cstdint>
 
 class SRGraphicsDevice {

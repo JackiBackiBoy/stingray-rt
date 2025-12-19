@@ -1,4 +1,4 @@
-#include "GraphicsTypes_DX12.hpp"
+#include "GraphicsTypes_DX12.h"
 
 SRDescriptorHeap_DX12::SRDescriptorHeap_DX12(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t capacity) :
 	m_Type(type), m_Capacity(capacity) {

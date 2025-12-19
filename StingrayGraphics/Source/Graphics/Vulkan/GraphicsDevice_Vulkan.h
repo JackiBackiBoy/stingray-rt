@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Graphics/GraphicsDevice.hpp"
+#include "Graphics/GraphicsDevice.h"
 
-class SRGraphicsDevice_DX12 final : public SRGraphicsDevice {
+class SRGraphicsDevice_Vulkan final : public SRGraphicsDevice {
 public:
-	SRGraphicsDevice_DX12(SRWindow& window);
-	~SRGraphicsDevice_DX12();
+	SRGraphicsDevice_Vulkan(SRWindow& window);
+	~SRGraphicsDevice_Vulkan();
 
 	uint32_t get_frame_index() const override;
 

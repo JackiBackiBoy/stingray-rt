@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Graphics/GraphicsDevice.hpp"
-#include "Graphics/RenderGraph.hpp"
-#include "Graphics/ShaderCompiler.hpp"
+#include "Graphics/GraphicsDevice.h"
+#include "Graphics/RenderGraph.h"
+#include "Graphics/ShaderCompiler.h"
 
-namespace SRMeshletGenerationpass {
+namespace SRGBufferPass {
 	void build(SRRenderPass& self, SRGraphicsDevice& gfxDevice, SRShaderCompiler& shaderCompiler);
 	void execute(SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
 }

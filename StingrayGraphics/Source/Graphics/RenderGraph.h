@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Core/EnumBitmaskOperators.hpp"
-#include "Graphics/GraphicsDevice.hpp"
-#include "Graphics/FrameInfo.hpp"
+#include "Core/EnumBitmaskOperators.h"
+#include "Graphics/GraphicsDevice.h"
+#include "Graphics/FrameInfo.h"
 
 #include <cstdint>
 #include <functional>

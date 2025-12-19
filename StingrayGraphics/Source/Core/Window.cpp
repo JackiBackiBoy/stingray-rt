@@ -1,5 +1,5 @@
-#include "Window.hpp"
-#include "Utilities/TextUtilities.hpp"
+#include "Window.h"
+#include "Utilities/TextUtilities.h"
 
 #include <imgui_impl_win32.h>
 

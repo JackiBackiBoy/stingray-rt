@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Core/Window.hpp"
-#include "Graphics/GraphicsDevice.hpp"
-#include "Graphics/RenderGraph.hpp"
+#include "Core/Window.h"
+#include "Graphics/GraphicsDevice.h"
+#include "Graphics/RenderGraph.h"
 
 class SREditor {
 public:

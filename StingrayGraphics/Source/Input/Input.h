@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/Window.hpp"
+#include "Core/Window.h"
 #include <cstdint>
 
 typedef uint16_t SRKey;

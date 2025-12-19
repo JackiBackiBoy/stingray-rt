@@ -1,7 +1,7 @@
-#include "Editor.hpp"
-#include "Core/System/Time.hpp"
-#include "Graphics/DX12/GraphicsTypes_DX12.hpp"
-#include "Graphics/Vulkan/GraphicsTypes_Vulkan.hpp"
+#include "Editor.h"
+#include "Core/System/Time.h"
+#include "Graphics/DX12/GraphicsTypes_DX12.h"
+#include "Graphics/Vulkan/GraphicsTypes_Vulkan.h"
 
 #include <imgui.h>
 #include <imgui_impl_win32.h>

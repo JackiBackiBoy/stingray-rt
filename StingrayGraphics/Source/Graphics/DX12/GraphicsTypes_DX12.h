@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Core/Logger.hpp"
-#include "Graphics/GraphicsTypes.hpp"
+#include "Core/Logger.h"
+#include "Graphics/GraphicsTypes.h"
 
 #include "d3d12.h"
 #include <D3D12MemAlloc.h>

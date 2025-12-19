@@ -1,6 +1,6 @@
-#include "CompositionPass.hpp"
-#include "Data/ComponentTypes.hpp"
-#include "Data/Model.hpp"
+#include "CompositionPass.h"
+#include "Data/ComponentTypes.h"
+#include "Data/Model.h"
 
 namespace SRCompositionPass {
 	struct CompositionPassData {

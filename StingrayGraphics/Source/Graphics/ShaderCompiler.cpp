@@ -1,6 +1,6 @@
-#include "ShaderCompiler.hpp"
-#include "Core/Logger.hpp"
-#include "Utilities/TextUtilities.hpp"
+#include "ShaderCompiler.h"
+#include "Core/Logger.h"
+#include "Utilities/TextUtilities.h"
 
 #include <Unknwn.h>
 #include <dxcapi.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Graphics/GraphicsDevice.hpp"
+#include "Graphics/GraphicsDevice.h"
 
 #include <cstdint>
 #include <vector>

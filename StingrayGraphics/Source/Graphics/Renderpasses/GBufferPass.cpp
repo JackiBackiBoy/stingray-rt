@@ -1,6 +1,6 @@
-#include "GBufferPass.hpp"
-#include "Data/ComponentTypes.hpp"
-#include "Data/Model.hpp"
+#include "GBufferPass.h"
+#include "Data/ComponentTypes.h"
+#include "Data/Model.h"
 
 namespace SRGBufferPass {
 	struct GBufferPassData {

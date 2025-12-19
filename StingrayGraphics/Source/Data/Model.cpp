@@ -1,5 +1,5 @@
-#include "Model.hpp"
-#include "Core/Logger.hpp"
+#include "Model.h"
+#include "Core/Logger.h"
 
 #include "fastgltf/core.hpp"
 #include "fastgltf/tools.hpp"

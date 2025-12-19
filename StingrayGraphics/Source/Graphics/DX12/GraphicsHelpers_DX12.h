@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Graphics/DX12/GraphicsTypes_DX12.hpp"
+#include "Graphics/DX12/GraphicsTypes_DX12.h"
 
 struct SRDeviceCapabilities_DX12 {
 	D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_12_0;

@@ -40,73 +40,73 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Main.cpp
 
 	# Core
-	${SOURCE_DIR}/Core/EnumBitmaskOperators.hpp
+	${SOURCE_DIR}/Core/EnumBitmaskOperators.h
 	${SOURCE_DIR}/Core/Logger.cpp
-	${SOURCE_DIR}/Core/Logger.hpp
+	${SOURCE_DIR}/Core/Logger.h
 	${SOURCE_DIR}/Core/Window.cpp
-	${SOURCE_DIR}/Core/Window.hpp
+	${SOURCE_DIR}/Core/Window.h
 
 	# Core/System
 	${SOURCE_DIR}/Core/System/MonitorEnumerator.cpp
-	${SOURCE_DIR}/Core/System/MonitorEnumerator.hpp
+	${SOURCE_DIR}/Core/System/MonitorEnumerator.h
 	${SOURCE_DIR}/Core/System/Time.cpp
-	${SOURCE_DIR}/Core/System/Time.hpp
+	${SOURCE_DIR}/Core/System/Time.h
 
 	# Data
 	${SOURCE_DIR}/Data/Camera.cpp
-	${SOURCE_DIR}/Data/Camera.hpp
+	${SOURCE_DIR}/Data/Camera.h
 	${SOURCE_DIR}/Data/ComponentTypes.cpp
-	${SOURCE_DIR}/Data/ComponentTypes.hpp
+	${SOURCE_DIR}/Data/ComponentTypes.h
 	${SOURCE_DIR}/Data/Model.cpp
-	${SOURCE_DIR}/Data/Model.hpp
+	${SOURCE_DIR}/Data/Model.h
 	${SOURCE_DIR}/Data/Scene.cpp
-	${SOURCE_DIR}/Data/Scene.hpp
+	${SOURCE_DIR}/Data/Scene.h
 	${SOURCE_DIR}/Data/SparseSet.cpp
-	${SOURCE_DIR}/Data/SparseSet.hpp
+	${SOURCE_DIR}/Data/SparseSet.h
 
 	# Graphics
-	${SOURCE_DIR}/Graphics/FrameInfo.hpp
-	${SOURCE_DIR}/Graphics/GraphicsDevice.hpp
-	${SOURCE_DIR}/Graphics/GraphicsTypes.hpp
+	${SOURCE_DIR}/Graphics/FrameInfo.h
+	${SOURCE_DIR}/Graphics/GraphicsDevice.h
+	${SOURCE_DIR}/Graphics/GraphicsTypes.h
 	${SOURCE_DIR}/Graphics/RenderGraph.cpp
-	${SOURCE_DIR}/Graphics/RenderGraph.hpp
+	${SOURCE_DIR}/Graphics/RenderGraph.h
 	${SOURCE_DIR}/Graphics/ShaderCompiler.cpp
-	${SOURCE_DIR}/Graphics/ShaderCompiler.hpp
+	${SOURCE_DIR}/Graphics/ShaderCompiler.h
 
 	# Graphics/DX12
 	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.cpp
-	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.hpp
-	${SOURCE_DIR}/Graphics/DX12/GraphicsHelpers_DX12.hpp
+	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.h
+	${SOURCE_DIR}/Graphics/DX12/GraphicsHelpers_DX12.h
 	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.cpp
-	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.hpp
+	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.h
 
 	# Graphics/Vulkan
 	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.cpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.hpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsHelpers_Vulkan.hpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.h
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsHelpers_Vulkan.h
 	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.cpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.hpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.h
 
 	# Graphics/Renderpasses
 	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.h
 	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.h
 	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.h
 	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.h
 
 	# Input
 	${SOURCE_DIR}/Input/Input.cpp
-	${SOURCE_DIR}/Input/Input.hpp
+	${SOURCE_DIR}/Input/Input.h
 
 	# UI
 	${SOURCE_DIR}/UI/Editor.cpp
-	${SOURCE_DIR}/UI/Editor.hpp
+	${SOURCE_DIR}/UI/Editor.h
 
 	# Utilities
-	${SOURCE_DIR}/Utilities/TextUtilities.hpp
+	${SOURCE_DIR}/Utilities/TextUtilities.h
 )
 
 # ------------------------------ Source Groupings ------------------------------
@@ -115,82 +115,82 @@ source_group("" FILES
 )
 
 source_group("Core" FILES
-	${SOURCE_DIR}/Core/EnumBitmaskOperators.hpp
+	${SOURCE_DIR}/Core/EnumBitmaskOperators.h
 	${SOURCE_DIR}/Core/Logger.cpp
-	${SOURCE_DIR}/Core/Logger.hpp
+	${SOURCE_DIR}/Core/Logger.h
 	${SOURCE_DIR}/Core/Window.cpp
-	${SOURCE_DIR}/Core/Window.hpp
+	${SOURCE_DIR}/Core/Window.h
 )
 
 source_group("Core/System" FILES
 	${SOURCE_DIR}/Core/System/MonitorEnumerator.cpp
-	${SOURCE_DIR}/Core/System/MonitorEnumerator.hpp
+	${SOURCE_DIR}/Core/System/MonitorEnumerator.h
 	${SOURCE_DIR}/Core/System/Time.cpp
-	${SOURCE_DIR}/Core/System/Time.hpp
+	${SOURCE_DIR}/Core/System/Time.h
 )
 
 source_group("Data" FILES
 	${SOURCE_DIR}/Data/Camera.cpp
-	${SOURCE_DIR}/Data/Camera.hpp
+	${SOURCE_DIR}/Data/Camera.h
 	${SOURCE_DIR}/Data/ComponentTypes.cpp
-	${SOURCE_DIR}/Data/ComponentTypes.hpp
+	${SOURCE_DIR}/Data/ComponentTypes.h
 	${SOURCE_DIR}/Data/Model.cpp
-	${SOURCE_DIR}/Data/Model.hpp
+	${SOURCE_DIR}/Data/Model.h
 	${SOURCE_DIR}/Data/Scene.cpp
-	${SOURCE_DIR}/Data/Scene.hpp
+	${SOURCE_DIR}/Data/Scene.h
 	${SOURCE_DIR}/Data/SparseSet.cpp
-	${SOURCE_DIR}/Data/SparseSet.hpp
+	${SOURCE_DIR}/Data/SparseSet.h
 )
 
 source_group("Graphics" FILES
-	${SOURCE_DIR}/Graphics/FrameInfo.hpp
-	${SOURCE_DIR}/Graphics/GraphicsDevice.hpp
-	${SOURCE_DIR}/Graphics/GraphicsTypes.hpp
+	${SOURCE_DIR}/Graphics/FrameInfo.h
+	${SOURCE_DIR}/Graphics/GraphicsDevice.h
+	${SOURCE_DIR}/Graphics/GraphicsTypes.h
 	${SOURCE_DIR}/Graphics/RenderGraph.cpp
-	${SOURCE_DIR}/Graphics/RenderGraph.hpp
+	${SOURCE_DIR}/Graphics/RenderGraph.h
 	${SOURCE_DIR}/Graphics/ShaderCompiler.cpp
-	${SOURCE_DIR}/Graphics/ShaderCompiler.hpp
+	${SOURCE_DIR}/Graphics/ShaderCompiler.h
 )
 
 source_group("Graphics/DX12" FILES
 	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.cpp
-	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.hpp
-	${SOURCE_DIR}/Graphics/DX12/GraphicsHelpers_DX12.hpp
+	${SOURCE_DIR}/Graphics/DX12/GraphicsDevice_DX12.h
+	${SOURCE_DIR}/Graphics/DX12/GraphicsHelpers_DX12.h
 	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.cpp
-	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.hpp
+	${SOURCE_DIR}/Graphics/DX12/GraphicsTypes_DX12.h
 )
 
 source_group("Graphics/Vulkan" FILES
 	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.cpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.hpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsHelpers_Vulkan.hpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsDevice_Vulkan.h
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsHelpers_Vulkan.h
 	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.cpp
-	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.hpp
+	${SOURCE_DIR}/Graphics/Vulkan/GraphicsTypes_Vulkan.h
 )
 
 source_group("Graphics/Renderpasses" FILES
 	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/DepthPrepass.h
 	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.h
 	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.h
 	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.cpp
-	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.h
 )
 
 source_group("Input" FILES
 	${SOURCE_DIR}/Input/Input.cpp
-	${SOURCE_DIR}/Input/Input.hpp
+	${SOURCE_DIR}/Input/Input.h
 )
 
 source_group("UI" FILES
 	${SOURCE_DIR}/UI/Editor.cpp
-	${SOURCE_DIR}/UI/Editor.hpp
+	${SOURCE_DIR}/UI/Editor.h
 )
 
 source_group("Utilities" FILES
-	${SOURCE_DIR}/Utilities/TextUtilities.hpp
+	${SOURCE_DIR}/Utilities/TextUtilities.h
 )
 
 # ----------------------------- Compile Executable -----------------------------

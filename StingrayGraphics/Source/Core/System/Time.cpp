@@ -1,4 +1,4 @@
-#include "Time.hpp"
+#include "Time.h"
 #include <Windows.h>
 
 namespace {

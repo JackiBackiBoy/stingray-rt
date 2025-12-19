@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/EnumBitmaskOperators.hpp"
+#include "Core/EnumBitmaskOperators.h"
 
 #include <cstdint>
 #include <memory>

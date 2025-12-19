@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Data/Model.hpp"
+#include "Data/Model.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>

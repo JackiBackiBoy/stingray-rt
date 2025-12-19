@@ -1,8 +1,8 @@
-#include "GraphicsDevice_DX12.hpp"
-#include "Graphics/DX12/GraphicsHelpers_DX12.hpp"
-#include "Graphics/DX12/GraphicsTypes_DX12.hpp"
-#include "Core/Logger.hpp"
-#include "Utilities/TextUtilities.hpp"
+#include "GraphicsDevice_DX12.h"
+#include "Graphics/DX12/GraphicsHelpers_DX12.h"
+#include "Graphics/DX12/GraphicsTypes_DX12.h"
+#include "Core/Logger.h"
+#include "Utilities/TextUtilities.h"
 
 #include <imgui.h>
 #include <imgui_impl_dx12.h>

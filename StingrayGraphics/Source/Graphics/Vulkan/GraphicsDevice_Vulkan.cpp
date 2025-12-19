@@ -1,12 +1,12 @@
 #define VOLK_IMPLEMENTATION
 #define VMA_IMPLEMENTATION
 
-#include "GraphicsDevice_Vulkan.hpp"
-#include "Graphics/GraphicsTypes.hpp"
-#include "Graphics/Vulkan/GraphicsHelpers_Vulkan.hpp"
-#include "Graphics/Vulkan/GraphicsTypes_Vulkan.hpp"
-#include "Core/Logger.hpp"
-#include "Core/System/MonitorEnumerator.hpp"
+#include "GraphicsDevice_Vulkan.h"
+#include "Graphics/GraphicsTypes.h"
+#include "Graphics/Vulkan/GraphicsHelpers_Vulkan.h"
+#include "Graphics/Vulkan/GraphicsTypes_Vulkan.h"
+#include "Core/Logger.h"
+#include "Core/System/MonitorEnumerator.h"
 
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>

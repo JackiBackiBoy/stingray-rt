@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Graphics/GraphicsDevice.hpp"
-#include "Graphics/RenderGraph.hpp"
-#include "Graphics/ShaderCompiler.hpp"
+#include "Graphics/GraphicsDevice.h"
+#include "Graphics/RenderGraph.h"
+#include "Graphics/ShaderCompiler.h"
 
 namespace SRDepthPrepass {
 	void build(SRRenderPass& self, SRGraphicsDevice& gfxDevice, SRShaderCompiler& shaderCompiler);

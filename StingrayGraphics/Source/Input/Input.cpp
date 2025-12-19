@@ -1,5 +1,5 @@
-#include "Input.hpp"
-#include "Core/Logger.hpp"
+#include "Input.h"
+#include "Core/Logger.h"
 
 #include <cassert>
 #include <vector>

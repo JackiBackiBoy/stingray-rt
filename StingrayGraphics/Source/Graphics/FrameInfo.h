@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Data/Camera.hpp"
-#include "Data/Scene.hpp"
+#include "Data/Camera.h"
+#include "Data/Scene.h"
 
 struct SRFrameInfo {
 	SRCamera* camera;

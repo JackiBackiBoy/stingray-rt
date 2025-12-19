@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Core/Logger.hpp"
-#include "Graphics/Vulkan/GraphicsTypes_Vulkan.hpp"
+#include "Core/Logger.h"
+#include "Graphics/Vulkan/GraphicsTypes_Vulkan.h"
 
 #include <stdexcept>
 #include <volk.h>

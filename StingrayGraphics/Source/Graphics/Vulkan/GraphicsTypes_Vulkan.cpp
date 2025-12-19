@@ -1,4 +1,4 @@
-#include "GraphicsTypes_Vulkan.hpp"
+#include "GraphicsTypes_Vulkan.h"
 
 SRDescriptorHeap_Vulkan::SRDescriptorHeap_Vulkan(VkDescriptorType type, uint32_t capacity) :
 	m_Type(type), m_Capacity(capacity) {

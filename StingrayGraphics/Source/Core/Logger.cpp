@@ -1,4 +1,4 @@
-#include "Logger.hpp"
+#include "Logger.h"
 
 void SRLogger::set_level(SRLoggerLevel level) {
 	m_Level = level;

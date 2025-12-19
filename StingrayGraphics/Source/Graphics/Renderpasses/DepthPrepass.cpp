@@ -1,6 +1,6 @@
-#include "DepthPrepass.hpp"
-#include "Data/ComponentTypes.hpp"
-#include "Data/Model.hpp"
+#include "DepthPrepass.h"
+#include "Data/ComponentTypes.h"
+#include "Data/Model.h"
 
 namespace SRDepthPrepass {
 	struct DepthPrepassData {

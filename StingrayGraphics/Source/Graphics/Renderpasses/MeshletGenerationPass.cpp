@@ -1,6 +1,6 @@
-#include "MeshletGenerationPass.hpp"
-#include "Data/ComponentTypes.hpp"
-#include "Data/Model.hpp"
+#include "MeshletGenerationPass.h"
+#include "Data/ComponentTypes.h"
+#include "Data/Model.h"
 
 namespace SRMeshletGenerationpass {
 	struct MeshletGenerationPassData {

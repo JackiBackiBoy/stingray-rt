@@ -1,4 +1,4 @@
-#include "Scene.hpp"
+#include "Scene.h"
 
 SRScene::SRScene(SRGraphicsDevice& gfxDevice, SREntityID maxEntities) :
 	m_GfxDevice(gfxDevice), m_MaxEntities(maxEntities) {
