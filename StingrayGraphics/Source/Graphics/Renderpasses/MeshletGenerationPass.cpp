@@ -38,11 +38,11 @@ namespace SRMeshletGenerationpass {
 			(void)t;
 			const SRModel* model = r.model;
 
-			const uint32_t numMeshlets = model->numMeshlets;
+			const u32 numMeshlets = model->numMeshlets;
 			gfxDevice.dispatch_mesh(numMeshlets, 1, 1, cmdList);
 			// TODO: Transform
 			//for (const auto& mesh : model->meshes) {
-			//	for (uint32_t i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
+			//	for (u32 i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
 			//		const SRMeshPrimitive& primitive = model->primitives[i];s
 
 			//		//gfxDevice.draw_indexed(primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);

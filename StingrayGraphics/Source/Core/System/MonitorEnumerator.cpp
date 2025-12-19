@@ -5,8 +5,8 @@
 #include <cassert>
 #include <unordered_map>
 
-static inline uint64_t pack_luid(const LUID& l) {
-	return ((uint64_t(l.HighPart) << 32) | uint64_t(l.LowPart));
+static inline u64 pack_luid(const LUID& l) {
+	return ((u64(l.HighPart) << 32) | u64(l.LowPart));
 }
 
 struct SRMonitorEnumerator::Impl {
@@ -83,7 +83,7 @@ std::vector<SRMonitorInfo> SRMonitorEnumerator::enumerate() {
 
 	paths.resize(pathCount); modes.resize(modeCount);
 	std::unordered_map<std::string, std::string> gdiToFriendly;
-	std::unordered_map<std::string, uint64_t> gdiToLUID;
+	std::unordered_map<std::string, u64> gdiToLUID;
 
 	for (const auto& p : paths) {
 		DISPLAYCONFIG_SOURCE_DEVICE_NAME src{};

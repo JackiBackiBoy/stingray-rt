@@ -1,6 +1,6 @@
 #include "GraphicsTypes_Vulkan.h"
 
-SRDescriptorHeap_Vulkan::SRDescriptorHeap_Vulkan(VkDescriptorType type, uint32_t capacity) :
+SRDescriptorHeap_Vulkan::SRDescriptorHeap_Vulkan(VkDescriptorType type, u32 capacity) :
 	m_Type(type), m_Capacity(capacity) {
 	m_StateArray.resize((capacity + 63ull) >> 6ull, 0ull);
 }

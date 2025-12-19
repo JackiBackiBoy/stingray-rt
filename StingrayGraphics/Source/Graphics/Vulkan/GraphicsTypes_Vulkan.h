@@ -20,14 +20,14 @@
 
 class SRDescriptorHeap_Vulkan {
 public:
-	SRDescriptorHeap_Vulkan(VkDescriptorType type, uint32_t capacity);
+	SRDescriptorHeap_Vulkan(VkDescriptorType type, u32 capacity);
 	~SRDescriptorHeap_Vulkan() = default;
 
 	SRDescriptorIndex get_next_index();
 	void free_index(SRDescriptorIndex index);
 
 	VkDescriptorType get_type() const { return m_Type; }
-	uint32_t get_capacity() const { return m_Capacity; }
+	u32 get_capacity() const { return m_Capacity; }
 
 private:
 	inline void clear_state_bit(SRDescriptorIndex index) {
@@ -43,10 +43,10 @@ private:
 	}
 
 	VkDescriptorType m_Type;
-	uint32_t m_Capacity;
-	uint32_t m_Size = 0;
+	u32 m_Capacity;
+	u32 m_Size = 0;
 	std::vector<SRDescriptorIndex> m_FreeList;
-	std::vector<uint64_t> m_StateArray;
+	std::vector<u64> m_StateArray;
 };
 
 class SRDestructionHandler_Vulkan {
@@ -77,7 +77,7 @@ public:
 		vkDestroyInstance(m_Instance, nullptr);
 	}
 
-	void update(uint64_t frameCount, uint32_t bufferCount) {
+	void update(u64 frameCount, u32 bufferCount) {
 		const auto destroy = [&](auto& queue, auto destroyFn) {
 			while (!queue.empty()) {
 				const auto [item, born] = queue.front();
@@ -163,32 +163,32 @@ public:
 
 private:
 	template<typename T>
-	void push(std::deque<std::pair<T, uint64_t>>& dq, T h) {
+	void push(std::deque<std::pair<T, u64>>& dq, T h) {
 		dq.emplace_back(h, m_FrameCount);
 	}
 
 	VkDevice m_Device = nullptr;
 	VkInstance m_Instance = nullptr;
 	VmaAllocator m_Allocator = nullptr;
-	uint64_t m_FrameCount = 0;
+	u64 m_FrameCount = 0;
 
-	std::deque<std::pair<VmaAllocation, uint64_t>> m_Allocations;
-	std::deque<std::pair<std::pair<VkImage, VmaAllocation>, uint64_t>> m_Images;
-	std::deque<std::pair<VkAccelerationStructureKHR, uint64_t>> m_AccelerationStructures;
-	std::deque<std::pair<VkCommandPool, uint64_t>> m_CommandPools;
-	std::deque<std::pair<VkDescriptorPool, uint64_t>> m_DescriptorPools;
-	std::deque<std::pair<VkDescriptorSetLayout, uint64_t>> m_DescriptorSetLayouts;
-	std::deque<std::pair<VkFence, uint64_t>> m_Fences;
-	std::deque<std::pair<VkImageView, uint64_t>> m_ImageViews;
-	std::deque<std::pair<VkPipeline, uint64_t>> m_Pipelines;
-	std::deque<std::pair<VkPipelineLayout, uint64_t>> m_PipelineLayouts;
-	std::deque<std::pair<VkSampler, uint64_t>> m_Samplers;
-	std::deque<std::pair<VkSemaphore, uint64_t>> m_Semaphores;
-	std::deque<std::pair<VkShaderModule, uint64_t>> m_ShaderModules;
-	std::deque<std::pair<VkSurfaceKHR, uint64_t>> m_Surfaces;
-	std::deque<std::pair<VkSwapchainKHR, uint64_t>> m_Swapchains;
-	std::deque<std::pair<VkBuffer, uint64_t>> m_Buffers;
-	std::deque<std::pair<VkDebugUtilsMessengerEXT, uint64_t>> m_DebugMessengers;
+	std::deque<std::pair<VmaAllocation, u64>> m_Allocations;
+	std::deque<std::pair<std::pair<VkImage, VmaAllocation>, u64>> m_Images;
+	std::deque<std::pair<VkAccelerationStructureKHR, u64>> m_AccelerationStructures;
+	std::deque<std::pair<VkCommandPool, u64>> m_CommandPools;
+	std::deque<std::pair<VkDescriptorPool, u64>> m_DescriptorPools;
+	std::deque<std::pair<VkDescriptorSetLayout, u64>> m_DescriptorSetLayouts;
+	std::deque<std::pair<VkFence, u64>> m_Fences;
+	std::deque<std::pair<VkImageView, u64>> m_ImageViews;
+	std::deque<std::pair<VkPipeline, u64>> m_Pipelines;
+	std::deque<std::pair<VkPipelineLayout, u64>> m_PipelineLayouts;
+	std::deque<std::pair<VkSampler, u64>> m_Samplers;
+	std::deque<std::pair<VkSemaphore, u64>> m_Semaphores;
+	std::deque<std::pair<VkShaderModule, u64>> m_ShaderModules;
+	std::deque<std::pair<VkSurfaceKHR, u64>> m_Surfaces;
+	std::deque<std::pair<VkSwapchainKHR, u64>> m_Swapchains;
+	std::deque<std::pair<VkBuffer, u64>> m_Buffers;
+	std::deque<std::pair<VkDebugUtilsMessengerEXT, u64>> m_DebugMessengers;
 };
 
 struct SRBuffer_Vulkan {

@@ -43,6 +43,7 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Core/EnumBitmaskOperators.h
 	${SOURCE_DIR}/Core/Logger.cpp
 	${SOURCE_DIR}/Core/Logger.h
+	${SOURCE_DIR}/Core/Types.h
 	${SOURCE_DIR}/Core/Window.cpp
 	${SOURCE_DIR}/Core/Window.h
 
@@ -118,6 +119,7 @@ source_group("Core" FILES
 	${SOURCE_DIR}/Core/EnumBitmaskOperators.h
 	${SOURCE_DIR}/Core/Logger.cpp
 	${SOURCE_DIR}/Core/Logger.h
+	${SOURCE_DIR}/Core/Types.h
 	${SOURCE_DIR}/Core/Window.cpp
 	${SOURCE_DIR}/Core/Window.h
 )
@@ -216,14 +218,14 @@ endif()
 # ------------------------------- Target Sources -------------------------------
 # ImGui
 set(IMGUI_SOURCE_FILES
-	${IMGUI_INCLUDE_DIR}imgui.cpp
-	${IMGUI_INCLUDE_DIR}imgui_demo.cpp
-	${IMGUI_INCLUDE_DIR}imgui_draw.cpp
-	${IMGUI_INCLUDE_DIR}imgui_widgets.cpp
-	${IMGUI_INCLUDE_DIR}imgui_tables.cpp
-	${IMGUI_INCLUDE_DIR}backends/imgui_impl_dx12.cpp
-	${IMGUI_INCLUDE_DIR}backends/imgui_impl_vulkan.cpp
-	${IMGUI_INCLUDE_DIR}backends/imgui_impl_win32.cpp
+    ${IMGUI_INCLUDE_DIR}imgui.cpp
+    ${IMGUI_INCLUDE_DIR}imgui_demo.cpp
+    ${IMGUI_INCLUDE_DIR}imgui_draw.cpp
+    ${IMGUI_INCLUDE_DIR}imgui_widgets.cpp
+    ${IMGUI_INCLUDE_DIR}imgui_tables.cpp
+    ${IMGUI_INCLUDE_DIR}backends/imgui_impl_dx12.cpp
+    ${IMGUI_INCLUDE_DIR}backends/imgui_impl_vulkan.cpp
+    ${IMGUI_INCLUDE_DIR}backends/imgui_impl_win32.cpp
 )
 source_group("ImGui" FILES ${IMGUI_SOURCE_FILES})
 

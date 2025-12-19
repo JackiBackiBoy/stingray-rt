@@ -1,22 +1,22 @@
 #pragma once
 
+#include "Core/Types.h"
 #include "Graphics/GraphicsDevice.h"
 
-#include <cstdint>
 #include <vector>
 #include <glm/glm.hpp>
 
 // TODO: Materials
 struct SRMeshPrimitive {
-	uint32_t baseVertex;
-	uint32_t baseIndex;
-	uint32_t numVertices;
-	uint32_t numIndices;
+	u32 baseVertex;
+	u32 baseIndex;
+	u32 numVertices;
+	u32 numIndices;
 };
 
 struct SRMesh {
-	uint32_t basePrimitive;
-	uint32_t numPrimitives;
+	u32 basePrimitive;
+	u32 numPrimitives;
 };
 
 struct SRVertex {
@@ -28,7 +28,7 @@ struct SRVertex {
 struct SRModel {
 	std::vector<SRMesh> meshes;
 	std::vector<SRMeshPrimitive> primitives;
-	uint32_t numMeshlets;
+	u32 numMeshlets;
 
 	SRBuffer vertexBuffer;
 	SRBuffer indexBuffer;
@@ -37,10 +37,10 @@ struct SRModel {
 
 // TODO: Move elsewhere
 struct SRMeshlet {
-	uint32_t vertexOffset;
-	uint32_t triangleOffset;
-	uint32_t vertexCount;
-	uint32_t triangleCount;
+	u32 vertexOffset;
+	u32 triangleOffset;
+	u32 vertexCount;
+	u32 triangleCount;
 };
 
 // TODO: Move to unified resource manager perhaps?

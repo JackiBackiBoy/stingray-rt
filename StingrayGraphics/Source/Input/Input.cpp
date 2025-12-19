@@ -10,7 +10,7 @@ namespace {
 
 	const SRWindow* g_Window = nullptr;
 	HWND g_LastActiveHwnd = nullptr;
-	std::vector<std::uint8_t> g_RawInputScratchBuffer;
+	std::vector<u8> g_RawInputScratchBuffer;
 	bool g_Initialized = false;
 
 	SRKeyboardState g_FrameKeyboardState = {};
@@ -18,17 +18,17 @@ namespace {
 
 	inline int key_index(SRKey key) { return key & 0x1FF; }
 
-	inline void keyboard_set_down(SRKeyboardState& ks, uint16_t key) {
+	inline void keyboard_set_down(SRKeyboardState& ks, u16 key) {
 		const int i = key_index(key);
 		ks.down[i >> 6] |= (SRKeyWord(1) << (i & 63));
 	}
 
-	inline void keyboard_set_up(SRKeyboardState& ks, uint16_t key) {
+	inline void keyboard_set_up(SRKeyboardState& ks, u16 key) {
 		const int i = key_index(key);
 		ks.down[i >> 6] &= ~(SRKeyWord(1) << (i & 63));
 	}
 
-	inline bool keyboard_is_down(const SRKeyboardState& ks, uint16_t key) {
+	inline bool keyboard_is_down(const SRKeyboardState& ks, u16 key) {
 		const int i = key_index(key);
 		return (ks.down[i >> 6] >> (i & 63)) & 1u;
 	}
@@ -101,7 +101,7 @@ namespace SRInput {
 			processed += n;
 			++iterations;
 
-			uint8_t* riBytePtr = g_RawInputScratchBuffer.data();
+			u8* riBytePtr = g_RawInputScratchBuffer.data();
 			for (UINT i = 0; i < n; ++i) {
 				RAWINPUT* ri = reinterpret_cast<RAWINPUT*>(riBytePtr);
 
@@ -140,7 +140,7 @@ namespace SRInput {
 						continue;
 					}
 
-					uint16_t key = 0;
+					u16 key = 0;
 					if (rawKeyboard.MakeCode) {
 						key = rawKeyboard.MakeCode & 0xff;
 					}

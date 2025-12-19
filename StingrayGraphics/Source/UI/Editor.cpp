@@ -70,11 +70,11 @@ void SREditor::update(SRRenderGraph& renderGraph) {
 	ImGui::Begin("Properties");
 	{
 		// Update FPS counter
-		static uint64_t totalFrames = 0;
+		static u64 totalFrames = 0;
 		static double totalFrameTime = 0.0;
 		static double accumulatedTime = 0.0;
-		static uint64_t frameCount = 0;
-		static uint64_t fps = 0;
+		static u64 frameCount = 0;
+		static u64 fps = 0;
 
 		const double deltaTime = SRTime::get_delta_sec();
 		totalFrameTime += deltaTime;
@@ -84,7 +84,7 @@ void SREditor::update(SRRenderGraph& renderGraph) {
 
 		if (accumulatedTime >= 1.0) {
 			const double fpsExact = frameCount / accumulatedTime;
-			fps = static_cast<uint64_t>(fpsExact + 0.5);
+			fps = static_cast<u64>(fpsExact + 0.5);
 			accumulatedTime = 0.0;
 			frameCount = 0;
 		}

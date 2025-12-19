@@ -1,29 +1,29 @@
 #pragma once
 
+#include "Core/Types.h"
 #include "Core/EnumBitmaskOperators.h"
 #include "Graphics/GraphicsDevice.h"
 #include "Graphics/FrameInfo.h"
 
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-enum class SRPassType : uint8_t {
+enum class SRPassType : u8 {
 	Graphics,
 	Compute
 };
 
-enum SRAccessFlag : uint8_t {
+enum SRAccessFlag : u8 {
 	None  = 0,
 	Read  = 1 << 0,
 	Write = 1 << 1
 };
 SR_ENABLE_BITMASK_OPERATORS(SRAccessFlag);
 
-enum class SRSizeClass : uint8_t {
+enum class SRSizeClass : u8 {
 	None,
 	SwapchainRelative
 };
@@ -35,8 +35,8 @@ struct SRRenderPassAttachmentSubresource {
 };
 
 struct SRRenderPassAttachment {
-	inline bool is_read_in_pass(uint32_t passIdx) const {
-		for (uint32_t i = 0; i < readInPasses.size(); ++i) {
+	inline bool is_read_in_pass(u32 passIdx) const {
+		for (u32 i = 0; i < readInPasses.size(); ++i) {
 			if (readInPasses[i] == passIdx) {
 				return true;
 			}
@@ -44,8 +44,8 @@ struct SRRenderPassAttachment {
 
 		return false;
 	}
-	inline bool is_written_in_pass(uint32_t passIdx) const {
-		for (uint32_t i = 0; i < writtenInPasses.size(); ++i) {
+	inline bool is_written_in_pass(u32 passIdx) const {
+		for (u32 i = 0; i < writtenInPasses.size(); ++i) {
 			if (writtenInPasses[i] == passIdx) {
 				return true;
 			}
@@ -55,13 +55,13 @@ struct SRRenderPassAttachment {
 	}
 
 	SRTexture texture;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t mipLevels = 1;
+	u32 width = 0;
+	u32 height = 0;
+	u32 mipLevels = 1;
 	float depthClearValue = 0.0f; // NOTE: Only used for depth attachment
 	SRFormat format = SRFormat::Unknown;
 	SRSizeClass sizeClass = SRSizeClass::SwapchainRelative;
-	enum class Type : uint8_t {
+	enum class Type : u8 {
 		RenderTarget,
 		DepthStencil,
 		ReadWriteTexture
@@ -69,8 +69,8 @@ struct SRRenderPassAttachment {
 	std::vector<SRRenderPassAttachmentSubresource> subresourceStates;
 	std::string name;
 
-	std::vector<uint32_t> readInPasses = {};
-	std::vector<uint32_t> writtenInPasses = {};
+	std::vector<u32> readInPasses = {};
+	std::vector<u32> writtenInPasses = {};
 };
 
 struct SRRenderPassAttachmentInput {
@@ -107,7 +107,7 @@ private:
 class SRRenderGraph;
 class SRRenderPass {
 public:
-	SRRenderPass(SRRenderGraph& frameGraph, uint32_t index, const std::string& name, SRPassType type) :
+	SRRenderPass(SRRenderGraph& frameGraph, u32 index, const std::string& name, SRPassType type) :
 		m_RenderGraph(frameGraph), m_Index(index), m_Name(name), m_Type(type) {
 	}
 	~SRRenderPass() {}
@@ -138,7 +138,7 @@ public:
 	}
 
 	inline std::string get_name() const { return m_Name; }
-	inline uint32_t get_index() const { return m_Index; }
+	inline u32 get_index() const { return m_Index; }
 	inline SRPassType get_type() const { return m_Type; }
 	SRRenderPassAttachment* get_attachment(const std::string& name);
 	const std::vector<SRRenderPassAttachment*>& get_output_attachments() const;
@@ -147,7 +147,7 @@ public:
 private:
 	SRRenderGraph& m_RenderGraph;
 	std::string m_Name;
-	uint32_t m_Index;
+	u32 m_Index;
 	SRPassType m_Type;
 	std::vector<SRRenderPassAttachmentInput> m_InputAttachments;
 	std::vector<SRRenderPassAttachment*> m_OutputAttachments;

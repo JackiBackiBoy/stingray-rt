@@ -1,12 +1,13 @@
 #pragma once
 
+#include "Core/Types.h"
+
 #include <chrono>
-#include <cstdint>
 #include <mutex>
 #include <string>
 #include <string_view>
 
-enum class SRLoggerLevel : uint8_t {
+enum class SRLoggerLevel : u8 {
 	Trace,
 	Debug,
 	Info,

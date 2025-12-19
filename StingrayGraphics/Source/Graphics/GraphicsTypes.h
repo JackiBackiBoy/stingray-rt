@@ -1,23 +1,23 @@
 #pragma once
 
+#include "Core/Types.h"
 #include "Core/EnumBitmaskOperators.h"
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
-typedef uint32_t SRDescriptorIndex;
+typedef u32 SRDescriptorIndex;
 inline constexpr SRDescriptorIndex INVALID_DESCRIPTOR_INDEX = ~0U;
 
-enum SRQueue : uint8_t {
+enum SRQueue : u8 {
 	SRQueue_Universal, // Graphics + Compute + Copy
 	SRQueue_Compute, // Dedicated compute
 	SRQueue_Copy, // Dedicated copy queue
 	SRQueue_COUNT
 };
 
-enum class SRPipelineStage : uint16_t {
+enum class SRPipelineStage : u16 {
 	None          = 0,
 	AllCommands   = 1 << 0,
 	Draw          = 1 << 1,
@@ -31,7 +31,7 @@ enum class SRPipelineStage : uint16_t {
 	Copy          = 1 << 9,
 };
 
-enum class SRAccessMask : uint16_t {
+enum class SRAccessMask : u16 {
 	None              = 0,
 	VertexBuffer      = 1 << 0,
 	ConstantBuffer    = 1 << 1,
@@ -45,7 +45,7 @@ enum class SRAccessMask : uint16_t {
 	CopySrc           = 1 << 9
 };
 
-enum class SRBindFlag : uint8_t {
+enum class SRBindFlag : u8 {
 	None            = 0,
 	VertexBuffer    = 1 << 0,
 	IndexBuffer     = 1 << 1,
@@ -57,7 +57,7 @@ enum class SRBindFlag : uint8_t {
 	ShadingRate     = 1 << 7 // NOTE: Not supported right now
 };
 
-enum class SRMiscFlag : uint8_t {
+enum class SRMiscFlag : u8 {
 	None              = 0,
 	StructuredBuffer  = 1 << 0,
 	ByteAddressBuffer = 1 << 1,
@@ -71,12 +71,12 @@ SR_ENABLE_BITMASK_OPERATORS(SRAccessMask);
 SR_ENABLE_BITMASK_OPERATORS(SRBindFlag);
 SR_ENABLE_BITMASK_OPERATORS(SRMiscFlag);
 
-enum class SRGraphicsAPI : uint8_t {
+enum class SRGraphicsAPI : u8 {
 	DX12,
 	Vulkan
 };
 
-enum class SRBlend : uint8_t {
+enum class SRBlend : u8 {
 	Zero,
 	One,
 	SrcColor,
@@ -96,7 +96,7 @@ enum class SRBlend : uint8_t {
 	InvSrc1Alpha
 };
 
-enum class SRBlendOp : uint8_t {
+enum class SRBlendOp : u8 {
 	Add,
 	Subtract,
 	RevSubtract,
@@ -104,13 +104,13 @@ enum class SRBlendOp : uint8_t {
 	Max
 };
 
-enum class SRBorderColor : uint8_t {
+enum class SRBorderColor : u8 {
 	TransparentBlack,
 	OpaqueBlack,
 	OpaqueWhite
 };
 
-enum class SRComparisonFunc : uint8_t {
+enum class SRComparisonFunc : u8 {
 	Never,
 	Less,
 	Equal,
@@ -121,23 +121,23 @@ enum class SRComparisonFunc : uint8_t {
 	Always
 };
 
-enum class SRCullMode : uint8_t {
+enum class SRCullMode : u8 {
 	None,
 	Front,
 	Back
 };
 
-enum class SRDepthWriteMask : uint8_t {
+enum class SRDepthWriteMask : u8 {
 	Zero, // Disables depth write
 	All // Enables depth write
 };
 
-enum class SRFillMode : uint8_t {
+enum class SRFillMode : u8 {
 	Wireframe,
 	Solid
 };
 
-enum class SRFilter : uint8_t {
+enum class SRFilter : u8 {
 	MinMagMipPoint,
 	MinMagPointMipLinear,
 	MinPointMagLinearMipPoint,
@@ -176,7 +176,7 @@ enum class SRFilter : uint8_t {
 	MaximumAnisotropic
 };
 
-enum class SRFormat : uint8_t {
+enum class SRFormat : u8 {
 	Unknown,
 
 	RGBA32_FLOAT,
@@ -255,12 +255,12 @@ enum class SRFormat : uint8_t {
 	NV12				// video YUV420; SRV Luminance aspect: R8_UNORM, SRV Chrominance aspect: R8G8_UNORM
 };
 
-enum class SRInputClass : uint8_t {
+enum class SRInputClass : u8 {
 	PerVertex,
 	PerInstance,
 };
 
-enum class SRResourceState : uint8_t {
+enum class SRResourceState : u8 {
 	Undefined       = 0,
 	ShaderResource  = 1 << 0,
 	UnorderedAccess = 1 << 1,
@@ -271,27 +271,27 @@ enum class SRResourceState : uint8_t {
 	CopyDst         = 1 << 6,
 };
 
-enum class SRResourceType : uint8_t {
+enum class SRResourceType : u8 {
 	Unknown,
 	Buffer,
 	Texture,
 	Sampler
 };
 
-enum class SRLoadOp : uint8_t {
+enum class SRLoadOp : u8 {
 	None,
 	Load,
 	Clear,
 	DontCare
 };
 
-enum class SRStoreOp : uint8_t {
+enum class SRStoreOp : u8 {
 	None,
 	Store,
 	DontCare
 };
 
-enum class SRShaderStage : uint8_t {
+enum class SRShaderStage : u8 {
 	Vertex,
 	Pixel,
 	Compute,
@@ -299,7 +299,7 @@ enum class SRShaderStage : uint8_t {
 	Mesh
 };
 
-enum class SRShaderCompileTarget : uint8_t {
+enum class SRShaderCompileTarget : u8 {
 	Unknown,
 	GLSL,
 	HLSL,
@@ -307,7 +307,7 @@ enum class SRShaderCompileTarget : uint8_t {
 	DXIL
 };
 
-enum class SRTextureAddressMode : uint8_t {
+enum class SRTextureAddressMode : u8 {
 	Wrap,
 	Mirror,
 	Clamp,
@@ -315,13 +315,13 @@ enum class SRTextureAddressMode : uint8_t {
 	MirrorOnce
 };
 
-enum class SRUsage : uint8_t {
+enum class SRUsage : u8 {
 	Default, // CPU no access, GPU read/write
 	Upload, // CPU write, GPU read
 	Copy // Copy from GPU to CPU
 };
 
-enum class SRBarrierType : uint8_t {
+enum class SRBarrierType : u8 {
 	UAV,
 	Image,
 	Buffer
@@ -329,15 +329,15 @@ enum class SRBarrierType : uint8_t {
 
 struct SRSubresourceData {
 	const void* data = nullptr;
-	uint32_t rowPitch = 0;
-	uint32_t slicePitch = 0; // NOTE: Only used for 3D textures
+	u32 rowPitch = 0;
+	u32 slicePitch = 0; // NOTE: Only used for 3D textures
 };
 
 struct SRSubresourceRange {
-	uint32_t baseMip = 0;
-	uint32_t mipCount = 1;
-	uint32_t baseSlice = 0;
-	uint32_t sliceCount = 1;
+	u32 baseMip = 0;
+	u32 mipCount = 1;
+	u32 baseSlice = 0;
+	u32 sliceCount = 1;
 
 	static constexpr SRSubresourceRange All() { return { 0U, ~0U, 0U, ~0U }; }
 };
@@ -348,8 +348,8 @@ struct SRResource {
 };
 
 struct SRBufferInfo {
-	uint64_t size = 0;
-	uint32_t stride = 0;
+	u64 size = 0;
+	u32 stride = 0;
 	SRUsage usage = SRUsage::Default;
 	SRBindFlag bindFlags = SRBindFlag::None;
 	SRMiscFlag miscFlags = SRMiscFlag::None;
@@ -358,16 +358,16 @@ struct SRBufferInfo {
 struct SRBuffer : public SRResource {
 	SRBufferInfo info = {};
 	void* mappedData = nullptr;
-	uint64_t mappedSize = 0;
+	u64 mappedSize = 0;
 };
 
 struct SRTextureInfo {
-	uint32_t width = 1;
-	uint32_t height = 1;
-	uint32_t depth = 1;
-	uint32_t arraySize = 1;
-	uint32_t mipLevels = 1;
-	uint32_t sampleCount = 1;
+	u32 width = 1;
+	u32 height = 1;
+	u32 depth = 1;
+	u32 arraySize = 1;
+	u32 mipLevels = 1;
+	u32 sampleCount = 1;
 	SRFormat format = SRFormat::Unknown;
 	SRUsage usage = SRUsage::Default;
 	SRBindFlag bindFlags = SRBindFlag::None;
@@ -383,7 +383,7 @@ struct SRSamplerInfo {
 	SRTextureAddressMode addressV = SRTextureAddressMode::Wrap;
 	SRTextureAddressMode addressW = SRTextureAddressMode::Wrap;
 	float mipLODBias = 0.0f;
-	uint32_t maxAnisotropy = 0;
+	u32 maxAnisotropy = 0;
 	SRComparisonFunc comparisonFunc = SRComparisonFunc::Never;
 	SRBorderColor borderColor = SRBorderColor::TransparentBlack;
 	float minLOD = 0.0f;
@@ -430,7 +430,7 @@ struct SRShaderPlatformInfo {
 };
 
 struct SRShader {
-	std::vector<uint8_t> byteCode;
+	std::vector<u8> byteCode;
 };
 
 struct SRBlendState {
@@ -489,7 +489,7 @@ struct SRPipelineInfo {
 	SRRasterizerState rasterizerState = {};
 	SRDepthStencilState depthStencilState = {};
 	SRBlendState blendState = {};
-	uint32_t numRenderTargets = 0;
+	u32 numRenderTargets = 0;
 	SRFormat renderTargetFormats[8] = { SRFormat::Unknown };
 	SRFormat depthStencilFormat = SRFormat::Unknown;
 };
@@ -500,9 +500,9 @@ struct SRPipeline {
 };
 
 struct SRSwapchainInfo {
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t numBuffers = 3;
+	u32 width = 0;
+	u32 height = 0;
+	u32 numBuffers = 3;
 	SRFormat format = SRFormat::RGBA8_UNORM;
 	bool vSync = true;
 	bool fullscreen = false;
@@ -528,7 +528,7 @@ struct SRPassInfo {
 
 	Attachment colorAttachments[8] = {};
 	Attachment depthAttachment = {};
-	uint32_t numColorAttachments = 0;
+	u32 numColorAttachments = 0;
 };
 
 struct SRViewport {
@@ -553,7 +553,7 @@ namespace SRGraphicsHelpers {
 		}
 	}
 
-	inline constexpr uint32_t get_format_stride(SRFormat format) {
+	inline constexpr u32 get_format_stride(SRFormat format) {
 		switch (format) {
 		case SRFormat::BC1_UNORM:
 		case SRFormat::BC1_UNORM_SRGB:

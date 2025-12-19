@@ -1,16 +1,16 @@
 #pragma once
 
+#include "Core/Types.h"
 #include "Data/SparseSet.h"
 #include "Graphics/GraphicsDevice.h"
 
 #include <cassert>
-#include <cstdint>
 #include <unordered_map>
 #include <vector>
 
-typedef uint32_t SREntityID;
-typedef uint32_t SRComponentID;
-typedef uint64_t SRComponentSignature; // Bitset based on 1 << componentID
+typedef u32 SREntityID;
+typedef u32 SRComponentID;
+typedef u64 SRComponentSignature; // Bitset based on 1 << componentID
 
 class SRScene {
 public:

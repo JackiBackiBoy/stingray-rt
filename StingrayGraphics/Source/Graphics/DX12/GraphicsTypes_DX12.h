@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Logger.h"
+#include "Core/Types.h"
 #include "Graphics/GraphicsTypes.h"
 
 #include "d3d12.h"
@@ -10,7 +11,6 @@
 #include <Windows.h>
 
 #include <cassert>
-#include <cstdint>
 #include <stdexcept>
 
 using namespace Microsoft::WRL;
@@ -26,7 +26,7 @@ using namespace Microsoft::WRL;
 
 class SRDescriptorHeap_DX12 {
 public:
-	SRDescriptorHeap_DX12(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t capacity);
+	SRDescriptorHeap_DX12(D3D12_DESCRIPTOR_HEAP_TYPE type, u32 capacity);
 	~SRDescriptorHeap_DX12() = default;
 
 	void initialize(ID3D12Device* device);
@@ -37,12 +37,12 @@ public:
 	ID3D12DescriptorHeap* get_heap_object() const { return m_DescriptorHeap.Get(); }
 
 	void free_index(SRDescriptorIndex index);
-	inline uint32_t get_index_from_handle(D3D12_CPU_DESCRIPTOR_HANDLE handle) const {
-		return static_cast<uint32_t>((handle.ptr - m_CPUDescriptorHandleStart.ptr) / m_DescriptorSize);
+	inline u32 get_index_from_handle(D3D12_CPU_DESCRIPTOR_HANDLE handle) const {
+		return static_cast<u32>((handle.ptr - m_CPUDescriptorHandleStart.ptr) / m_DescriptorSize);
 	}
 
-	inline uint32_t get_index_from_handle(D3D12_GPU_DESCRIPTOR_HANDLE handle) const {
-		return static_cast<uint32_t>((handle.ptr - m_GPUDescriptorHandleStart.ptr) / m_DescriptorSize);
+	inline u32 get_index_from_handle(D3D12_GPU_DESCRIPTOR_HANDLE handle) const {
+		return static_cast<u32>((handle.ptr - m_GPUDescriptorHandleStart.ptr) / m_DescriptorSize);
 	}
 
 private:
@@ -59,15 +59,15 @@ private:
 	}
 
 	D3D12_DESCRIPTOR_HEAP_TYPE m_Type;
-	uint32_t m_Capacity;
+	u32 m_Capacity;
 	
-	uint32_t m_Size = 0;
-	uint32_t m_DescriptorSize = 0;
+	u32 m_Size = 0;
+	u32 m_DescriptorSize = 0;
 	D3D12_CPU_DESCRIPTOR_HANDLE m_CPUDescriptorHandleStart = {};
 	D3D12_GPU_DESCRIPTOR_HANDLE m_GPUDescriptorHandleStart = {};
 	ComPtr<ID3D12DescriptorHeap> m_DescriptorHeap;
 	std::vector<SRDescriptorIndex> m_FreeList;
-	std::vector<uint64_t> m_StateArray;
+	std::vector<u64> m_StateArray;
 };
 
 struct SRResource_DX12 {

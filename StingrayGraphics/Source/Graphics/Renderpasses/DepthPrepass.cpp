@@ -57,7 +57,7 @@ namespace SRDepthPrepass {
 
 			// TODO: Transform
 			for (const auto& mesh : model->meshes) {
-				for (uint32_t i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
+				for (u32 i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
 					const SRMeshPrimitive& primitive = model->primitives[i];
 
 					gfxDevice.draw_indexed(primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);

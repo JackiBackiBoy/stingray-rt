@@ -7,7 +7,7 @@ public:
 	SRGraphicsDevice_Vulkan(SRWindow& window);
 	~SRGraphicsDevice_Vulkan();
 
-	uint32_t get_frame_index() const override;
+	u32 get_frame_index() const override;
 
 	void create_swapchain(const SRSwapchainInfo& info, SRSwapchain& swapchain) override;
 	void create_pipeline(const SRPipelineInfo& info, SRPipeline& pipeline) override;
@@ -20,8 +20,8 @@ public:
 	void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) override;
 	void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) override;
 	void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) override;
-	void push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) override;
-	void barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) override;
+	void push_constants(const void* data, u32 size, const SRCmdList& cmdList) override;
+	void barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) override;
 
 	SRCmdList begin_command_list(SRQueue queue) override;
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) override;
@@ -30,9 +30,9 @@ public:
 	void end_render_pass(const SRCmdList& cmdList) override;
 	void submit_command_lists(const SRSwapchain& swapchain) override;
 
-	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) override;
-	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) override;
-	void dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) override;
+	void draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList) override;
+	void draw_indexed(u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList& cmdList) override;
+	void dispatch_mesh(u32 groupCountX, u32 groupCountY, u32 groupCountZ, const SRCmdList& cmdList) override;
 
 	SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource) override;
 	SRShaderPlatformInfo get_shader_platform_info() override;

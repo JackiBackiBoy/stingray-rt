@@ -62,10 +62,10 @@ void update(const SRFrameInfo& frameInfo);
 void render(const SRFrameInfo& frameInfo);
 
 int APIENTRY wWinMain(
-	_In_ HINSTANCE hInstance,
-	_In_opt_ HINSTANCE hPrevInstance,
-	_In_ LPWSTR lpCmdLine,
-	_In_ int nCmdShow
+	HINSTANCE hInstance,
+	HINSTANCE hPrevInstance,
+	LPWSTR lpCmdLine,
+	int nCmdShow
 ) {
 	UNREFERENCED_PARAMETER(hInstance);
 	UNREFERENCED_PARAMETER(hPrevInstance);
@@ -185,7 +185,7 @@ void init_resources() {
 		.bindFlags = SRBindFlag::ConstantBuffer
 	};
 
-	for (uint32_t f = 0; f < SRGraphicsDevice::FRAMES_IN_FLIGHT; ++f) {
+	for (u32 f = 0; f < SRGraphicsDevice::FRAMES_IN_FLIGHT; ++f) {
 		g_GfxDevice->create_buffer(perFrameBufferInfo, g_PerFrameBuffers[f], &g_PerFrameData);
 	}
 

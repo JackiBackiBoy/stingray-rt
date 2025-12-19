@@ -112,7 +112,7 @@ namespace SRVulkanHelpers {
 		SR_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &info.capabilities), "Query surface capabilities");
 
 		// Formats
-		uint32_t formatCount;
+		u32 formatCount;
 		SR_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr), "Query surface formats");
 
 		if (formatCount != 0) {
@@ -121,7 +121,7 @@ namespace SRVulkanHelpers {
 		}
 
 		// Present modes
-		uint32_t presentModeCount;
+		u32 presentModeCount;
 		SR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr), "Query surface present modes");
 
 		if (presentModeCount != 0) {
@@ -175,7 +175,7 @@ namespace SRVulkanHelpers {
 		const VkShaderModuleCreateInfo shaderModuleInfo = {
 			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 			.codeSize = shader->byteCode.size(),
-			.pCode = reinterpret_cast<const uint32_t*>(shader->byteCode.data())
+			.pCode = reinterpret_cast<const u32*>(shader->byteCode.data())
 		};
 
 		VkShaderModule shaderModule;

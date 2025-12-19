@@ -54,7 +54,7 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	VmaAllocator m_Allocator = VMA_NULL;
 	VkCommandPool m_CommandPools[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
 	VkQueue m_CommandQueues[SRQueue_COUNT] = {};
-	uint32_t m_QueueIndices[SRQueue_COUNT] = {};
+	u32 m_QueueIndices[SRQueue_COUNT] = {};
 	VkSemaphore m_FrameFences[SRQueue_COUNT] = {};
 	VkSemaphore m_ImageAvailableSemaphores[FRAMES_IN_FLIGHT] = {};
 	VkSemaphore m_RenderFinishedSemaphores[FRAMES_IN_FLIGHT] = {};
@@ -69,13 +69,13 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	SRPipeline_Vulkan* m_ActivePipeline = nullptr;
 	std::unique_ptr<SRDestructionHandler_Vulkan> m_DestructionHandler;
 
-	uint64_t m_NextGPUSignalValue = 1;
-	uint64_t m_FrameDoneValue[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
+	u64 m_NextGPUSignalValue = 1;
+	u64 m_FrameDoneValue[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
 	std::vector<std::unique_ptr<SRCmdList_Vulkan>> m_PerFrameCmdLists[FRAMES_IN_FLIGHT];
 	size_t m_PerFrameCmdListCounters[FRAMES_IN_FLIGHT] = {};
-	uint32_t m_FrameIndex = 0;
-	uint32_t m_ImageIndex = 0;
-	uint64_t m_FrameCounter = 0;
+	u32 m_FrameIndex = 0;
+	u32 m_ImageIndex = 0;
+	u64 m_FrameCounter = 0;
 
 	bool m_DebugUtilsAvailable = false;
 
@@ -99,8 +99,8 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
-	void push_constants(const void* data, uint32_t size, const SRCmdList& cmdList);
-	void barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList);
+	void push_constants(const void* data, u32 size, const SRCmdList& cmdList);
+	void barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList);
 
 	SRCmdList begin_command_list(SRQueue queue);
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
@@ -109,8 +109,8 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	void end_render_pass(const SRCmdList& cmdList);
 	void submit_command_lists(const SRSwapchain& swapchain);
 
-	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList);
-	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList);
+	void draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList);
+	void draw_indexed(u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList& cmdList);
 
 	SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource);
 	SRShaderPlatformInfo get_shader_platform_info();
@@ -128,17 +128,17 @@ struct SRGraphicsDevice_Vulkan::Impl {
 		SRShaderCompileTarget::SPIRV,
 		"glsl_460"
 	};
-	static constexpr uint32_t MAX_UNIFORM_BUFFER_DESCRIPTORS = 64;
-	static constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 16384;
-	static constexpr uint32_t MAX_SAMPLER_DESCRIPTORS = 32;
-	static constexpr uint32_t MAX_RW_TEXTURE_DESCRIPTORS = 16384;
-	static constexpr uint32_t MAX_STORAGE_BUFFER_DESCRIPTORS = 2048;
-	static constexpr uint32_t UBO_BINDING = 0;
-	static constexpr uint32_t UBO_SET = 1;
-	static constexpr uint32_t TEXTURE_BINDING = 0;
-	static constexpr uint32_t SAMPLER_BINDING = 1;
-	static constexpr uint32_t STORAGE_BUFFER_BINDING = 2;
-	static constexpr uint32_t RW_TEXTURE_BINDING = 3;
+	static constexpr u32 MAX_UNIFORM_BUFFER_DESCRIPTORS = 64;
+	static constexpr u32 MAX_TEXTURE_DESCRIPTORS = 16384;
+	static constexpr u32 MAX_SAMPLER_DESCRIPTORS = 32;
+	static constexpr u32 MAX_RW_TEXTURE_DESCRIPTORS = 16384;
+	static constexpr u32 MAX_STORAGE_BUFFER_DESCRIPTORS = 2048;
+	static constexpr u32 UBO_BINDING = 0;
+	static constexpr u32 UBO_SET = 1;
+	static constexpr u32 TEXTURE_BINDING = 0;
+	static constexpr u32 SAMPLER_BINDING = 1;
+	static constexpr u32 STORAGE_BUFFER_BINDING = 2;
+	static constexpr u32 RW_TEXTURE_BINDING = 3;
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 		VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -159,20 +159,20 @@ SRGraphicsDevice_Vulkan::Impl::~Impl() {
 	m_DestructionHandler->enqueue(m_Surface);
 
 	// Command pools
-	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
-		for (uint32_t f = 0; f < FRAMES_IN_FLIGHT; ++f) {
+	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
+		for (u32 f = 0; f < FRAMES_IN_FLIGHT; ++f) {
 			m_DestructionHandler->enqueue(m_CommandPools[q][f]);
 		}
 	}
 	m_DestructionHandler->enqueue(m_UploadCmdPool);
 
 	// Fences (timeline semaphores)
-	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
+	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
 		m_DestructionHandler->enqueue(m_FrameFences[q]);
 	}
 
 	// Semaphores
-	for (uint32_t f = 0; f < FRAMES_IN_FLIGHT; f++) {
+	for (u32 f = 0; f < FRAMES_IN_FLIGHT; f++) {
 		m_DestructionHandler->enqueue(m_ImageAvailableSemaphores[f]);
 		m_DestructionHandler->enqueue(m_RenderFinishedSemaphores[f]);
 	}
@@ -204,7 +204,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_instance() {
 	};
 
 	// Instance layers
-	uint32_t numInstanceLayers;
+	u32 numInstanceLayers;
 	vkEnumerateInstanceLayerProperties(&numInstanceLayers, nullptr);
 	std::vector<VkLayerProperties> instanceLayers(static_cast<size_t>(numInstanceLayers));
 	SR_VK_CHECK(vkEnumerateInstanceLayerProperties(&numInstanceLayers, instanceLayers.data()), "Instance layer enumeration");
@@ -240,7 +240,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_instance() {
 	#endif
 
 	// Instance extensions
-	uint32_t numInstanceExts;
+	u32 numInstanceExts;
 	vkEnumerateInstanceExtensionProperties(nullptr, &numInstanceExts, nullptr);
 	std::vector<VkExtensionProperties> instanceExts(static_cast<size_t>(numInstanceExts));
 	SR_VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &numInstanceExts, instanceExts.data()), "Instance extension enumeration");
@@ -292,7 +292,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_instance() {
 		}
 	#endif
 
-	instanceInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExts.size());
+	instanceInfo.enabledExtensionCount = static_cast<u32>(enabledExts.size());
 	instanceInfo.ppEnabledExtensionNames = enabledExts.data();
 
 	// TODO: Investigate custom Vulkan allocator
@@ -334,7 +334,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_surface() {
 }
 
 void SRGraphicsDevice_Vulkan::Impl::create_device() {
-	uint32_t numDevices = 0;
+	u32 numDevices = 0;
 	SR_VK_CHECK(vkEnumeratePhysicalDevices(m_Instance, &numDevices, nullptr), "Physical device enumeration");
 
 	if (numDevices == 0) {
@@ -346,9 +346,9 @@ void SRGraphicsDevice_Vulkan::Impl::create_device() {
 	SR_VK_CHECK(vkEnumeratePhysicalDevices(m_Instance, &numDevices, devices.data()), "Physical device enumeration");
 
 	SRLOG_DEBUG_CAT(SRLOG_CAT_VULKAN, "Found %u potential device(s). Enumerating...", numDevices);
-	uint32_t pickedDeviceIdx = ~0;
+	u32 pickedDeviceIdx = ~0;
 	const char* deviceName = nullptr;
-	for (uint32_t i = 0; i < numDevices; ++i) {
+	for (u32 i = 0; i < numDevices; ++i) {
 		std::vector<std::string> missing;
 		const auto REQUIRE = [&](bool condition, const char* str) {
 			if (!condition) { missing.emplace_back(str); }
@@ -393,7 +393,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_device() {
 		}
 
 		// Device extensions
-		uint32_t numDeviceExts;
+		u32 numDeviceExts;
 		SR_VK_CHECK(vkEnumerateDeviceExtensionProperties(device, nullptr, &numDeviceExts, nullptr), "Device extensions enumeration");
 		std::vector<VkExtensionProperties> deviceExts(numDeviceExts);
 		SR_VK_CHECK(vkEnumerateDeviceExtensionProperties(device, nullptr, &numDeviceExts, deviceExts.data()), "Device extensions enumeration");
@@ -522,16 +522,16 @@ void SRGraphicsDevice_Vulkan::Impl::create_device() {
 		};
 
 		// Queue families
-		uint32_t numQueueFamilies;
+		u32 numQueueFamilies;
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &numQueueFamilies, nullptr);
 		std::vector<VkQueueFamilyProperties> queueFamilies(numQueueFamilies);
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &numQueueFamilies, queueFamilies.data());
 
-		uint32_t universalQueueFamilyIdx = ~0; // Graphics + Compute + Copy (REQUIRED)
-		uint32_t dedicatedComputeQueueFamilyIdx = ~0; // REQUIRED
-		uint32_t dedicatedCopyQueueFamilyIdx = ~0; // OPTIONAL, though might be made REQUIRED in the future
+		u32 universalQueueFamilyIdx = ~0; // Graphics + Compute + Copy (REQUIRED)
+		u32 dedicatedComputeQueueFamilyIdx = ~0; // REQUIRED
+		u32 dedicatedCopyQueueFamilyIdx = ~0; // OPTIONAL, though might be made REQUIRED in the future
 
-		for (uint32_t i = 0; i < numQueueFamilies; ++i) {
+		for (u32 i = 0; i < numQueueFamilies; ++i) {
 			const auto& family = queueFamilies[i];
 
 			// NOTE: In Stingray, we require a "universal" queue to exist, i.e.
@@ -633,9 +633,9 @@ void SRGraphicsDevice_Vulkan::Impl::create_device() {
 		const VkDeviceCreateInfo deviceInfo = {
 			.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 			.pNext = &enableDeviceFeat,
-			.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
+			.queueCreateInfoCount = static_cast<u32>(queueCreateInfos.size()),
 			.pQueueCreateInfos = queueCreateInfos.data(),
-			.enabledExtensionCount = static_cast<uint32_t>(enabledExts.size()),
+			.enabledExtensionCount = static_cast<u32>(enabledExts.size()),
 			.ppEnabledExtensionNames = enabledExts.data(),
 		};
 
@@ -711,10 +711,10 @@ void SRGraphicsDevice_Vulkan::Impl::create_command_pools() {
 		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, // TODO: Look into whether VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT might OCCASIONALLY be useful
 	};
 
-	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
+	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
 		poolInfo.queueFamilyIndex = m_QueueIndices[q];
 
-		for (uint32_t f = 0; f < FRAMES_IN_FLIGHT; ++f) {
+		for (u32 f = 0; f < FRAMES_IN_FLIGHT; ++f) {
 			SR_VK_CHECK(vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_CommandPools[q][f]), "Command pool creation");
 		}
 	}
@@ -747,13 +747,13 @@ void SRGraphicsDevice_Vulkan::Impl::create_sync_objects() {
 		.pNext = &timelineInfo
 	};
 
-	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
+	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
 		SR_VK_CHECK(vkCreateSemaphore(m_Device, &semaphoreInfo, nullptr, &(m_FrameFences[q])), "Timeline semaphore creation");
 	}
 
 	// Image available and render finished semaphores
 	semaphoreInfo.pNext = nullptr;
-	for (uint32_t f = 0; f < FRAMES_IN_FLIGHT; ++f) {
+	for (u32 f = 0; f < FRAMES_IN_FLIGHT; ++f) {
 		SR_VK_CHECK(vkCreateSemaphore(m_Device, &semaphoreInfo, nullptr, &m_ImageAvailableSemaphores[f]), "Image-available semaphore creation");
 		SR_VK_CHECK(vkCreateSemaphore(m_Device, &semaphoreInfo, nullptr, &m_RenderFinishedSemaphores[f]), "Render-finished semaphore creation");
 	}
@@ -777,12 +777,12 @@ void SRGraphicsDevice_Vulkan::Impl::create_descriptors() {
 	for (size_t i = 0; i < descriptorHeaps.size(); ++i) {
 		const SRDescriptorHeap_Vulkan* heap = descriptorHeaps[i];
 		const VkDescriptorType descriptorType = heap->get_type();
-		const uint32_t descriptorCount = heap->get_capacity();
+		const u32 descriptorCount = heap->get_capacity();
 
 		const VkDescriptorPoolSize poolSize = { descriptorType, descriptorCount };
 		const VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 		const VkDescriptorSetLayoutBinding layoutBinding = {
-			.binding = static_cast<uint32_t>(i),
+			.binding = static_cast<u32>(i),
 			.descriptorType = heap->get_type(),
 			.descriptorCount = heap->get_capacity(),
 			.stageFlags = VK_SHADER_STAGE_ALL,
@@ -799,7 +799,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_descriptors() {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
 		.maxSets = 1,
-		.poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+		.poolSizeCount = static_cast<u32>(poolSizes.size()),
 		.pPoolSizes = poolSizes.data()
 	};
 	SR_VK_CHECK(vkCreateDescriptorPool(m_Device, &poolInfo, nullptr, &m_DescriptorPool), "Create descriptor pool");
@@ -807,14 +807,14 @@ void SRGraphicsDevice_Vulkan::Impl::create_descriptors() {
 	// Descriptor set layout
 	const VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-		.bindingCount = static_cast<uint32_t>(bindingFlags.size()),
+		.bindingCount = static_cast<u32>(bindingFlags.size()),
 		.pBindingFlags = bindingFlags.data()
 	};
 	const VkDescriptorSetLayoutCreateInfo setLayoutInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 		.pNext = &bindingFlagsInfo,
 		.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-		.bindingCount = static_cast<uint32_t>(layoutBindings.size()),
+		.bindingCount = static_cast<u32>(layoutBindings.size()),
 		.pBindings = layoutBindings.data()
 	};
 	SR_VK_CHECK(vkCreateDescriptorSetLayout(m_Device, &setLayoutInfo, nullptr, &m_ResourceDescriptorSetLayout), "Create descriptor set layout");
@@ -882,14 +882,14 @@ void SRGraphicsDevice_Vulkan::Impl::create_swapchain(const SRSwapchainInfo& info
 
 	// Set image extent
 	VkExtent2D extent = {};
-	if (supportInfo.capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+	if (supportInfo.capabilities.currentExtent.width != std::numeric_limits<u32>::max()) {
 		extent = supportInfo.capabilities.currentExtent;
 	}
 	else {
 		int width;
 		int height;
 		m_Window.get_client_size(&width, &height);
-		extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
+		extent = { static_cast<u32>(width), static_cast<u32>(height) };
 
 		extent.width = std::clamp(
 			extent.width,
@@ -910,7 +910,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_swapchain(const SRSwapchainInfo& info
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.flags = 0, // TODO: Investigate swapchain flags
 		.surface = m_Surface,
-		.minImageCount = static_cast<uint32_t>(info.numBuffers),
+		.minImageCount = static_cast<u32>(info.numBuffers),
 		.imageFormat = surfaceFormat.format,
 		.imageColorSpace = surfaceFormat.colorSpace,
 		.imageExtent = extent,
@@ -925,14 +925,14 @@ void SRGraphicsDevice_Vulkan::Impl::create_swapchain(const SRSwapchainInfo& info
 	SR_VK_CHECK(vkCreateSwapchainKHR(m_Device, &createInfo, nullptr, &internalSwapchain->swapchain), "Swapchain creation");
 
 	// Swapchain images
-	uint32_t numImages;
+	u32 numImages;
 	SR_VK_CHECK(vkGetSwapchainImagesKHR(m_Device, internalSwapchain->swapchain, &numImages, nullptr), "Get swapchain images");
 	internalSwapchain->images.resize(numImages);
 	internalSwapchain->imageViews.resize(numImages);
 	SR_VK_CHECK(vkGetSwapchainImagesKHR(m_Device, internalSwapchain->swapchain, &numImages, internalSwapchain->images.data()), "Get swapchain images");
 
 	// Swapchain image views
-	for (uint32_t i = 0; i < numImages; ++i) {
+	for (u32 i = 0; i < numImages; ++i) {
 		const VkImageViewCreateInfo imageViewInfo = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 			.image = internalSwapchain->images[i],
@@ -1005,17 +1005,17 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 
 	const VkPipelineDynamicStateCreateInfo dynamicStateInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-		.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
+		.dynamicStateCount = static_cast<u32>(dynamicStates.size()),
 		.pDynamicStates = dynamicStates.data()
 	};
 
 	// Attribute and binding descriptions
 	std::vector<VkVertexInputAttributeDescription> attributeDescriptions(info.inputLayout.elements.size());
-	uint32_t offset = 0;
+	u32 offset = 0;
 
 	for (size_t i = 0; i < attributeDescriptions.size(); i++) {
 		attributeDescriptions[i].binding = 0;
-		attributeDescriptions[i].location = static_cast<uint32_t>(i); // TODO: Doesn't work for all formats
+		attributeDescriptions[i].location = static_cast<u32>(i); // TODO: Doesn't work for all formats
 		attributeDescriptions[i].format = to_vk_format(info.inputLayout.elements[i].format);
 		attributeDescriptions[i].offset = offset;
 
@@ -1033,7 +1033,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.vertexBindingDescriptionCount = attributeDescriptions.empty() ? 0U : 1U,
 		.pVertexBindingDescriptions = attributeDescriptions.empty() ? nullptr : &bindingDescription,
-		.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()),
+		.vertexAttributeDescriptionCount = static_cast<u32>(attributeDescriptions.size()),
 		.pVertexAttributeDescriptions = attributeDescriptions.empty() ? nullptr : attributeDescriptions.data()
 	};
 
@@ -1075,7 +1075,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 
 	// Blending
 	std::vector<VkPipelineColorBlendAttachmentState> colorBlendStates;
-	for (uint32_t i = 0; i < info.numRenderTargets; ++i) {
+	for (u32 i = 0; i < info.numRenderTargets; ++i) {
 		const SRBlendState::RenderTargetBlendState& blendState = info.blendState.renderTargetBlendStates[i];
 
 		// TODO: Make dynamic
@@ -1097,7 +1097,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 		.logicOpEnable = VK_FALSE,
 		.logicOp = VK_LOGIC_OP_COPY,
-		.attachmentCount = static_cast<uint32_t>(colorBlendStates.size()),
+		.attachmentCount = static_cast<u32>(colorBlendStates.size()),
 		.pAttachments = colorBlendStates.data(),
 		.blendConstants = { 0.0f, 0.0f, 0.0f, 0.0f }
 	};
@@ -1160,7 +1160,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 	const VkGraphicsPipelineCreateInfo pipelineInfo = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 		.pNext = &pipelineRenderingInfo,
-		.stageCount = static_cast<uint32_t>(shaderStages.size()),
+		.stageCount = static_cast<u32>(shaderStages.size()),
 		.pStages = shaderStages.data(),
 		.pVertexInputState = &vertexInputInfo,
 		.pInputAssemblyState = &inputAssemblyInfo,
@@ -1380,7 +1380,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SR
 	if (data && data->data) {
 		// Staging buffer
 		SRBufferInfo stagingBufferInfo = {
-			.size = static_cast<uint64_t>(data->rowPitch * info.height),
+			.size = static_cast<u64>(data->rowPitch * info.height),
 			.usage = SRUsage::Upload
 		};
 
@@ -1402,22 +1402,22 @@ void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SR
 
 		std::vector<VkBufferImageCopy> copyRegions;
 		VkDeviceSize copyOffset = 0;
-		uint32_t dataIdx = 0;
+		u32 dataIdx = 0;
 
-		for (uint32_t layer = 0; layer < info.arraySize; ++layer) {
-			uint32_t width = info.width;
-			uint32_t height = info.height;
-			uint32_t depth = info.depth;
+		for (u32 layer = 0; layer < info.arraySize; ++layer) {
+			u32 width = info.width;
+			u32 height = info.height;
+			u32 depth = info.depth;
 
-			for (uint32_t mip = 0; mip < info.mipLevels; ++mip) {
+			for (u32 mip = 0; mip < info.mipLevels; ++mip) {
 				const SRSubresourceData subresourceData = data[dataIdx++];
-				const uint32_t texelBlockSize = 1; // TODO: For block-compressed textures, this must be 4, please fix
-				const uint32_t numTexelBlocksX = std::max(1U, width / texelBlockSize);
-				const uint32_t numTexelBlocksY = std::max(1U, height / texelBlockSize);
-				const uint32_t dstRowPitch = numTexelBlocksX * SRGraphicsHelpers::get_format_stride(info.format);
-				const uint32_t dstSlicePitch = dstRowPitch * numTexelBlocksY;
-				const uint32_t srcRowPitch = subresourceData.rowPitch;
-				const uint32_t srcSlicePitch = subresourceData.slicePitch;
+				const u32 texelBlockSize = 1; // TODO: For block-compressed textures, this must be 4, please fix
+				const u32 numTexelBlocksX = std::max(1U, width / texelBlockSize);
+				const u32 numTexelBlocksY = std::max(1U, height / texelBlockSize);
+				const u32 dstRowPitch = numTexelBlocksX * SRGraphicsHelpers::get_format_stride(info.format);
+				const u32 dstSlicePitch = dstRowPitch * numTexelBlocksY;
+				const u32 srcRowPitch = subresourceData.rowPitch;
+				const u32 srcSlicePitch = subresourceData.slicePitch;
 
 				const VkBufferImageCopy copyRegion = {
 					.bufferOffset = copyOffset,
@@ -1465,7 +1465,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_texture(const SRTextureInfo& info, SR
 			internalStagingBuffer->buffer,
 			internalTexture->image,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			static_cast<uint32_t>(copyRegions.size()),
+			static_cast<u32>(copyRegions.size()),
 			copyRegions.data()
 		);
 	}
@@ -1767,7 +1767,7 @@ void SRGraphicsDevice_Vulkan::Impl::bind_root_constant_buffer(const SRBuffer& bu
 	);
 }
 
-void SRGraphicsDevice_Vulkan::Impl::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::Impl::push_constants(const void* data, u32 size, const SRCmdList& cmdList) {
 	assert(data != nullptr);
 	assert(size <= 128);
 	assert(m_ActivePipeline != nullptr);
@@ -1784,7 +1784,7 @@ void SRGraphicsDevice_Vulkan::Impl::push_constants(const void* data, uint32_t si
 	);
 }
 
-void SRGraphicsDevice_Vulkan::Impl::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::Impl::barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) {
 	if (!pBarriers || numBarriers <= 0) {
 		return;
 	}
@@ -1794,7 +1794,7 @@ void SRGraphicsDevice_Vulkan::Impl::barrier(const SRBarrier* pBarriers, uint32_t
 	vkBarriers.reserve(numBarriers);
 
 	// TODO: Allow for UAV and buffer barriers, not only image barriers
-	for (uint32_t i = 0; i < numBarriers; ++i) {
+	for (u32 i = 0; i < numBarriers; ++i) {
 		const SRBarrier& barrier = pBarriers[i];
 		const bool isDepthFormat = SRGraphicsHelpers::is_depth_format(barrier.image.texture->info.format);
 		auto internalTexture = to_vk_internal(*barrier.image.texture);
@@ -1830,7 +1830,7 @@ void SRGraphicsDevice_Vulkan::Impl::barrier(const SRBarrier* pBarriers, uint32_t
 	const VkDependencyInfo dependencyInfo = {
 		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
 		.pNext = nullptr,
-		.imageMemoryBarrierCount = static_cast<uint32_t>(vkBarriers.size()),
+		.imageMemoryBarrierCount = static_cast<u32>(vkBarriers.size()),
 		.pImageMemoryBarriers = vkBarriers.data()
 	};
 	vkCmdPipelineBarrier2(internalCmdList->cmdBuffer, &dependencyInfo);
@@ -1984,7 +1984,7 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRPassInfo& passInfo
 		.renderArea = renderArea,
 		.layerCount = 1,
 		.viewMask = 0,
-		.colorAttachmentCount = static_cast<uint32_t>(colorAttachmentInfos.size()),
+		.colorAttachmentCount = static_cast<u32>(colorAttachmentInfos.size()),
 		.pColorAttachments = colorAttachmentInfos.data(),
 		.pDepthAttachment = hasDepthAttachment ? &depthAttachmentInfo : nullptr,
 		.pStencilAttachment = nullptr
@@ -2021,14 +2021,14 @@ void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRCmdList& cmdList) {
 void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swapchain) {
 	auto internalSwapchain = to_vk_internal(swapchain);
 
-	const uint32_t numSubmittedCmdLists = (uint32_t)m_PerFrameCmdListCounters[m_FrameIndex];
+	const u32 numSubmittedCmdLists = (u32)m_PerFrameCmdListCounters[m_FrameIndex];
 	m_PerFrameCmdListCounters[m_FrameIndex] = 0;
 
 	// TODO: Tidy the command buffer submission for different queues to sync.
 	// For now we only care about the universal queue
 	std::vector<VkCommandBufferSubmitInfo> vkCmdBuffersToSubmit;
 	vkCmdBuffersToSubmit.reserve(numSubmittedCmdLists);
-	for (uint32_t i = 0; i < numSubmittedCmdLists; ++i) {
+	for (u32 i = 0; i < numSubmittedCmdLists; ++i) {
 		const SRCmdList_Vulkan* cmdList = m_PerFrameCmdLists[m_FrameIndex][i].get();
 		SR_VK_CHECK(vkEndCommandBuffer(cmdList->cmdBuffer), "End command buffer recording");
 
@@ -2074,7 +2074,7 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 		.pWaitSemaphoreInfos = &waitSemaphoreInfo,
 		.commandBufferInfoCount = numSubmittedCmdLists,
 		.pCommandBufferInfos = vkCmdBuffersToSubmit.data(),
-		.signalSemaphoreInfoCount = static_cast<uint32_t>(signalSemaphores.size()),
+		.signalSemaphoreInfoCount = static_cast<u32>(signalSemaphores.size()),
 		.pSignalSemaphoreInfos = signalSemaphores.data()
 	};
 	SR_VK_CHECK(vkQueueSubmit2(m_CommandQueues[SRQueue_Universal], 1, &submitInfo, nullptr), "Queue submission");
@@ -2092,11 +2092,11 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 	// Await frame value
 	m_FrameDoneValue[SRQueue_Universal][m_FrameIndex] = m_NextGPUSignalValue++;
 	++m_FrameCounter;
-	const uint32_t nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
+	const u32 nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
 
 	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
-		const uint64_t needed = m_FrameDoneValue[SRQueue_Universal][nextFrameIndex];
-		uint64_t current = 0;
+		const u64 needed = m_FrameDoneValue[SRQueue_Universal][nextFrameIndex];
+		u64 current = 0;
 		SR_VK_CHECK(vkGetSemaphoreCounterValue(m_Device, m_FrameFences[SRQueue_Universal], &current), "Get semaphore counter value");
 
 		if (current < needed) {
@@ -2115,14 +2115,14 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 	m_FrameIndex = nextFrameIndex;
 }
 
-void SRGraphicsDevice_Vulkan::Impl::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::Impl::draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList) {
 	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdDraw(internalCmdList->cmdBuffer, vtxCount, 1, startVtx, 0);
 }
 
 
-void SRGraphicsDevice_Vulkan::Impl::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::Impl::draw_indexed(u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList& cmdList) {
 	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdDrawIndexed(internalCmdList->cmdBuffer, idxCount, 1, startIdx, baseVtx, 0);
@@ -2272,7 +2272,7 @@ SRGraphicsDevice_Vulkan::~SRGraphicsDevice_Vulkan() {
 	m_Impl = nullptr;
 }
 
-uint32_t SRGraphicsDevice_Vulkan::get_frame_index() const {
+u32 SRGraphicsDevice_Vulkan::get_frame_index() const {
 	return m_Impl->m_FrameIndex;
 }
 
@@ -2314,8 +2314,8 @@ void SRGraphicsDevice_Vulkan::bind_viewport(const SRViewport& viewport, const SR
 	};
 
 	const VkExtent2D scissorExtent = {
-		.width = static_cast<uint32_t>(viewport.width),
-		.height = static_cast<uint32_t>(viewport.height)
+		.width = static_cast<u32>(viewport.width),
+		.height = static_cast<u32>(viewport.height)
 	};
 
 
@@ -2340,11 +2340,11 @@ void SRGraphicsDevice_Vulkan::bind_root_constant_buffer(const SRBuffer& buffer, 
 	m_Impl->bind_root_constant_buffer(buffer, cmdList);
 }
 
-void SRGraphicsDevice_Vulkan::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::push_constants(const void* data, u32 size, const SRCmdList& cmdList) {
 	m_Impl->push_constants(data, size, cmdList);
 }
 
-void SRGraphicsDevice_Vulkan::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) {
 	m_Impl->barrier(pBarriers, numBarriers, cmdList);
 }
 
@@ -2372,15 +2372,15 @@ void SRGraphicsDevice_Vulkan::submit_command_lists(const SRSwapchain& swapchain)
 	m_Impl->submit_command_lists(swapchain);
 }
 
-void SRGraphicsDevice_Vulkan::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList) {
 	m_Impl->draw(vtxCount, startVtx, cmdList);
 }
 
-void SRGraphicsDevice_Vulkan::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::draw_indexed(u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList& cmdList) {
 	m_Impl->draw_indexed(idxCount, startIdx, baseVtx, cmdList);
 }
 
-void SRGraphicsDevice_Vulkan::dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) {
+void SRGraphicsDevice_Vulkan::dispatch_mesh(u32 groupCountX, u32 groupCountY, u32 groupCountZ, const SRCmdList& cmdList) {
 
 }
 

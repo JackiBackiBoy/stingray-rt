@@ -44,8 +44,8 @@ struct SRGraphicsDevice_DX12::Impl {
 	void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
 	void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList);
-	void push_constants(const void* data, uint32_t size, const SRCmdList& cmdList);
-	void barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList);
+	void push_constants(const void* data, u32 size, const SRCmdList& cmdList);
+	void barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList);
 
 	SRCmdList begin_command_list(SRQueue queue);
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
@@ -54,9 +54,9 @@ struct SRGraphicsDevice_DX12::Impl {
 	void end_render_pass(const SRCmdList& cmdList);
 	void submit_command_lists(const SRSwapchain& swapchain);
 
-	void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList);
-	void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList);
-	void dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList);
+	void draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList);
+	void draw_indexed(u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList& cmdList);
+	void dispatch_mesh(u32 groupCountX, u32 groupCountY, u32 groupCountZ, const SRCmdList& cmdList);
 
 	SRShaderPlatformInfo get_shader_platform_info();
 	SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource);
@@ -94,24 +94,24 @@ struct SRGraphicsDevice_DX12::Impl {
 	SRDescriptorHeap_DX12 m_DSVDescriptorHeap = { D3D12_DESCRIPTOR_HEAP_TYPE_DSV, MAX_DSV_DESCRIPTORS };
 
 	ComPtr<ID3D12Fence> m_FrameFences[SRQueue_COUNT];
-	uint64_t m_FrameDoneValues[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
-	uint64_t m_NextGPUSignalValue = 1;
+	u64 m_FrameDoneValues[SRQueue_COUNT][FRAMES_IN_FLIGHT] = {};
+	u64 m_NextGPUSignalValue = 1;
 
 	std::vector<std::unique_ptr<SRCmdList_DX12>> m_PerFrameCmdLists[FRAMES_IN_FLIGHT];
 	size_t m_PerFrameCmdListCounters[FRAMES_IN_FLIGHT] = {};
-	uint32_t m_FrameIndex = 0;
-	uint32_t m_ImageIndex = 0;
-	uint64_t m_FrameCounter = 0;
+	u32 m_FrameIndex = 0;
+	u32 m_ImageIndex = 0;
+	u64 m_FrameCounter = 0;
 	bool m_IsTearingSupported = false;
 
 	static constexpr SRShaderPlatformInfo m_ShaderPlatformInfo = {
 		SRShaderCompileTarget::DXIL,
 		"sm_6_6"
 	};
-	static constexpr uint32_t MAX_RESOURCE_DESCRIPTORS = 32768;
-	static constexpr uint32_t MAX_SAMPLER_DESCRIPTORS = 16;
-	static constexpr uint32_t MAX_RTV_DESCRIPTORS = 256;
-	static constexpr uint32_t MAX_DSV_DESCRIPTORS = 32;
+	static constexpr u32 MAX_RESOURCE_DESCRIPTORS = 32768;
+	static constexpr u32 MAX_SAMPLER_DESCRIPTORS = 16;
+	static constexpr u32 MAX_RTV_DESCRIPTORS = 256;
+	static constexpr u32 MAX_DSV_DESCRIPTORS = 32;
 };
 
 // -------------------------- Impl Method Definitions --------------------------
@@ -187,7 +187,7 @@ void SRGraphicsDevice_DX12::Impl::create_dxgi_factory() {
 }
 
 void SRGraphicsDevice_DX12::Impl::create_device() {
-	uint32_t pickedDeviceIdx = ~0U;
+	u32 pickedDeviceIdx = ~0U;
 	std::string deviceName;
 
 	// NOTE: We prefer IDXGIFactory6 since it allows us to enumerate adapters
@@ -288,7 +288,7 @@ void SRGraphicsDevice_DX12::Impl::create_memory_allocator() {
 }
 
 void SRGraphicsDevice_DX12::Impl::create_command_allocators() {
-	for (uint32_t f = 0; f < FRAMES_IN_FLIGHT; ++f) {
+	for (u32 f = 0; f < FRAMES_IN_FLIGHT; ++f) {
 		// Universal command allocators (direct)
 		SR_DX12_CHECK(m_Device->CreateCommandAllocator(
 			D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -345,7 +345,7 @@ void SRGraphicsDevice_DX12::Impl::create_command_queues() {
 
 
 void SRGraphicsDevice_DX12::Impl::create_sync_objects() {
-	for (uint32_t q = 0; q < SRQueue_COUNT; ++q) {
+	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
 		SR_DX12_CHECK(m_Device->CreateFence(
 			0,
 			D3D12_FENCE_FLAG_NONE,
@@ -398,7 +398,7 @@ void SRGraphicsDevice_DX12::Impl::create_swapchain(const SRSwapchainInfo& info, 
 	internalSwapchain->images.resize(info.numBuffers);
 	internalSwapchain->rtvDescriptors.reserve(info.numBuffers);
 
-	for (uint32_t i = 0; i < info.numBuffers; ++i) {
+	for (u32 i = 0; i < info.numBuffers; ++i) {
 		SR_DX12_CHECK(internalSwapchain->swapchain->GetBuffer(
 			i,
 			IID_PPV_ARGS(&internalSwapchain->images[i])
@@ -927,7 +927,7 @@ void SRGraphicsDevice_DX12::Impl::create_sampler(const SRSamplerInfo& info, SRSa
 	break;
 	}
 
-	const uint32_t index = m_SamplerDescriptorHeap.get_next_index();
+	const u32 index = m_SamplerDescriptorHeap.get_next_index();
 
 	internalSampler->samplerDescriptor = index;
 	m_Device->CreateSampler(
@@ -1004,7 +1004,7 @@ void SRGraphicsDevice_DX12::Impl::bind_root_constant_buffer(const SRBuffer& buff
 	);
 }
 
-void SRGraphicsDevice_DX12::Impl::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::Impl::push_constants(const void* data, u32 size, const SRCmdList& cmdList) {
 	auto* internalCmdList = to_dx12_internal(cmdList);
 	assert(size <= 128);
 
@@ -1016,7 +1016,7 @@ void SRGraphicsDevice_DX12::Impl::push_constants(const void* data, uint32_t size
 	);
 }
 
-void SRGraphicsDevice_DX12::Impl::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::Impl::barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) {
 	if (!pBarriers || numBarriers <= 0) {
 		return;
 	}
@@ -1026,7 +1026,7 @@ void SRGraphicsDevice_DX12::Impl::barrier(const SRBarrier* pBarriers, uint32_t n
 	std::vector<D3D12_TEXTURE_BARRIER> dx12Barriers;
 	dx12Barriers.reserve(numBarriers);
 
-	for (uint32_t i = 0; i < numBarriers; ++i) {
+	for (u32 i = 0; i < numBarriers; ++i) {
 		const SRBarrier& barrier = pBarriers[i];
 		auto* internalTexture = to_dx12_internal(*barrier.image.texture);
 
@@ -1149,7 +1149,7 @@ void SRGraphicsDevice_DX12::Impl::begin_render_pass(const SRPassInfo& passInfo, 
 	D3D12_RENDER_PASS_DEPTH_STENCIL_DESC passDSVDesc = {};
 	passRTVDescs.reserve(passInfo.numColorAttachments);
 
-	for (uint32_t i = 0; i < passInfo.numColorAttachments; ++i) {
+	for (u32 i = 0; i < passInfo.numColorAttachments; ++i) {
 		const SRPassInfo::Attachment& attachment = passInfo.colorAttachments[i];
 		auto internalTexture = to_dx12_internal(*attachment.texture);
 		assert(internalTexture);
@@ -1235,12 +1235,12 @@ void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRCmdList& cmdList) {
 
 void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapchain) {
 	auto internalSwapchain = to_dx12_internal(swapchain);
-	const uint32_t numSubmittedCmdLists = (uint32_t)m_PerFrameCmdListCounters[m_FrameIndex];
+	const u32 numSubmittedCmdLists = (u32)m_PerFrameCmdListCounters[m_FrameIndex];
 	m_PerFrameCmdListCounters[m_FrameIndex] = 0ULL;
 
 	std::vector<ID3D12CommandList*> cmdListsToSubmit;
 	cmdListsToSubmit.reserve(numSubmittedCmdLists);
-	for (uint32_t i = 0; i < numSubmittedCmdLists; ++i) {
+	for (u32 i = 0; i < numSubmittedCmdLists; ++i) {
 		const SRCmdList_DX12* cmdList = m_PerFrameCmdLists[m_FrameIndex][i].get();
 		SR_DX12_CHECK(cmdList->graphicsCmdList->Close(), "Close command list");
 		cmdListsToSubmit.push_back(cmdList->graphicsCmdList.Get());
@@ -1262,12 +1262,12 @@ void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapch
 
 	m_FrameDoneValues[SRQueue_Universal][m_FrameIndex] = m_NextGPUSignalValue++;
 	++m_FrameCounter;
-	const uint32_t nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
+	const u32 nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
 
 	// Await frame value
 	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
-		const uint64_t needed = m_FrameDoneValues[SRQueue_Universal][nextFrameIndex];
-		const uint64_t current = m_FrameFences[SRQueue_Universal]->GetCompletedValue();
+		const u64 needed = m_FrameDoneValues[SRQueue_Universal][nextFrameIndex];
+		const u64 current = m_FrameFences[SRQueue_Universal]->GetCompletedValue();
 
 		if (current < needed) {
 			SR_DX12_CHECK(m_FrameFences[SRQueue_Universal]->SetEventOnCompletion(needed, nullptr), "Wait for fence");
@@ -1284,7 +1284,7 @@ SRShaderPlatformInfo SRGraphicsDevice_DX12::Impl::get_shader_platform_info() {
 void SRGraphicsDevice_DX12::Impl::wait_for_gpu() {
 	// TODO: Right now we only use universal queue, remember that when we add
 	// dedicated compute/copy queue we also need to Signal those here.
-	const uint64_t target = ++m_NextGPUSignalValue;
+	const u64 target = ++m_NextGPUSignalValue;
 	SR_DX12_CHECK(m_CommandQueues[SRQueue_Universal]->Signal(m_FrameFences[SRQueue_Universal].Get(), target), "Signal fence");
 
 	if (m_FrameFences[SRQueue_Universal]->GetCompletedValue() < target) {
@@ -1319,12 +1319,12 @@ void SRGraphicsDevice_DX12::Impl::flush_initial_uploads() {
 	m_UploadCmdAllocator->Reset();
 }
 
-void SRGraphicsDevice_DX12::Impl::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::Impl::draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList) {
 	auto* internalCmdList = to_dx12_internal(cmdList);
 	internalCmdList->graphicsCmdList->DrawInstanced(vtxCount, 1, startVtx, 0);
 }
 
-void SRGraphicsDevice_DX12::Impl::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::Impl::draw_indexed(u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList& cmdList) {
 	auto* internalCmdList = to_dx12_internal(cmdList);
 	internalCmdList->graphicsCmdList->DrawIndexedInstanced(
 		idxCount,
@@ -1391,7 +1391,7 @@ SRDescriptorIndex SRGraphicsDevice_DX12::Impl::get_descriptor_index_srv(const SR
 	return INVALID_DESCRIPTOR_INDEX;
 }
 
-void SRGraphicsDevice_DX12::Impl::dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::Impl::dispatch_mesh(u32 groupCountX, u32 groupCountY, u32 groupCountZ, const SRCmdList& cmdList) {
 	auto* internalCmdList = to_dx12_internal(cmdList);
 
 	internalCmdList->graphicsCmdList->DispatchMesh(groupCountX, groupCountY, groupCountZ);
@@ -1416,7 +1416,7 @@ SRGraphicsDevice_DX12::~SRGraphicsDevice_DX12() {
 	m_Impl = nullptr;
 }
 
-uint32_t SRGraphicsDevice_DX12::get_frame_index() const {
+u32 SRGraphicsDevice_DX12::get_frame_index() const {
 	return m_Impl->m_FrameIndex;
 }
 
@@ -1460,11 +1460,11 @@ void SRGraphicsDevice_DX12::bind_root_constant_buffer(const SRBuffer& buffer, co
 	m_Impl->bind_root_constant_buffer(buffer, cmdList);
 }
 
-void SRGraphicsDevice_DX12::push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::push_constants(const void* data, u32 size, const SRCmdList& cmdList) {
 	m_Impl->push_constants(data, size, cmdList);
 }
 
-void SRGraphicsDevice_DX12::barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) {
 	m_Impl->barrier(pBarriers, numBarriers, cmdList);
 }
 
@@ -1492,15 +1492,15 @@ void SRGraphicsDevice_DX12::submit_command_lists(const SRSwapchain& swapchain) {
 	m_Impl->submit_command_lists(swapchain);
 }
 
-void SRGraphicsDevice_DX12::draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList) {
 	m_Impl->draw(vtxCount, startVtx, cmdList);
 }
 
-void SRGraphicsDevice_DX12::draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::draw_indexed(u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList& cmdList) {
 	m_Impl->draw_indexed(idxCount, startIdx, baseVtx, cmdList);
 }
 
-void SRGraphicsDevice_DX12::dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) {
+void SRGraphicsDevice_DX12::dispatch_mesh(u32 groupCountX, u32 groupCountY, u32 groupCountZ, const SRCmdList& cmdList) {
 	m_Impl->dispatch_mesh(groupCountX, groupCountY, groupCountZ, cmdList);
 }
 

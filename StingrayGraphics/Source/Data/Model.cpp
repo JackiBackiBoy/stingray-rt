@@ -12,20 +12,20 @@ namespace {
 	void load_gltf_mesh(
 		SRModel& model,
 		SRVertex* vertices,
-		uint32_t* indices,
+		u32* indices,
 		fastgltf::Asset& gltfAsset,
 		fastgltf::Mesh& gltfMesh
 	) {
 		SRMesh mesh = {};
-		mesh.basePrimitive = static_cast<uint32_t>(model.primitives.size());
-		mesh.numPrimitives = static_cast<uint32_t>(gltfMesh.primitives.size());
+		mesh.basePrimitive = static_cast<u32>(model.primitives.size());
+		mesh.numPrimitives = static_cast<u32>(gltfMesh.primitives.size());
 
-		uint32_t baseVertex = 0;
-		uint32_t baseIndex = 0;
+		u32 baseVertex = 0;
+		u32 baseIndex = 0;
 
 		for (const auto& gltfPrimitive : gltfMesh.primitives) {
 			SRVertex* verticesPtr = vertices + baseVertex;
-			uint32_t* indicesPtr = indices + baseIndex;
+			u32* indicesPtr = indices + baseIndex;
 
 			auto* positionIt = gltfPrimitive.findAttribute("POSITION");
 			// TODO: Handle TEXCOORD indices better, i.e. TEXCOORD_0, TEXCOORD_1 and so on
@@ -61,19 +61,19 @@ namespace {
 			}
 
 			if (indexAccessor.componentType == fastgltf::ComponentType::UnsignedShort) {
-				fastgltf::iterateAccessorWithIndex<uint16_t>(
+				fastgltf::iterateAccessorWithIndex<u16>(
 					gltfAsset,
 					indexAccessor,
-					[&](uint16_t index, size_t i) {
-						indicesPtr[i] = static_cast<uint32_t>(index);
+					[&](u16 index, size_t i) {
+						indicesPtr[i] = static_cast<u32>(index);
 					}
 				);
 			}
 			else if (indexAccessor.componentType == fastgltf::ComponentType::UnsignedInt) {
-				fastgltf::iterateAccessorWithIndex<uint32_t>(
+				fastgltf::iterateAccessorWithIndex<u32>(
 					gltfAsset,
 					indexAccessor,
-					[&](uint32_t index, size_t i) {
+					[&](u32 index, size_t i) {
 						indicesPtr[i] = index;
 					}
 				);
@@ -82,8 +82,8 @@ namespace {
 			const SRMeshPrimitive meshPrimitive = {
 				.baseVertex = baseVertex,
 				.baseIndex = baseIndex,
-				.numVertices = static_cast<uint32_t>(positionAccessor.count),
-				.numIndices = static_cast<uint32_t>(indexAccessor.count)
+				.numVertices = static_cast<u32>(positionAccessor.count),
+				.numIndices = static_cast<u32>(indexAccessor.count)
 			};
 			model.primitives.push_back(meshPrimitive);
 
@@ -138,7 +138,7 @@ namespace SRModelLoader {
 
 		model.primitives.reserve(numPrimitives);
 		SRVertex* vertices = new SRVertex[numVertices];
-		uint32_t* indices = new uint32_t[numIndices];
+		u32* indices = new u32[numIndices];
 
 		for (auto& gltfMesh : gltfAsset->meshes) {
 			load_gltf_mesh(model, vertices, indices, gltfAsset.get(), gltfMesh);
@@ -147,8 +147,8 @@ namespace SRModelLoader {
 		// Generate meshlets
 		// TODO: Might be better to just have ONE global meshlet buffer, look into this
 		std::vector<SRMeshlet> meshlets;
-		std::vector<uint32_t> meshletVertices;
-		std::vector<uint8_t> meshletTriangles;
+		std::vector<u32> meshletVertices;
+		std::vector<u8> meshletTriangles;
 		
 		const size_t maxMeshlets = meshopt_buildMeshletsBound(numIndices, MAX_VERTICES, MAX_TRIANGLES);
 		meshlets.resize(maxMeshlets);
@@ -193,8 +193,8 @@ namespace SRModelLoader {
 			.bindFlags = SRBindFlag::VertexBuffer
 		};
 		const SRBufferInfo indexBufferInfo = {
-			.size = numIndices * sizeof(uint32_t),
-			.stride = sizeof(uint32_t),
+			.size = numIndices * sizeof(u32),
+			.stride = sizeof(u32),
 			.usage = SRUsage::Default,
 			.bindFlags = SRBindFlag::IndexBuffer
 		};
@@ -209,7 +209,7 @@ namespace SRModelLoader {
 		gfxDevice.create_buffer(vertexBufferInfo, model.vertexBuffer, vertices);
 		gfxDevice.create_buffer(indexBufferInfo, model.indexBuffer, indices);
 		gfxDevice.create_buffer(meshletBufferInfo, model.meshletBuffer, meshlets.data());
-		model.numMeshlets = (uint32_t)meshlets.size();
+		model.numMeshlets = (u32)meshlets.size();
 
 		delete[] vertices;
 		delete[] indices;

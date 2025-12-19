@@ -1,11 +1,11 @@
 #pragma once
 
+#include "Core/Types.h"
 #include "Core/Window.h"
-#include <cstdint>
 
-typedef uint16_t SRKey;
-typedef uint16_t SRMouseButton;
-typedef uint64_t SRKeyWord;
+typedef u16 SRKey;
+typedef u16 SRMouseButton;
+typedef u64 SRKeyWord;
 
 static constexpr int SR_KEY_CAP = 512;
 static constexpr int SR_KEY_CAP_WORDS = SR_KEY_CAP / 64;

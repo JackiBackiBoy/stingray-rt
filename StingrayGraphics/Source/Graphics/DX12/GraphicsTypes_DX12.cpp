@@ -1,6 +1,6 @@
 #include "GraphicsTypes_DX12.h"
 
-SRDescriptorHeap_DX12::SRDescriptorHeap_DX12(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t capacity) :
+SRDescriptorHeap_DX12::SRDescriptorHeap_DX12(D3D12_DESCRIPTOR_HEAP_TYPE type, u32 capacity) :
 	m_Type(type), m_Capacity(capacity) {
 	m_StateArray.resize((capacity + 63ull) >> 6ull, 0ull);
 }
@@ -48,13 +48,13 @@ SRDescriptorIndex SRDescriptorHeap_DX12::get_next_index() {
 
 D3D12_CPU_DESCRIPTOR_HANDLE SRDescriptorHeap_DX12::get_cpu_handle(SRDescriptorIndex index) {
 	assert(index < m_Size && get_state_bit(index) == true);
-	return { m_CPUDescriptorHandleStart.ptr + uint64_t(index) * m_DescriptorSize };
+	return { m_CPUDescriptorHandleStart.ptr + u64(index) * m_DescriptorSize };
 }
 
 D3D12_GPU_DESCRIPTOR_HANDLE SRDescriptorHeap_DX12::get_gpu_handle(SRDescriptorIndex index) {
 	assert(m_Type != D3D12_DESCRIPTOR_HEAP_TYPE_RTV && m_Type != D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	assert(index < m_Size && get_state_bit(index) == true);
-	return { m_GPUDescriptorHandleStart.ptr + uint64_t(index) * m_DescriptorSize };
+	return { m_GPUDescriptorHandleStart.ptr + u64(index) * m_DescriptorSize };
 }
 
 void SRDescriptorHeap_DX12::free_index(SRDescriptorIndex index) {

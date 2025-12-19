@@ -1,15 +1,15 @@
 #pragma once
 
+#include "Core/Types.h"
 #include "Core/Window.h"
 #include "Graphics/GraphicsTypes.h"
-#include <cstdint>
 
 class SRGraphicsDevice {
 public:
 	SRGraphicsDevice(SRWindow& window) : m_Window(window) {};
 	virtual ~SRGraphicsDevice() = default;
 
-	virtual uint32_t get_frame_index() const = 0;
+	virtual u32 get_frame_index() const = 0;
 
 	virtual void create_swapchain(const SRSwapchainInfo& info, SRSwapchain& swapchain) = 0;
 	virtual void create_pipeline(const SRPipelineInfo& info, SRPipeline& pipeline) = 0;
@@ -22,8 +22,8 @@ public:
 	virtual void bind_vertex_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
 	virtual void bind_index_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
 	virtual void bind_root_constant_buffer(const SRBuffer& buffer, const SRCmdList& cmdList) = 0;
-	virtual void push_constants(const void* data, uint32_t size, const SRCmdList& cmdList) = 0;
-	virtual void barrier(const SRBarrier* pBarriers, uint32_t numBarriers, const SRCmdList& cmdList) = 0;
+	virtual void push_constants(const void* data, u32 size, const SRCmdList& cmdList) = 0;
+	virtual void barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) = 0;
 
 	virtual SRCmdList begin_command_list(SRQueue quee) = 0;
 	virtual void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) = 0;
@@ -32,9 +32,9 @@ public:
 	virtual void end_render_pass(const SRCmdList& cmdList) = 0;
 	virtual void submit_command_lists(const SRSwapchain& swapchain) = 0;
 
-	virtual void draw(uint32_t vtxCount, uint32_t startVtx, const SRCmdList& cmdList) = 0;
-	virtual void draw_indexed(uint32_t idxCount, uint32_t startIdx, uint32_t baseVtx, const SRCmdList& cmdList) = 0;
-	virtual void dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) = 0;
+	virtual void draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList) = 0;
+	virtual void draw_indexed(u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList& cmdList) = 0;
+	virtual void dispatch_mesh(u32 groupCountX, u32 groupCountY, u32 groupCountZ, const SRCmdList& cmdList) = 0;
 
 	virtual SRDescriptorIndex get_descriptor_index_srv(const SRResource& resource) = 0;
 	virtual SRShaderPlatformInfo get_shader_platform_info() = 0;
@@ -42,7 +42,7 @@ public:
 	virtual void flush_initial_uploads() = 0; // NOTE: TEMPORARY function, will be removed once we introduce streaming system
 	virtual void setup_imgui_init_info(SRFormat swapchainFormat) = 0;
 
-	static constexpr uint32_t FRAMES_IN_FLIGHT = 2;
+	static constexpr u32 FRAMES_IN_FLIGHT = 2;
 	
 protected:
 	SRWindow& m_Window;

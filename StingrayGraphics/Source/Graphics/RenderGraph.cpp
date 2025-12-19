@@ -41,9 +41,9 @@ SRRenderPass& SRRenderPass::add_depth_input(const std::string& name) {
 SRRenderPass& SRRenderPass::add_color_output(const std::string& name, int width, int height, SRFormat format, int mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	// TODO: Base mip?
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
-	attachment->width = static_cast<uint32_t>(width);
-	attachment->height = static_cast<uint32_t>(height);
-	attachment->mipLevels = static_cast<uint32_t>(mipLevels);
+	attachment->width = static_cast<u32>(width);
+	attachment->height = static_cast<u32>(height);
+	attachment->mipLevels = static_cast<u32>(mipLevels);
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
 	attachment->type = SRRenderPassAttachment::Type::RenderTarget;
@@ -62,8 +62,8 @@ SRRenderPass& SRRenderPass::add_color_output(const std::string& name, int width,
 
 SRRenderPass& SRRenderPass::add_depth_output(const std::string& name, int width, int height, SRFormat format, float clearValue /*= 0.0f*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
-	attachment->width = static_cast<uint32_t>(width);
-	attachment->height = static_cast<uint32_t>(height);
+	attachment->width = static_cast<u32>(width);
+	attachment->height = static_cast<u32>(height);
 	attachment->mipLevels = 1;
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
@@ -78,8 +78,8 @@ SRRenderPass& SRRenderPass::add_depth_output(const std::string& name, int width,
 
 SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, int width, int height, SRFormat format, int mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
-	attachment->width = static_cast<uint32_t>(width);
-	attachment->height = static_cast<uint32_t>(height);
+	attachment->width = static_cast<u32>(width);
+	attachment->height = static_cast<u32>(height);
 	attachment->mipLevels = mipLevels;
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
@@ -128,7 +128,7 @@ SRRenderPass& SRRenderGraph::add_render_pass(const std::string& name, SRPassType
 	assert(search == m_PassIndexLUT.end());
 
 	const size_t passIndex = m_RenderPasses.size();
-	auto pass = std::make_unique<SRRenderPass>(*this, static_cast<uint32_t>(passIndex), name, type);
+	auto pass = std::make_unique<SRRenderPass>(*this, static_cast<u32>(passIndex), name, type);
 	SRRenderPass& passRef = *pass;
 
 	m_RenderPasses.push_back(std::move(pass));
@@ -176,7 +176,7 @@ void SRRenderGraph::build(SRGraphicsDevice& gfxDevice) {
 			}
 
 			bool writtenByCompute = false;
-			for (uint32_t passIndex : output->writtenInPasses) {
+			for (u32 passIndex : output->writtenInPasses) {
 				if (m_RenderPasses[passIndex]->get_type() == SRPassType::Compute) {
 					writtenByCompute = true;
 					break;
@@ -259,7 +259,7 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 			break;
 			}
 
-			for (uint32_t mip = 0; mip < output->subresourceStates.size(); ++mip) {
+			for (u32 mip = 0; mip < output->subresourceStates.size(); ++mip) {
 				SRRenderPassAttachmentSubresource& subresource = output->subresourceStates[mip];
 				if (subresource.state != targetState) {
 					// TODO: MAKE THESE BARRIERS WORK
@@ -297,7 +297,7 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 				passInfo.depthAttachment.storeOp = SRStoreOp::None; // TODO: Might break
 			}
 
-			for (uint32_t mip = input.subresources.baseMip; mip < input.subresources.baseMip + input.subresources.mipCount; ++mip) {
+			for (u32 mip = input.subresources.baseMip; mip < input.subresources.baseMip + input.subresources.mipCount; ++mip) {
 				SRRenderPassAttachmentSubresource& subresource = input.attachment->subresourceStates[mip];
 				
 				SRBarrier barrier = {
@@ -350,7 +350,7 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 		if (!barriers.empty()) {
 			gfxDevice.barrier(
 				barriers.data(),
-				static_cast<uint32_t>(barriers.size()),
+				static_cast<u32>(barriers.size()),
 				cmdList
 			);
 		}

@@ -1,15 +1,16 @@
 #pragma once
 
-#include <cstdint>
+#include "Core/Types.h"
+
 #include <string>
 #include <vector>
 
 struct SRMonitorInfo {
-	uint32_t width;
-	uint32_t height;
-	uint32_t positionX;
-	uint32_t positionY;
-	uint64_t adapterLUID;
+	u32 width;
+	u32 height;
+	u32 positionX;
+	u32 positionY;
+	u64 adapterLUID;
 	std::string gdiName;
 	std::string friendlyName;
 };
