@@ -977,7 +977,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
 			.module = shaderModule,
-			.pName = "main",
+			.pName = info.vertexShader->entryPoint,
 			.pSpecializationInfo = nullptr
 		};
 		shaderStages.push_back(shaderStageInfo);
@@ -991,7 +991,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 			.module = shaderModule,
-			.pName = "main",
+			.pName = info.pixelShader->entryPoint,
 			.pSpecializationInfo = nullptr
 		};
 		shaderStages.push_back(shaderStageInfo);

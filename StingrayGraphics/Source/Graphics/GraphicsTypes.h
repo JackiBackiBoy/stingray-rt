@@ -431,6 +431,7 @@ struct SRShaderPlatformInfo {
 
 struct SRShader {
 	std::vector<u8> byteCode;
+	const char* entryPoint;
 };
 
 struct SRBlendState {

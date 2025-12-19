@@ -136,6 +136,7 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 
 	shader.byteCode.resize(compiledShaderBlob->GetBufferSize());
 	memcpy(shader.byteCode.data(), compiledShaderBlob->GetBufferPointer(), compiledShaderBlob->GetBufferSize());
+	shader.entryPoint = info.entryPoint;
 
 	compiledShaderBlob->Release();
 	errors->Release();

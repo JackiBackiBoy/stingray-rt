@@ -1,6 +1,9 @@
 #include "Includes/Bindless.hlsl"
 
-SR_PUSH_CONSTANT(SRDescriptorIndex, g_AlbedoTexIndex);
+struct PushConstants {
+	uint albedoTexIndex;
+};
+SR_PUSH_CONSTANT(PushConstants, g_Push);
 
 struct VSOutput {
 	float4 position : SV_Position;
@@ -22,7 +25,7 @@ VSOutput vertexMain(uint VertexID : SV_VertexID) {
 
 PSOutput pixelMain(VSOutput input) {
 	SamplerState sampler = g_Sampler[0]; // TODO: Remove hardcoded
-	float4 albedo = g_Texture2D[g_AlbedoTexIndex].Sample(sampler, input.uv);
+	float4 albedo = g_Texture2D[g_Push.albedoTexIndex].Sample(sampler, input.uv);
 
 	PSOutput output;
 	output.color = albedo;
