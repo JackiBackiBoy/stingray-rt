@@ -106,7 +106,7 @@ struct SRGraphicsDevice_DX12::Impl {
 
 	static constexpr SRShaderPlatformInfo m_ShaderPlatformInfo = {
 		SRShaderCompileTarget::DXIL,
-		"sm_6_5"
+		"sm_6_6"
 	};
 	static constexpr uint32_t MAX_RESOURCE_DESCRIPTORS = 32768;
 	static constexpr uint32_t MAX_SAMPLER_DESCRIPTORS = 16;
@@ -438,20 +438,20 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 
 	const D3D12_ROOT_PARAMETER1 rootConstant = {
 		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
-		.Constants = {.ShaderRegister = 0, .RegisterSpace = 101, .Num32BitValues = 32 /* 128 bytes */ },
+		.Constants = {.ShaderRegister = 0, .RegisterSpace = 0, .Num32BitValues = 32 /* 128 bytes */ },
 		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
 	};
 	const D3D12_DESCRIPTOR_RANGE1 texture2DRange = { 
 		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		.NumDescriptors = UINT_MAX,
-		.RegisterSpace = 0,
+		.RegisterSpace = 1,
 		.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE,
 		.OffsetInDescriptorsFromTableStart = 0
 	};
 	const D3D12_DESCRIPTOR_RANGE1 samplerRange = {
 		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER,
 		.NumDescriptors = UINT_MAX,
-		.RegisterSpace = 0,
+		.RegisterSpace = 1,
 		.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE,
 		.OffsetInDescriptorsFromTableStart = 0
 	};
@@ -474,8 +474,8 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 	const D3D12_ROOT_PARAMETER1 perFrameCBV = {
 		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV,
 		.Descriptor = {
-			.ShaderRegister = 0,
-			.RegisterSpace = 1,
+			.ShaderRegister = 1,
+			.RegisterSpace = 0,
 			.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE
 		},
 		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
@@ -494,7 +494,8 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 			.pParameters = rootParameters,
 			.NumStaticSamplers = 0,
 			.pStaticSamplers = nullptr,
-			.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+			// TODO: Improve this logic
+			.Flags = info.meshShader ? D3D12_ROOT_SIGNATURE_FLAG_NONE : D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
 		}
 	};
 
@@ -640,6 +641,7 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuffer& buffer, const void* data) {
 	auto internalBuffer = std::make_shared<SRBuffer_DX12>();
 
+	buffer.type = SRResourceType::Buffer;
 	buffer.info = info;
 	buffer.internalState = internalBuffer;
 	buffer.mappedData = nullptr;
@@ -730,7 +732,28 @@ void SRGraphicsDevice_DX12::Impl::create_buffer(const SRBufferInfo& info, SRBuff
 
 	// Descriptors
 	// TODO: UAV
-	// TODO: SRV
+	if (has_flag(info.bindFlags, SRBindFlag::ShaderResource)) {
+		if (has_flag(info.miscFlags, SRMiscFlag::StructuredBuffer)) {
+			const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+				.Format = DXGI_FORMAT_UNKNOWN,
+				.ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
+				.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+				.Buffer = {
+					.FirstElement = 0,
+					.NumElements = static_cast<UINT>(info.size / info.stride),
+					.StructureByteStride = info.stride,
+					.Flags = D3D12_BUFFER_SRV_FLAG_NONE
+				}
+			};
+
+			internalBuffer->srvDescriptor = SRDX12Helpers::init_srv_descriptor(
+				m_Device.Get(),
+				internalBuffer->allocation->GetResource(),
+				srvDesc,
+				m_ResourceDescriptorHeap
+			);
+		}
+	}
 	// TODO: CBV
 }
 
@@ -1212,7 +1235,7 @@ void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRCmdList& cmdList) {
 
 void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapchain) {
 	auto internalSwapchain = to_dx12_internal(swapchain);
-	const uint32_t numSubmittedCmdLists = m_PerFrameCmdListCounters[m_FrameIndex];
+	const uint32_t numSubmittedCmdLists = (uint32_t)m_PerFrameCmdListCounters[m_FrameIndex];
 	m_PerFrameCmdListCounters[m_FrameIndex] = 0ULL;
 
 	std::vector<ID3D12CommandList*> cmdListsToSubmit;
@@ -1338,7 +1361,7 @@ void SRGraphicsDevice_DX12::Impl::setup_imgui_init_info(SRFormat swapchainFormat
 	initInfo.SrvDescriptorFreeFn = [](
 		ImGui_ImplDX12_InitInfo* initInfo,
 		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
-		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle
+		D3D12_GPU_DESCRIPTOR_HANDLE
 	) {
 		SRDescriptorHeap_DX12* descriptorHeap = reinterpret_cast<SRDescriptorHeap_DX12*>(
 			initInfo->UserData
@@ -1359,8 +1382,13 @@ SRDescriptorIndex SRGraphicsDevice_DX12::Impl::get_descriptor_index_srv(const SR
 		auto* internalTexture = (SRTexture_DX12*)resource.internalState.get();
 		return internalTexture->srvDescriptor;
 	}
+	if (resource.type == SRResourceType::Buffer) {
+		auto* internalBuffer = (SRBuffer_DX12*)resource.internalState.get();
+		return internalBuffer->srvDescriptor;
+	}
 
-	return ~0U;
+	assert(false);
+	return INVALID_DESCRIPTOR_INDEX;
 }
 
 void SRGraphicsDevice_DX12::Impl::dispatch_mesh(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ, const SRCmdList& cmdList) {
@@ -1495,4 +1523,3 @@ void SRGraphicsDevice_DX12::flush_initial_uploads() {
 void SRGraphicsDevice_DX12::setup_imgui_init_info(SRFormat swapchainFormat) {
 	m_Impl->setup_imgui_init_info(swapchainFormat);
 }
-

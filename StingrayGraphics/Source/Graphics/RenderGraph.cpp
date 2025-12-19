@@ -390,6 +390,8 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 }
 
 void SRRenderGraph::notify_swapchain_resize(SRGraphicsDevice& gfxDevice, int newWidth, int newHeight) {
+	(void)gfxDevice;
+
 	for (auto& attachment : m_Attachments) {
 		// TODO: Right now we assume that "swapchain relative" means that an
 		// attachment will have the EXACT dimensions as the swapchain. But

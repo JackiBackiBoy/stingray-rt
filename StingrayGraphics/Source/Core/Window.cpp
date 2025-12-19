@@ -35,13 +35,13 @@ LRESULT SRWindow::Impl::window_proc_thunk(HWND hWnd, UINT msg, WPARAM wParam, LP
 	// as early as possible.
 	if (msg == WM_NCCREATE) {
 		auto cs = reinterpret_cast<CREATESTRUCT*>(lParam);
-		auto impl = static_cast<class SRWindow::Impl*>(cs->lpCreateParams);
+		auto impl = static_cast<SRWindow::Impl*>(cs->lpCreateParams);
 
 		SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(impl));
 		impl->m_Hwnd = hWnd;
 	}
 
-	auto impl = reinterpret_cast<class SRWindow::Impl*>(
+	auto impl = reinterpret_cast<SRWindow::Impl*>(
 		GetWindowLongPtr(hWnd, GWLP_USERDATA)
 	);
 
@@ -107,7 +107,7 @@ void SRWindow::Impl::create_window(const char* title, int width, int height, SRW
 	}
 
 	m_Hwnd = CreateWindowEx(
-		0,
+		WS_EX_NOREDIRECTIONBITMAP,
 		wndClassEx.lpszClassName,
 		wTitle,
 		windowStyles,

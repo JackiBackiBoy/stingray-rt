@@ -97,7 +97,7 @@ void SREditor::update(SRRenderGraph& renderGraph) {
 
 		ImGui::SeparatorText("Shadows");
 
-		//const auto renderPasses = renderGraph.GetAllPasses();
+		const auto renderPasses = renderGraph.get_all_passes();
 
 		//if (ImGui::BeginListBox("Renderpasses")) {
 		//	LOCAL_PERSIST size_t selectedPassIdx = 0;

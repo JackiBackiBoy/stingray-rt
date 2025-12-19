@@ -12,6 +12,8 @@ SRScene::~SRScene() {
 }
 
 SREntityID SRScene::add_entity(const char* name /*= nullptr*/) {
+	(void)name;
+
 	assert(m_EntityCount < m_MaxEntities);
 	const SREntityID id = m_EntityCount++;
 	m_Entities.push_back(id);

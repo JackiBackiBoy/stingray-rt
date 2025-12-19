@@ -54,6 +54,7 @@ namespace SRGBufferPass {
 		gfxDevice.bind_root_constant_buffer(*frameInfo.perFrameBuffer, cmdList);
 
 		frameInfo.scene->for_each<SRTransform, SRRenderable>([&](SRTransform& t, SRRenderable& r) {
+			(void)t;
 			const SRModel* model = r.model;
 
 			gfxDevice.bind_vertex_buffer(model->vertexBuffer, cmdList);
@@ -67,6 +68,6 @@ namespace SRGBufferPass {
 					gfxDevice.draw_indexed(primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);
 				}
 			}
-			});
+		});
 	}
 }

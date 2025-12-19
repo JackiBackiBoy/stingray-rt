@@ -288,6 +288,8 @@ inline constexpr VkAttachmentLoadOp to_vk_load_op(SRLoadOp value) {
 		return VK_ATTACHMENT_LOAD_OP_CLEAR;
 	case SRLoadOp::DontCare:
 		return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	default:
+		return VK_ATTACHMENT_LOAD_OP_NONE;
 	}
 }
 
@@ -299,6 +301,8 @@ inline constexpr VkAttachmentStoreOp to_vk_store_op(SRStoreOp value) {
 		return VK_ATTACHMENT_STORE_OP_STORE;
 	case SRStoreOp::DontCare:
 		return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	default:
+		return VK_ATTACHMENT_STORE_OP_NONE;
 	}
 }
 

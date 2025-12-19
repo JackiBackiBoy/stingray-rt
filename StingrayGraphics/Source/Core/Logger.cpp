@@ -1,7 +1,7 @@
 #include "Logger.hpp"
 
 void SRLogger::set_level(SRLoggerLevel level) {
-
+	m_Level = level;
 }
 
 SRLogger::~SRLogger() {

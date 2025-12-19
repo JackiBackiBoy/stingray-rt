@@ -17,9 +17,9 @@ using namespace Microsoft::WRL;
 
 #define SR_DX12_CHECK(expr, msg)                                                 \
 	do {                                                                       \
-		HRESULT hr = (expr);                                                 \
-		if (FAILED(hr)) {                                               \
-			SRLOG_ERROR_CAT(SRLOG_CAT_DX12, "%s failed: %s (%d)", msg, "TODO: PARSE ERROR", hr); \
+		HRESULT hResultDX12 = (expr);                                                 \
+		if (FAILED(hResultDX12)) {                                               \
+			SRLOG_ERROR_CAT(SRLOG_CAT_DX12, "%s failed: %s (%d)", msg, "TODO: PARSE ERROR", hResultDX12); \
 			throw std::runtime_error("DX12 error: " msg);                    \
 		}                                                                      \
 	} while (0)
@@ -79,7 +79,7 @@ struct SRResource_DX12 {
 };
 
 struct SRBuffer_DX12 : public SRResource_DX12 {
-
+	SRDescriptorIndex srvDescriptor = INVALID_DESCRIPTOR_INDEX;
 };
 
 struct SRTexture_DX12 : public SRResource_DX12 {
@@ -139,6 +139,8 @@ inline constexpr D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE to_dx12_load_op(SRLoadO
 		return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
 	case SRLoadOp::DontCare:
 		return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+	default:
+		return D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
 	}
 }
 
@@ -149,6 +151,8 @@ inline constexpr D3D12_RENDER_PASS_ENDING_ACCESS_TYPE to_dx12_store_op(SRStoreOp
 	case SRStoreOp::Store:
 		return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
 	case SRStoreOp::DontCare:
+		return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD;
+	default:
 		return D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD;
 	}
 }

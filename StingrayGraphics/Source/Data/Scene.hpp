@@ -35,7 +35,7 @@ public:
 			const auto newGroupSearch = m_Groups.find((1ull << componentID));
 			if (newGroupSearch == m_Groups.end()) { // no group for the signature exists, so create one
 				m_Groups.insert({ (1ull << componentID), SRSparseSet<SREntityID>() });
-				m_Groups[(1 << componentID)].add(entity, entity);
+				m_Groups[(1ull << componentID)].add(entity, entity);
 			}
 			else {
 				newGroupSearch->second.add(entity, entity);

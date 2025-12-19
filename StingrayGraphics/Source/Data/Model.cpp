@@ -6,6 +6,9 @@
 #include <meshoptimizer.h>
 
 namespace {
+	constexpr size_t MAX_VERTICES = 64;
+	constexpr size_t MAX_TRIANGLES = 64;
+
 	void load_gltf_mesh(
 		SRModel& model,
 		SRVertex* vertices,
@@ -142,29 +145,45 @@ namespace SRModelLoader {
 		}
 
 		// Generate meshlets
-		// TODO: We will have to look into if this should be done per mesh, or per model
-		// For now we assume ONE mesh per model
-		//std::vector<uint32_t> remap(numIndices);
-		//const size_t vertexCount = meshopt_generateVertexRemap(
-		//	remap.data(),
-		//	indices,
-		//	numIndices,
-		//	vertices,
-		//	numVertices,
-		//	sizeof(SRVertex)
-		//);
+		// TODO: Might be better to just have ONE global meshlet buffer, look into this
+		std::vector<SRMeshlet> meshlets;
+		std::vector<uint32_t> meshletVertices;
+		std::vector<uint8_t> meshletTriangles;
+		
+		const size_t maxMeshlets = meshopt_buildMeshletsBound(numIndices, MAX_VERTICES, MAX_TRIANGLES);
+		meshlets.resize(maxMeshlets);
+		meshletVertices.resize(maxMeshlets * MAX_VERTICES);
+		meshletTriangles.resize(maxMeshlets * MAX_TRIANGLES * 3);
 
-		//meshopt_remapIndexBuffer(indices, indices, numIndices, remap.data());
-		//meshopt_remapVertexBuffer(vertices, vertices, numVertices, sizeof(SRVertex), remap.data());
+		const size_t meshletCount = meshopt_buildMeshlets(
+			reinterpret_cast<meshopt_Meshlet*>(meshlets.data()),
+			meshletVertices.data(),
+			meshletTriangles.data(),
+			indices,
+			numIndices,
+			reinterpret_cast<const float*>(vertices),
+			numVertices,
+			sizeof(SRVertex),
+			MAX_VERTICES,
+			MAX_TRIANGLES,
+			0.0f // TODO: Cone-weight, look into
+		);
 
-		//meshopt_optimizeVertexCache(indices, indices, numIndices, numVertices);
-		//meshopt_optimizeOverdraw(indices, indices, numIndices, (const float*)vertices, numVertices, sizeof(SRVertex), 1.05f);
+		const SRMeshlet& lastMeshlet = meshlets[meshletCount - 1];
+		meshletVertices.resize(lastMeshlet.vertexOffset + lastMeshlet.vertexCount);
+		meshletTriangles.resize(lastMeshlet.triangleOffset + ((lastMeshlet.triangleCount * 3U + 3U) & ~3U));
+		meshlets.resize(meshletCount);
 
-		//uint32_t* indicesCopy = new uint32_t[numIndices];
-		//std::memcpy(indicesCopy, indices, numIndices * sizeof(uint32_t));
-		//meshopt_optimizeVertexFetchRemap(remap.data(), indices, numIndices, numVertices);
+		for (const SRMeshlet& meshlet : meshlets) {
+			meshopt_optimizeMeshlet(
+				&meshletVertices[meshlet.vertexOffset],
+				&meshletTriangles[meshlet.triangleOffset],
+				meshlet.triangleCount,
+				meshlet.vertexCount
+			);
+		}
 
-		//meshopt_remapIndexBuffer(indices, )
+		// TODO: AABS
 
 		// Create buffers
 		const SRBufferInfo vertexBufferInfo = {
@@ -179,9 +198,18 @@ namespace SRModelLoader {
 			.usage = SRUsage::Default,
 			.bindFlags = SRBindFlag::IndexBuffer
 		};
+		const SRBufferInfo meshletBufferInfo = {
+			.size = meshlets.size() * sizeof(SRMeshlet),
+			.stride = sizeof(SRMeshlet),
+			.usage = SRUsage::Default,
+			.bindFlags = SRBindFlag::ShaderResource,
+			.miscFlags = SRMiscFlag::StructuredBuffer
+		};
 
 		gfxDevice.create_buffer(vertexBufferInfo, model.vertexBuffer, vertices);
 		gfxDevice.create_buffer(indexBufferInfo, model.indexBuffer, indices);
+		gfxDevice.create_buffer(meshletBufferInfo, model.meshletBuffer, meshlets.data());
+		model.numMeshlets = (uint32_t)meshlets.size();
 
 		delete[] vertices;
 		delete[] indices;

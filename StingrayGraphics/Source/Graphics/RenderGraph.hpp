@@ -55,10 +55,10 @@ struct SRRenderPassAttachment {
 	}
 
 	SRTexture texture;
-	uint32_t width;
-	uint32_t height;
+	uint32_t width = 0;
+	uint32_t height = 0;
 	uint32_t mipLevels = 1;
-	float depthClearValue; // NOTE: Only used for depth attachment
+	float depthClearValue = 0.0f; // NOTE: Only used for depth attachment
 	SRFormat format = SRFormat::Unknown;
 	SRSizeClass sizeClass = SRSizeClass::SwapchainRelative;
 	enum class Type : uint8_t {

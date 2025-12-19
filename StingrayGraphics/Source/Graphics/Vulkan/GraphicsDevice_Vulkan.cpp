@@ -2021,7 +2021,7 @@ void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRCmdList& cmdList) {
 void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swapchain) {
 	auto internalSwapchain = to_vk_internal(swapchain);
 
-	const uint32_t numSubmittedCmdLists = m_PerFrameCmdListCounters[m_FrameIndex];
+	const uint32_t numSubmittedCmdLists = (uint32_t)m_PerFrameCmdListCounters[m_FrameIndex];
 	m_PerFrameCmdListCounters[m_FrameIndex] = 0;
 
 	// TODO: Tidy the command buffer submission for different queues to sync.

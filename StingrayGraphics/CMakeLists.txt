@@ -1,12 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(StingrayGraphics LANGUAGES CXX)
 
-# -------------------------------- Build Options -------------------------------
+# --- Build Options -------------------------------------------------------------------------------
 option(BUILD_VULKAN "Build Vulkan" ON)
 option(BUILD_DX12 "Build D3D12" ON)
 
-# ---------------------------------- Settings ----------------------------------
-set(CMAKE_GENERATOR_PLATFORM "x64")
+# --- Settings ------------------------------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -22,21 +21,20 @@ else()
 	set(CMAKE_CXX_FLAGS_RELEASE "-O3 -ffast-math")
 endif()
 
-# -------------------------------- Dependencies --------------------------------
-set(DEPENDENCY_DIR             ${CMAKE_SOURCE_DIR}/Dependencies)
+# --- Dependencies --------------------------------------------------------------------------------
+set(DEPENDENCY_DIR                 ${CMAKE_SOURCE_DIR}/Dependencies)
+set(D3D12MA_INCLUDE_DIR            ${DEPENDENCY_DIR}/D3D12MA/include/)
+set(DXSDK_BIN_DIR                  ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/bin/x64/)
+set(DXSDK_INCLUDE_DIR              ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/include/)
+set(DX_SHADER_COMPILER_BIN_DIR     ${DEPENDENCY_DIR}/DXShaderCompiler/bin/x64/)
+set(DX_SHADER_COMPILER_INCLUDE_DIR ${DEPENDENCY_DIR}/DXShaderCompiler/inc/)
+set(FASTGLTF_INCLUDE_DIR           ${DEPENDENCY_DIR}/FastGLTF/include/)
+set(GLM_INCLUDE_DIR                ${DEPENDENCY_DIR}/GLM/)
+set(IMGUI_INCLUDE_DIR              ${DEPENDENCY_DIR}/ImGui/)
+set(MESH_OPTIMIZER_INCLUDE_DIR     ${DEPENDENCY_DIR}/MeshOptimizer/src/)
+set(VMA_INCLUDE_DIR                ${DEPENDENCY_DIR}/VMA/include/)
 
-set(D3D12MA_INCLUDE_DIR        ${DEPENDENCY_DIR}/D3D12MA/include/)
-set(DXSDK_BIN_DIR              ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/bin/x64/)
-set(DXSDK_INCLUDE_DIR          ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/include/)
-set(FASTGLTF_INCLUDE_DIR       ${DEPENDENCY_DIR}/FastGLTF/include/)
-set(GLM_INCLUDE_DIR            ${DEPENDENCY_DIR}/GLM/)
-set(IMGUI_INCLUDE_DIR          ${DEPENDENCY_DIR}/ImGui/)
-set(MESH_OPTIMIZER_INCLUDE_DIR ${DEPENDENCY_DIR}/MeshOptimizer/src/)
-set(SLANG_INCLUDE_DIR          ${DEPENDENCY_DIR}/Slang/include/)
-set(SLANG_LIBRARY_DIR          ${DEPENDENCY_DIR}/Slang/lib/)
-set(VMA_INCLUDE_DIR            ${DEPENDENCY_DIR}/VMA/include/)
-
-# -------------------------------- Source Files --------------------------------
+# --- Source Files --------------------------------------------------------------------------------
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 set(SOURCE_FILES
 	${SOURCE_DIR}/Main.cpp
@@ -96,6 +94,8 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.hpp
 	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.cpp
 	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.hpp
 
 	# Input
 	${SOURCE_DIR}/Input/Input.cpp
@@ -175,6 +175,8 @@ source_group("Graphics/Renderpasses" FILES
 	${SOURCE_DIR}/Graphics/Renderpasses/GBufferPass.hpp
 	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.cpp
 	${SOURCE_DIR}/Graphics/Renderpasses/CompositionPass.hpp
+	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.cpp
+	${SOURCE_DIR}/Graphics/Renderpasses/MeshletGenerationPass.hpp
 )
 
 source_group("Input" FILES
@@ -198,9 +200,18 @@ add_executable(
 	${SOURCE_FILES}
 )
 
-target_compile_options(StingrayGraphics PRIVATE
-	/W4
-)
+if (MSVC)
+	target_compile_options(StingrayGraphics PRIVATE
+		/W3
+		/WX
+	)
+else()
+	target_compile_options(StingrayGraphics PRIVATE
+		-Wall
+		-Wextra
+		-Werror
+	)
+endif()
 
 # ------------------------------- Target Sources -------------------------------
 # ImGui
@@ -249,18 +260,14 @@ target_include_directories(StingrayGraphics PRIVATE
 	${SOURCE_DIR}
 	${D3D12MA_INCLUDE_DIR}
 	${DXSDK_INCLUDE_DIR}
+	${DX_SHADER_COMPILER_INCLUDE_DIR}
 	${FASTGLTF_INCLUDE_DIR}
 	${GLM_INCLUDE_DIR}
 	${IMGUI_INCLUDE_DIR}
 	${IMGUI_INCLUDE_DIR}backends/
 	${MESH_OPTIMIZER_INCLUDE_DIR}
-	${SLANG_INCLUDE_DIR}
 	${VMA_INCLUDE_DIR}
 	${WIN32_RES_DIR}
-)
-
-target_link_directories(StingrayGraphics PRIVATE
-	${SLANG_LIBRARY_DIR}
 )
 
 target_link_libraries(StingrayGraphics
@@ -271,8 +278,8 @@ target_link_libraries(StingrayGraphics
 	DXGUID
 	Dwmapi
 	fastgltf
+	meshoptimizer
 	volk::volk
-	slang
 )
 
 target_link_options(StingrayGraphics PRIVATE "/MANIFEST:NO")
@@ -282,10 +289,14 @@ add_custom_command(
 	TARGET StingrayGraphics POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_directory
 		"${DXSDK_BIN_DIR}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/D3D12"
+	COMMAND ${CMAKE_COMMAND} -E copy
+		"${DX_SHADER_COMPILER_BIN_DIR}/dxcompiler.dll" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>"
+	COMMAND ${CMAKE_COMMAND} -E copy
+		"${DX_SHADER_COMPILER_BIN_DIR}/dxil.dll" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>"
 
-	COMMENT "Copying DirectX 12 Agility SDK to Bin/$<CONFIG>"
+	COMMENT "Copying DirectX 12 Agility SDK and DirectX Shader Compiler"
 )
 
 add_custom_target(CopyDependenciesDX12 ALL DEPENDS StingrayGraphics
-	COMMENT "Copying DirectX 12 Agility to runtime output directory"
+	COMMENT "Copying DirectX 12 Agility and DirectX Shader Compiler to runtime output directory"
 )

@@ -1,4 +1,4 @@
-#include "Includes/Bindless.slang"
+#include "Includes/Bindless.hlsl"
 
 SR_PUSH_CONSTANT(SRDescriptorIndex, g_AlbedoTexIndex);
 

@@ -15,7 +15,7 @@ struct SRMonitorEnumerator::Impl {
 	static BOOL monitor_enum_proc(HMONITOR monitor, HDC hdc, LPRECT lpRect, LPARAM lParam);
 };
 
-BOOL SRMonitorEnumerator::Impl::monitor_enum_proc(HMONITOR monitor, HDC hdc, LPRECT lpRect, LPARAM lParam) {
+BOOL SRMonitorEnumerator::Impl::monitor_enum_proc(HMONITOR monitor, HDC, LPRECT, LPARAM lParam) {
 	Impl* impl = reinterpret_cast<Impl*>(lParam);
 	assert(impl);
 
@@ -43,7 +43,7 @@ std::vector<SRMonitorInfo> SRMonitorEnumerator::enumerate() {
 	EnumDisplayMonitors(
 		nullptr,
 		nullptr,
-		[](HMONITOR hMonitor, HDC hdc, LPRECT lpRect, LPARAM lParam) -> BOOL {
+		[](HMONITOR hMonitor, HDC, LPRECT, LPARAM lParam) -> BOOL {
 			auto monitors = reinterpret_cast<std::vector<SRMonitorInfo>*>(lParam);
 
 			MONITORINFOEX mi = {};

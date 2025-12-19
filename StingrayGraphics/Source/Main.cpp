@@ -13,6 +13,7 @@
 #include "Graphics/Renderpasses/DepthPrepass.hpp"
 #include "Graphics/Renderpasses/GBufferPass.hpp"
 #include "Graphics/Renderpasses/CompositionPass.hpp"
+#include "Graphics/Renderpasses/MeshletGenerationPass.hpp"
 #include "Graphics/ShaderCompiler.hpp"
 #include "Input/Input.hpp"
 #include "UI/Editor.hpp"
@@ -66,6 +67,11 @@ int APIENTRY wWinMain(
 	_In_ LPWSTR lpCmdLine,
 	_In_ int nCmdShow
 ) {
+	UNREFERENCED_PARAMETER(hInstance);
+	UNREFERENCED_PARAMETER(hPrevInstance);
+	UNREFERENCED_PARAMETER(lpCmdLine);
+	UNREFERENCED_PARAMETER(nCmdShow);
+
 #ifdef _DEBUG
 	init_console();
 #endif
@@ -143,10 +149,10 @@ void init_window() {
 }
 
 void init_graphics() {
-	if (g_API == SRGraphicsAPI::Vulkan) {
+	if constexpr (g_API == SRGraphicsAPI::Vulkan) {
 		g_GfxDevice = std::make_unique<SRGraphicsDevice_Vulkan>(*g_Window);
 	}
-	else if (g_API == SRGraphicsAPI::DX12) {
+	else if constexpr (g_API == SRGraphicsAPI::DX12) {
 		g_GfxDevice = std::make_unique<SRGraphicsDevice_DX12>(*g_Window);
 	}
 	g_ShaderCompiler = std::make_unique<SRShaderCompiler>(g_GfxDevice->get_shader_platform_info());
@@ -209,18 +215,24 @@ void init_rendergraph() {
 	auto& depthPrepass = g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::Graphics)
 		.add_depth_output("Depth", WIDTH, HEIGHT, SRFormat::D32_FLOAT)
 		.set_execute_callback(SRDepthPrepass::execute);
-		SRDepthPrepass::build(depthPrepass, *g_GfxDevice, *g_ShaderCompiler);
+	SRDepthPrepass::build(depthPrepass, *g_GfxDevice, *g_ShaderCompiler);
 
 	auto& gBufferPass = g_RenderGraph->add_render_pass("GBufferPass", SRPassType::Graphics)
 		.add_depth_input("Depth")
 		.add_color_output("GBufferAlbedo", WIDTH, HEIGHT, SRFormat::RGBA8_UNORM)
 		.set_execute_callback(SRGBufferPass::execute);
-		SRGBufferPass::build(gBufferPass, *g_GfxDevice, *g_ShaderCompiler);
+	SRGBufferPass::build(gBufferPass, *g_GfxDevice, *g_ShaderCompiler);
 
 	auto& compositionPass = g_RenderGraph->add_render_pass("CompositionPass", SRPassType::Graphics)
 		.add_color_input("GBufferAlbedo", SRAccessFlag::Read)
 		.set_execute_callback(SRCompositionPass::execute);
-		SRCompositionPass::build(compositionPass, *g_GfxDevice, *g_ShaderCompiler);
+	SRCompositionPass::build(compositionPass, *g_GfxDevice, *g_ShaderCompiler);
+
+	// TODO: Update render graph to respect mesh shading pipeline
+	//auto& meshletPass = g_RenderGraph->add_render_pass("MeshletPass", SRPassType::Graphics)
+	//	.set_execute_callback(SRMeshletGenerationpass::execute);
+	//SRMeshletGenerationpass::build(meshletPass, *g_GfxDevice, *g_ShaderCompiler);
+	//(void)meshletPass;
 
 	auto& imguiPass = g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::Graphics)
 		.set_execute_callback([&](SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {

@@ -28,9 +28,19 @@ struct SRVertex {
 struct SRModel {
 	std::vector<SRMesh> meshes;
 	std::vector<SRMeshPrimitive> primitives;
+	uint32_t numMeshlets;
 
 	SRBuffer vertexBuffer;
 	SRBuffer indexBuffer;
+	SRBuffer meshletBuffer;
+};
+
+// TODO: Move elsewhere
+struct SRMeshlet {
+	uint32_t vertexOffset;
+	uint32_t triangleOffset;
+	uint32_t vertexCount;
+	uint32_t triangleCount;
 };
 
 // TODO: Move to unified resource manager perhaps?
