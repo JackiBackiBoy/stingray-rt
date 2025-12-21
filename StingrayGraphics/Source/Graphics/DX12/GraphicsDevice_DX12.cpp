@@ -47,6 +47,7 @@ struct SRGraphicsDevice_DX12::Impl {
 	void push_constants(const void* data, u32 size, const SRCmdList& cmdList);
 	void barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList);
 
+	void begin_frame(const SRSwapchain& swapchain);
 	SRCmdList begin_command_list(SRQueue queue);
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
 	void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
@@ -1067,7 +1068,6 @@ SRCmdList SRGraphicsDevice_DX12::Impl::begin_command_list(SRQueue queue) {
 void SRGraphicsDevice_DX12::Impl::begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
 	auto internalSwapchain = to_dx12_internal(swapchain);
 	auto internalCmdList = to_dx12_internal(cmdList);
-	m_ImageIndex = internalSwapchain->swapchain->GetCurrentBackBufferIndex();
 
 	// NOTE: Stingray always assumes that the swapchain will never be cleared,
 	// and thus we assume an immediate overwrite of the swapchain backbuffer.
@@ -1203,14 +1203,14 @@ void SRGraphicsDevice_DX12::Impl::end_render_pass(const SRCmdList& cmdList) {
 }
 
 void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapchain) {
-	auto internalSwapchain = to_dx12_internal(swapchain);
-	const u32 numSubmittedCmdLists = (u32)m_PerFrameCmdListCounters[m_FrameIndex];
+	auto* internalSwapchain = to_dx12_internal(swapchain);
+	u32 numSubmittedCmdLists = (u32)m_PerFrameCmdListCounters[m_FrameIndex];
 	m_PerFrameCmdListCounters[m_FrameIndex] = 0ULL;
 
 	std::vector<ID3D12CommandList*> cmdListsToSubmit;
 	cmdListsToSubmit.reserve(numSubmittedCmdLists);
 	for (u32 i = 0; i < numSubmittedCmdLists; ++i) {
-		const SRCmdList_DX12* cmdList = m_PerFrameCmdLists[m_FrameIndex][i].get();
+		SRCmdList_DX12* cmdList = m_PerFrameCmdLists[m_FrameIndex][i].get();
 		SR_DX12_CHECK(cmdList->graphicsCmdList->Close(), "Close command list");
 		cmdListsToSubmit.push_back(cmdList->graphicsCmdList.Get());
 	}
@@ -1225,25 +1225,13 @@ void SRGraphicsDevice_DX12::Impl::submit_command_lists(const SRSwapchain& swapch
 		m_NextGPUSignalValue
 	), "Signal fence");
 
-	const UINT syncInterval = swapchain.info.vSync ? 1 : 0;
-	const UINT presentFlags = m_IsTearingSupported && !swapchain.info.vSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
+	UINT syncInterval = swapchain.info.vSync ? 1 : 0;
+	UINT presentFlags = m_IsTearingSupported && !swapchain.info.vSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
 	internalSwapchain->swapchain->Present(syncInterval, presentFlags);
 
 	m_FrameDoneValues[SRQueue_Universal][m_FrameIndex] = m_NextGPUSignalValue++;
+	m_FrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
 	++m_FrameCounter;
-	const u32 nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
-
-	// Await frame value
-	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
-		const u64 needed = m_FrameDoneValues[SRQueue_Universal][nextFrameIndex];
-		const u64 current = m_FrameFences[SRQueue_Universal]->GetCompletedValue();
-
-		if (current < needed) {
-			SR_DX12_CHECK(m_FrameFences[SRQueue_Universal]->SetEventOnCompletion(needed, nullptr), "Wait for fence");
-		}
-	}
-
-	m_FrameIndex = nextFrameIndex;
 }
 
 SRShaderPlatformInfo SRGraphicsDevice_DX12::Impl::get_shader_platform_info() {
@@ -1366,6 +1354,20 @@ void SRGraphicsDevice_DX12::Impl::dispatch_mesh(u32 groupCountX, u32 groupCountY
 	internalCmdList->graphicsCmdList->DispatchMesh(groupCountX, groupCountY, groupCountZ);
 }
 
+void SRGraphicsDevice_DX12::Impl::begin_frame(const SRSwapchain& swapchain) {
+	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
+		u64 needed = m_FrameDoneValues[SRQueue_Universal][m_FrameIndex];
+		u64 current = m_FrameFences[SRQueue_Universal]->GetCompletedValue();
+
+		if (current < needed) {
+			SR_DX12_CHECK(m_FrameFences[SRQueue_Universal]->SetEventOnCompletion(needed, nullptr), "Wait for fence");
+		}
+	}
+
+	auto* internalSwapchain = to_dx12_internal(swapchain);
+	m_ImageIndex = internalSwapchain->swapchain->GetCurrentBackBufferIndex();
+}
+
 // --------------------------------- Public API --------------------------------
 SRGraphicsDevice_DX12::SRGraphicsDevice_DX12(SRWindow& window) : SRGraphicsDevice(window) {
 	m_Impl = new Impl(window);
@@ -1435,6 +1437,10 @@ void SRGraphicsDevice_DX12::push_constants(const void* data, u32 size, const SRC
 
 void SRGraphicsDevice_DX12::barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) {
 	m_Impl->barrier(pBarriers, numBarriers, cmdList);
+}
+
+void SRGraphicsDevice_DX12::begin_frame(const SRSwapchain& swapchain) {
+	m_Impl->begin_frame(swapchain);
 }
 
 SRCmdList SRGraphicsDevice_DX12::begin_command_list(SRQueue queue) {

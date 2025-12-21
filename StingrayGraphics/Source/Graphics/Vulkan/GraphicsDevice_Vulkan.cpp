@@ -58,7 +58,7 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	u32 m_QueueIndices[SRQueue_COUNT] = {};
 	VkSemaphore m_FrameFences[SRQueue_COUNT] = {};
 	VkSemaphore m_ImageAvailableSemaphores[FRAMES_IN_FLIGHT] = {};
-	VkSemaphore m_RenderFinishedSemaphores[FRAMES_IN_FLIGHT] = {};
+	VkSemaphore m_RenderFinishedSemaphores[3] = {};
 	VkDescriptorPool m_DescriptorPool = VK_NULL_HANDLE;
 	VkDescriptorSet m_ResourceDescriptorSet = VK_NULL_HANDLE; // CBV/SRV/UAV descriptor set
 	VkDescriptorSetLayout m_ResourceDescriptorSetLayout = VK_NULL_HANDLE;
@@ -101,6 +101,7 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	void push_constants(const void* data, u32 size, const SRCmdList& cmdList);
 	void barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList);
 
+	void begin_frame(const SRSwapchain& swapchain);
 	SRCmdList begin_command_list(SRQueue queue);
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList);
 	void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList);
@@ -755,7 +756,10 @@ void SRGraphicsDevice_Vulkan::Impl::create_sync_objects() {
 	semaphoreInfo.pNext = nullptr;
 	for (u32 f = 0; f < FRAMES_IN_FLIGHT; ++f) {
 		SR_VK_CHECK(vkCreateSemaphore(m_Device, &semaphoreInfo, nullptr, &m_ImageAvailableSemaphores[f]), "Image-available semaphore creation");
-		SR_VK_CHECK(vkCreateSemaphore(m_Device, &semaphoreInfo, nullptr, &m_RenderFinishedSemaphores[f]), "Render-finished semaphore creation");
+	}
+
+	for (u32 b = 0; b < 3; ++b) {
+		SR_VK_CHECK(vkCreateSemaphore(m_Device, &semaphoreInfo, nullptr, &m_RenderFinishedSemaphores[b]), "Render-finished semaphore creation");
 	}
 }
 
@@ -1852,6 +1856,32 @@ void SRGraphicsDevice_Vulkan::Impl::barrier(const SRBarrier* pBarriers, u32 numB
 	vkCmdPipelineBarrier2(internalCmdList->cmdBuffer, &dependencyInfo);
 }
 
+void SRGraphicsDevice_Vulkan::Impl::begin_frame(const SRSwapchain& swapchain) {
+	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
+		u64 needed = m_FrameDoneValue[SRQueue_Universal][m_FrameIndex];
+
+		VkSemaphoreWaitInfo waitInfo = {
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+			.semaphoreCount = 1,
+			.pSemaphores = &m_FrameFences[SRQueue_Universal],
+			.pValues = &needed
+		};
+
+		SR_VK_CHECK(vkWaitSemaphores(m_Device, &waitInfo, UINT64_MAX), "Wait for semaphore");
+	}
+	m_DestructionHandler->update(m_FrameCounter, FRAMES_IN_FLIGHT);
+
+	auto* internalSwapchain = to_vk_internal(swapchain);
+	SR_VK_CHECK(vkAcquireNextImageKHR(
+		m_Device,
+		internalSwapchain->swapchain,
+		UINT64_MAX,
+		m_ImageAvailableSemaphores[m_FrameIndex],
+		nullptr,
+		&m_ImageIndex
+	), "Acquire next swapchain image");
+}
+
 SRCmdList SRGraphicsDevice_Vulkan::Impl::begin_command_list(SRQueue queue) {
 	size_t& cmdListCounter = m_PerFrameCmdListCounters[m_FrameIndex];
 	auto& cmdLists = m_PerFrameCmdLists[m_FrameIndex];
@@ -1862,7 +1892,7 @@ SRCmdList SRGraphicsDevice_Vulkan::Impl::begin_command_list(SRQueue queue) {
 
 	auto internalCmdList = cmdLists[cmdListCounter].get();
 	if (internalCmdList->cmdBuffer == VK_NULL_HANDLE) {
-		const VkCommandBufferAllocateInfo allocInfo = {
+		VkCommandBufferAllocateInfo allocInfo = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 			.commandPool = m_CommandPools[queue][m_FrameIndex],
 			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -1890,15 +1920,6 @@ SRCmdList SRGraphicsDevice_Vulkan::Impl::begin_command_list(SRQueue queue) {
 void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) {
 	auto internalSwapchain = to_vk_internal(swapchain);
 	auto internalCmdList = to_vk_internal(cmdList);
-
-	SR_VK_CHECK(vkAcquireNextImageKHR(
-		m_Device,
-		internalSwapchain->swapchain,
-		UINT64_MAX,
-		m_ImageAvailableSemaphores[m_FrameIndex],
-		nullptr,
-		&m_ImageIndex
-	), "Acquire next swapchain image");
 
 	const SRImageTransitionInfo transitionInfo = {
 		.image = internalSwapchain->images[m_ImageIndex],
@@ -1985,10 +2006,16 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRPassInfo& passInfo
 		renderArea.extent.width = std::max(renderArea.extent.width, depthAttachment.texture->info.width);
 		renderArea.extent.height = std::max(renderArea.extent.height, depthAttachment.texture->info.height);
 
+		// TODO JACK: The problem here is that for read-only depth, the image layout of VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL is incorrect
+		// Thank me later ;)
+		// TODO: This is perhaps not ideal, but we assume that it's read-only depth input if the
+		// store-op is SRStoreOp::None
+		bool isReadOnlyDepth = depthAttachment.storeOp == SRStoreOp::None;
+
 		depthAttachmentInfo = {
 			.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
 			.imageView = internalTexture->imageView,
-			.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			.imageLayout = isReadOnlyDepth ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 			.loadOp = to_vk_load_op(depthAttachment.loadOp),
 			.storeOp = to_vk_store_op(depthAttachment.storeOp),
 			.clearValue = { .depthStencil = { depthAttachment.clearValue } }
@@ -2045,7 +2072,7 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 	std::vector<VkCommandBufferSubmitInfo> vkCmdBuffersToSubmit;
 	vkCmdBuffersToSubmit.reserve(numSubmittedCmdLists);
 	for (u32 i = 0; i < numSubmittedCmdLists; ++i) {
-		const SRCmdList_Vulkan* cmdList = m_PerFrameCmdLists[m_FrameIndex][i].get();
+		SRCmdList_Vulkan* cmdList = m_PerFrameCmdLists[m_FrameIndex][i].get();
 		SR_VK_CHECK(vkEndCommandBuffer(cmdList->cmdBuffer), "End command buffer recording");
 
 		const VkCommandBufferSubmitInfo cmdBufferSubmitInfo = {
@@ -2057,29 +2084,26 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 		vkCmdBuffersToSubmit.push_back(cmdBufferSubmitInfo);
 	}
 
-	const VkSemaphoreSubmitInfo waitSemaphoreInfo = {
+	VkSemaphoreSubmitInfo waitSemaphoreInfo = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		.semaphore = m_ImageAvailableSemaphores[m_FrameIndex],
 		.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 		.deviceIndex = 0
 	};
-
-	const VkSemaphoreSubmitInfo fenceSignalSemaphoreInfo = {
+	VkSemaphoreSubmitInfo fenceSignalSemaphoreInfo = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		.semaphore = m_FrameFences[SRQueue_Universal],
 		.value = m_NextGPUSignalValue,
 		.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 		.deviceIndex = 0
 	};
-
-	const VkSemaphoreSubmitInfo renderFinishedSignalSemaphoreInfo = {
+	VkSemaphoreSubmitInfo renderFinishedSignalSemaphoreInfo = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		.semaphore = m_RenderFinishedSemaphores[m_FrameIndex],
+		.semaphore = m_RenderFinishedSemaphores[m_ImageIndex],
 		.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 		.deviceIndex = 0
 	};
-
-	const std::vector<VkSemaphoreSubmitInfo> signalSemaphores = {
+	std::vector<VkSemaphoreSubmitInfo> signalSemaphores = {
 		fenceSignalSemaphoreInfo,
 		renderFinishedSignalSemaphoreInfo
 	};
@@ -2098,37 +2122,18 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 	const VkPresentInfoKHR presentInfo = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &m_RenderFinishedSemaphores[m_FrameIndex],
+		.pWaitSemaphores = &m_RenderFinishedSemaphores[m_ImageIndex],
 		.swapchainCount = 1,
 		.pSwapchains = &internalSwapchain->swapchain,
 		.pImageIndices = &m_ImageIndex
 	};
+
 	SR_VK_CHECK(vkQueuePresentKHR(m_CommandQueues[SRQueue_Universal], &presentInfo), "Swapchain present");
 
 	// Await frame value
 	m_FrameDoneValue[SRQueue_Universal][m_FrameIndex] = m_NextGPUSignalValue++;
+	m_FrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
 	++m_FrameCounter;
-	const u32 nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
-
-	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
-		u64 needed = m_FrameDoneValue[SRQueue_Universal][nextFrameIndex];
-		u64 current = 0;
-		SR_VK_CHECK(vkGetSemaphoreCounterValue(m_Device, m_FrameFences[SRQueue_Universal], &current), "Get semaphore counter value");
-
-		if (current < needed) {
-			const VkSemaphoreWaitInfo waitInfo = {
-				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-				.semaphoreCount = 1,
-				.pSemaphores = &m_FrameFences[SRQueue_Universal],
-				.pValues = &needed
-			};
-
-			SR_VK_CHECK(vkWaitSemaphores(m_Device, &waitInfo, UINT64_MAX), "Wait for semaphore");
-		}
-	}
-
-	m_DestructionHandler->update(m_FrameCounter, FRAMES_IN_FLIGHT);
-	m_FrameIndex = nextFrameIndex;
 }
 
 void SRGraphicsDevice_Vulkan::Impl::draw(u32 vtxCount, u32 startVtx, const SRCmdList& cmdList) {
@@ -2362,6 +2367,10 @@ void SRGraphicsDevice_Vulkan::push_constants(const void* data, u32 size, const S
 
 void SRGraphicsDevice_Vulkan::barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) {
 	m_Impl->barrier(pBarriers, numBarriers, cmdList);
+}
+
+void SRGraphicsDevice_Vulkan::begin_frame(const SRSwapchain& swapchain) {
+	m_Impl->begin_frame(swapchain);
 }
 
 SRCmdList SRGraphicsDevice_Vulkan::begin_command_list(SRQueue queue) {

@@ -127,8 +127,6 @@ void SRWindow::Impl::create_window(const char* title, int width, int height, SRW
 
 LRESULT SRWindow::Impl::window_proc(UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
-	case WM_ERASEBKGND:
-		return TRUE;
 	case WM_CLOSE:
 		DestroyWindow(m_Hwnd);
 		return 0;

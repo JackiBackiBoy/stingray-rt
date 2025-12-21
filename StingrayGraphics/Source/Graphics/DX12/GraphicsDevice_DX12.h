@@ -23,6 +23,7 @@ public:
 	void push_constants(const void* data, u32 size, const SRCmdList& cmdList) override;
 	void barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) override;
 
+	void begin_frame(const SRSwapchain& swapchain) override;
 	SRCmdList begin_command_list(SRQueue queue) override;
 	void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) override;
 	void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) override;

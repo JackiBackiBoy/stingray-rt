@@ -95,7 +95,7 @@ void SREditor::update(SRRenderGraph& renderGraph) {
 		ImGui::Text("FPS: %llu", fps);
 		ImGui::Text("Frame Time: %.2f ms", deltaTime * 1000.0);
 		ImGui::Text("Avg Frame Time: %.2f ms", avgFrameTime * 1000.0);
-		SRLOG_DEBUG("Frame Time: %.2f ms", deltaTime * 1000.0);
+		//SRLOG_DEBUG("Frame Time: %.2f ms", deltaTime * 1000.0);
 
 		ImGui::SeparatorText("Shadows");
 

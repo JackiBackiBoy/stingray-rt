@@ -112,8 +112,9 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 	#if defined(_DEBUG)
 		args[argCount++] = DXC_ARG_DEBUG;
 		args[argCount++] = DXC_ARG_SKIP_OPTIMIZATIONS;
+	#else
+		args[argCount++] = DXC_ARG_OPTIMIZATION_LEVEL3;
 	#endif
-	// TODO: Add O3 flag in release mode?
 
 	DxcBuffer srcBuffer = { .Ptr = shaderCode.data(), .Size = shaderCode.size(), .Encoding = 0 };
 	IDxcResult* compiledShaderBuffer = nullptr;

@@ -25,6 +25,7 @@ public:
 	virtual void push_constants(const void* data, u32 size, const SRCmdList& cmdList) = 0;
 	virtual void barrier(const SRBarrier* pBarriers, u32 numBarriers, const SRCmdList& cmdList) = 0;
 
+	virtual void begin_frame(const SRSwapchain& swapchain) = 0;
 	virtual SRCmdList begin_command_list(SRQueue quee) = 0;
 	virtual void begin_render_pass(const SRSwapchain& swapchain, const SRCmdList& cmdList) = 0;
 	virtual void begin_render_pass(const SRPassInfo& passInfo, const SRCmdList& cmdList) = 0;
