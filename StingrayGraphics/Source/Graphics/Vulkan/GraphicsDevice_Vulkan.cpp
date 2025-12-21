@@ -165,7 +165,10 @@ SRGraphicsDevice_Vulkan::Impl::~Impl() {
 	// Semaphores
 	for (u32 f = 0; f < FRAMES_IN_FLIGHT; f++) {
 		m_DestructionHandler->enqueue(m_ImageAvailableSemaphores[f]);
-		m_DestructionHandler->enqueue(m_RenderFinishedSemaphores[f]);
+
+	}
+	for (u32 b = 0; b < 3; ++b) {
+		m_DestructionHandler->enqueue(m_RenderFinishedSemaphores[b]);
 	}
 
 	// Descriptor pool

@@ -34,7 +34,7 @@ struct alignas(256) PerFrameData {
 
 // NOTE: Trick for making sure that the logger exists longer than all other objects
 static auto& logger = SRLogger::get();
-static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::DX12;
+static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::Vulkan;
 static constexpr int WIDTH = 1920;
 static constexpr int HEIGHT = 1080;
 
