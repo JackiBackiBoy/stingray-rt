@@ -438,37 +438,7 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 
 	const D3D12_ROOT_PARAMETER1 rootConstant = {
 		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
-		.Constants = {.ShaderRegister = 0, .RegisterSpace = 0, .Num32BitValues = 32 /* 128 bytes */ },
-		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
-	};
-	const D3D12_DESCRIPTOR_RANGE1 texture2DRange = { 
-		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-		.NumDescriptors = UINT_MAX,
-		.RegisterSpace = 1,
-		.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE,
-		.OffsetInDescriptorsFromTableStart = 0
-	};
-	const D3D12_DESCRIPTOR_RANGE1 samplerRange = {
-		.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER,
-		.NumDescriptors = UINT_MAX,
-		.RegisterSpace = 1,
-		.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE,
-		.OffsetInDescriptorsFromTableStart = 0
-	};
-	const D3D12_ROOT_PARAMETER1 srvTable = {
-		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
-		.DescriptorTable = {
-			.NumDescriptorRanges = 1,
-			.pDescriptorRanges = &texture2DRange
-		},
-		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
-	};
-	const D3D12_ROOT_PARAMETER1 samplerTable = {
-		.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
-		.DescriptorTable = {
-			.NumDescriptorRanges = 1,
-			.pDescriptorRanges = &samplerRange
-		},
+		.Constants = { .ShaderRegister = 0, .RegisterSpace = 0, .Num32BitValues = 32 /* 128 bytes */ },
 		.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL
 	};
 	const D3D12_ROOT_PARAMETER1 perFrameCBV = {
@@ -482,12 +452,10 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 	};
 	const D3D12_ROOT_PARAMETER1 rootParameters[] = {
 		rootConstant, // Root Parameter 0
-		srvTable,     // Root Parameter 1
-		samplerTable, // Root Parameter 2
-		perFrameCBV   // Root Parameter 3
+		perFrameCBV   // Root Parameter 1
 	};
 
-	struct D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc {
+	D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc {
 		.Version = D3D_ROOT_SIGNATURE_VERSION_1_1,
 		.Desc_1_1 = {
 			.NumParameters = static_cast<UINT>(std::size(rootParameters)),
@@ -495,9 +463,16 @@ void SRGraphicsDevice_DX12::Impl::create_pipeline(const SRPipelineInfo& info, SR
 			.NumStaticSamplers = 0,
 			.pStaticSamplers = nullptr,
 			// TODO: Improve this logic
-			.Flags = info.meshShader ? D3D12_ROOT_SIGNATURE_FLAG_NONE : D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+			.Flags = (
+				D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
+				D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED
+			)
 		}
 	};
+
+	if (!info.meshShader) {
+		rootSignatureDesc.Desc_1_1.Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	}
 
 	ComPtr<ID3DBlob> rootSignatureBlob = nullptr;
 	ComPtr<ID3DBlob> rootSignatureErrorBlob = nullptr;
@@ -943,12 +918,6 @@ void SRGraphicsDevice_DX12::Impl::bind_pipeline(const SRPipeline& pipeline, cons
 	internalCmdList->graphicsCmdList->SetPipelineState(internalPipeline->pipeline.Get());
 	internalCmdList->graphicsCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	internalCmdList->graphicsCmdList->SetGraphicsRootSignature(internalPipeline->rootSignature.Get());
-	internalCmdList->graphicsCmdList->SetGraphicsRootDescriptorTable(
-		1, m_ResourceDescriptorHeap.get_heap_object()->GetGPUDescriptorHandleForHeapStart()
-	);
-	internalCmdList->graphicsCmdList->SetGraphicsRootDescriptorTable(
-		2, m_SamplerDescriptorHeap.get_heap_object()->GetGPUDescriptorHandleForHeapStart()
-	);
 }
 
 void SRGraphicsDevice_DX12::Impl::bind_viewport(const SRViewport& viewport, const SRCmdList& cmdList) {
@@ -999,7 +968,7 @@ void SRGraphicsDevice_DX12::Impl::bind_root_constant_buffer(const SRBuffer& buff
 	auto* internalCmdList = to_dx12_internal(cmdList);
 
 	internalCmdList->graphicsCmdList->SetGraphicsRootConstantBufferView(
-		3,
+		1,
 		internalBuffer->allocation->GetResource()->GetGPUVirtualAddress()
 	);
 }

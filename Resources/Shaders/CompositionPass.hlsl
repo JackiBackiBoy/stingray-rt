@@ -3,7 +3,6 @@
 struct PushConstants {
 	uint albedoTexIndex;
 };
-SR_PUSH_CONSTANT(PushConstants, g_Push);
 
 struct VSOutput {
 	float4 position : SV_Position;
@@ -13,6 +12,8 @@ struct VSOutput {
 struct PSOutput {
 	float4 color : SV_Target0;
 };
+
+SR_PUSH_CONSTANT(PushConstants, g_Push);
 
 VSOutput vertexMain(uint VertexID : SV_VertexID) {
 	// TRICK: Fullscreen triangle
@@ -24,8 +25,9 @@ VSOutput vertexMain(uint VertexID : SV_VertexID) {
 }
 
 PSOutput pixelMain(VSOutput input) {
-	SamplerState sampler = g_Sampler[0]; // TODO: Remove hardcoded
-	float4 albedo = g_Texture2D[g_Push.albedoTexIndex].Sample(sampler, input.uv);
+	SamplerState sampler = SamplerDescriptorHeap[0]; // TODO: Remove hardcoded
+	Texture2D<float4> albedoTex = ResourceDescriptorHeap[g_Push.albedoTexIndex];
+	float4 albedo = albedoTex.Sample(sampler, input.uv).rgba;
 
 	PSOutput output;
 	output.color = albedo;

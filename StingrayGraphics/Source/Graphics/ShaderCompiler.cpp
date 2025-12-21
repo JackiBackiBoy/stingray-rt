@@ -99,6 +99,13 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 	if (m_ShaderPlatformInfo.target == SRShaderCompileTarget::SPIRV) {
 		args[argCount++] = L"-spirv";
 		args[argCount++] = L"-fspv-target-env=vulkan1.3";
+		args[argCount++] = L"-fvk-use-dx-layout";
+		args[argCount++] = L"-fvk-bind-resource-heap";
+		args[argCount++] = L"0"; // set
+		args[argCount++] = L"0"; // binding
+		args[argCount++] = L"-fvk-bind-sampler-heap";
+		args[argCount++] = L"0"; // set
+		args[argCount++] = L"1"; // binding
 		args[argCount++] = L"-DSR_VULKAN";
 	}
 

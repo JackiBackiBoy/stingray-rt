@@ -34,7 +34,7 @@ struct alignas(256) PerFrameData {
 
 // NOTE: Trick for making sure that the logger exists longer than all other objects
 static auto& logger = SRLogger::get();
-static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::DX12;
+static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::Vulkan;
 static constexpr int WIDTH = 1920;
 static constexpr int HEIGHT = 1080;
 
@@ -67,14 +67,9 @@ int APIENTRY wWinMain(
 	LPWSTR lpCmdLine,
 	int nCmdShow
 ) {
-	UNREFERENCED_PARAMETER(hInstance);
-	UNREFERENCED_PARAMETER(hPrevInstance);
-	UNREFERENCED_PARAMETER(lpCmdLine);
-	UNREFERENCED_PARAMETER(nCmdShow);
-
-#ifdef _DEBUG
-	init_console();
-#endif
+	#ifdef _DEBUG
+		init_console();
+	#endif
 
 	init_window();
 	init_graphics();
@@ -232,7 +227,6 @@ void init_rendergraph() {
 	//auto& meshletPass = g_RenderGraph->add_render_pass("MeshletPass", SRPassType::Graphics)
 	//	.set_execute_callback(SRMeshletGenerationpass::execute);
 	//SRMeshletGenerationpass::build(meshletPass, *g_GfxDevice, *g_ShaderCompiler);
-	//(void)meshletPass;
 
 	auto& imguiPass = g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::Graphics)
 		.set_execute_callback([&](SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {

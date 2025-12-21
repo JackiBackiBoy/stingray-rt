@@ -10,7 +10,7 @@ namespace SRDepthPrepass {
 
 	void build(SRRenderPass& self, SRGraphicsDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<DepthPrepassData>();
-		shaderCompiler.compile_from_file(RES_DIR "Shaders/DepthPrepass.slang", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);
+		shaderCompiler.compile_from_file(RES_DIR "Shaders/DepthPrepass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);
 
 		// NOTE: We use Reverse-Z and Infinite Far Plane trick
 		const SRPipelineInfo pipelineInfo = {
@@ -18,7 +18,6 @@ namespace SRDepthPrepass {
 			.inputLayout = {
 				.elements = {
 					{ "POSITION", SRFormat::RGB32_FLOAT },
-					{ "TEXCOORD", SRFormat::RG32_FLOAT }, // TODO: Stride it instead
 				}
 			},
 			.rasterizerState = {

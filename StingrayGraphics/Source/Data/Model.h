@@ -21,8 +21,9 @@ struct SRMesh {
 
 struct SRVertex {
 	glm::vec3 position;
+	//f32 pad;
 	//glm::vec3 normal;
-	glm::vec2 texCoord;
+	//glm::vec2 texCoord;
 };
 
 struct SRModel {
@@ -33,6 +34,8 @@ struct SRModel {
 	SRBuffer vertexBuffer;
 	SRBuffer indexBuffer;
 	SRBuffer meshletBuffer;
+	SRBuffer meshletVerticesBuffer;
+	SRBuffer meshletTrianglesBuffer;
 };
 
 // TODO: Move elsewhere

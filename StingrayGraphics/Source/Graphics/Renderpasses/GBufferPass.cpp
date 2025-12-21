@@ -11,8 +11,8 @@ namespace SRGBufferPass {
 
 	void build(SRRenderPass& self, SRGraphicsDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<GBufferPassData>();
-		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.slang", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);
-		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.slang", { SRShaderStage::Pixel, "pixelMain" }, passData.pixelShader);
+		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);
+		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, passData.pixelShader);
 
 
 		const SRPipelineInfo pipelineInfo = {
@@ -20,8 +20,7 @@ namespace SRGBufferPass {
 			.pixelShader = &passData.pixelShader,
 			.inputLayout = {
 				.elements = {
-					{ "POSITION", SRFormat::RGB32_FLOAT },
-					{ "TEXCOORD", SRFormat::RG32_FLOAT }
+					{ "POSITION", SRFormat::RGB32_FLOAT }
 				}
 			},
 			.rasterizerState = {

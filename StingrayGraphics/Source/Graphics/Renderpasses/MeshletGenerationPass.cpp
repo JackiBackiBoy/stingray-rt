@@ -7,14 +7,21 @@ namespace SRMeshletGenerationpass {
 		SRShader meshShader;
 		SRShader pixelShader;
 		SRPipeline pipeline;
+
+		struct PushConstants {
+			SRDescriptorIndex vertexBufferIdx;
+			SRDescriptorIndex meshletBufferIdx;
+			SRDescriptorIndex meshletVerticesBufferIdx;
+			SRDescriptorIndex meshletTrianglesBufferIdx;
+		} push;
 	};
 
 	void build(SRRenderPass& self, SRGraphicsDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<MeshletGenerationPassData>();
-		shaderCompiler.compile_from_file(RES_DIR "Shaders/MeshShader.slang", { SRShaderStage::Mesh, "meshMain" }, passData.meshShader);
-		//shaderCompiler.compile_from_file(RES_DIR "Shaders/MeshShader.slang", { SRShaderStage::Pixel, "pixelMain" }, passData.meshShader);
+		shaderCompiler.compile_from_file(RES_DIR "Shaders/MeshShader.hlsl", { SRShaderStage::Mesh, "meshMain" }, passData.meshShader);
+		//shaderCompiler.compile_from_file(RES_DIR "Shaders/MeshShader.hlsl", { SRShaderStage::Pixel, "pixelMain" }, passData.meshShader);
 
-		const SRPipelineInfo pipelineInfo = {
+		SRPipelineInfo pipelineInfo = {
 			.meshShader = &passData.meshShader,
 			.numRenderTargets = 1,
 			.renderTargetFormats = { SRFormat::RGBA8_UNORM }
@@ -25,9 +32,9 @@ namespace SRMeshletGenerationpass {
 	void execute(SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 		auto* passData = self.get_pass_data<MeshletGenerationPassData>();
 
-		const SRViewport viewport = {
-			.width = static_cast<float>(frameInfo.width),
-			.height = static_cast<float>(frameInfo.height),
+		SRViewport viewport = {
+			.width = static_cast<f32>(frameInfo.width),
+			.height = static_cast<f32>(frameInfo.height),
 		};
 
 		gfxDevice.bind_viewport(viewport, cmdList);
@@ -35,19 +42,16 @@ namespace SRMeshletGenerationpass {
 		gfxDevice.bind_root_constant_buffer(*frameInfo.perFrameBuffer, cmdList);
 
 		frameInfo.scene->for_each<SRTransform, SRRenderable>([&](SRTransform& t, SRRenderable& r) {
-			(void)t;
 			const SRModel* model = r.model;
+			u32 numMeshlets = model->numMeshlets;
 
-			const u32 numMeshlets = model->numMeshlets;
+			passData->push.vertexBufferIdx = gfxDevice.get_descriptor_index_srv(model->vertexBuffer);
+			passData->push.meshletBufferIdx = gfxDevice.get_descriptor_index_srv(model->meshletBuffer);
+			passData->push.meshletVerticesBufferIdx = gfxDevice.get_descriptor_index_srv(model->meshletVerticesBuffer);
+			passData->push.meshletTrianglesBufferIdx = gfxDevice.get_descriptor_index_srv(model->meshletTrianglesBuffer);
+
+			gfxDevice.push_constants(&passData->push, sizeof(passData->push), cmdList);
 			gfxDevice.dispatch_mesh(numMeshlets, 1, 1, cmdList);
-			// TODO: Transform
-			//for (const auto& mesh : model->meshes) {
-			//	for (u32 i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
-			//		const SRMeshPrimitive& primitive = model->primitives[i];s
-
-			//		//gfxDevice.draw_indexed(primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);
-			//	}
-			//}
 		});
 	}
 

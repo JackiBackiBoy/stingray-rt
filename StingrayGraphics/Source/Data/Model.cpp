@@ -50,15 +50,15 @@ namespace {
 					verticesPtr[i].position = glm::vec3(pos.x(), pos.z(), pos.y());
 				}
 			);
-			if (texCoordIt != gltfPrimitive.attributes.cend()) {
-				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(
-					gltfAsset,
-					texCoordAcccesor,
-					[&](fastgltf::math::fvec2 texCoord, size_t i) {
-						verticesPtr[i].texCoord = glm::vec2(texCoord.x(), texCoord.y());
-					}
-				);
-			}
+			//if (texCoordIt != gltfPrimitive.attributes.cend()) {
+			//	fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(
+			//		gltfAsset,
+			//		texCoordAcccesor,
+			//		[&](fastgltf::math::fvec2 texCoord, size_t i) {
+			//			verticesPtr[i].texCoord = glm::vec2(texCoord.x(), texCoord.y());
+			//		}
+			//	);
+			//}
 
 			if (indexAccessor.componentType == fastgltf::ComponentType::UnsignedShort) {
 				fastgltf::iterateAccessorWithIndex<u16>(
@@ -186,29 +186,66 @@ namespace SRModelLoader {
 		// TODO: AABS
 
 		// Create buffers
-		const SRBufferInfo vertexBufferInfo = {
+		SRBufferInfo vertexBufferInfo = {
 			.size = numVertices * sizeof(SRVertex),
 			.stride = sizeof(SRVertex),
 			.usage = SRUsage::Default,
-			.bindFlags = SRBindFlag::VertexBuffer
+			.bindFlags = SRBindFlag::VertexBuffer,
 		};
-		const SRBufferInfo indexBufferInfo = {
+		SRBufferInfo indexBufferInfo = {
 			.size = numIndices * sizeof(u32),
 			.stride = sizeof(u32),
 			.usage = SRUsage::Default,
 			.bindFlags = SRBindFlag::IndexBuffer
 		};
-		const SRBufferInfo meshletBufferInfo = {
+		SRBufferInfo meshletBufferInfo = {
 			.size = meshlets.size() * sizeof(SRMeshlet),
 			.stride = sizeof(SRMeshlet),
 			.usage = SRUsage::Default,
 			.bindFlags = SRBindFlag::ShaderResource,
 			.miscFlags = SRMiscFlag::StructuredBuffer
 		};
+		SRBufferInfo meshletVerticesBufferInfo = {
+			.size = meshletVertices.size() * sizeof(u32),
+			.stride = sizeof(u32),
+			.usage = SRUsage::Default,
+			.bindFlags = SRBindFlag::ShaderResource,
+			.miscFlags = SRMiscFlag::StructuredBuffer
+		};
+		SRBufferInfo meshletTrianglesBufferInfo = {
+			.size = (meshletTriangles.size() / 3) * sizeof(u32),
+			.stride = sizeof(u32),
+			.usage = SRUsage::Default,
+			.bindFlags = SRBindFlag::ShaderResource,
+			.miscFlags = SRMiscFlag::StructuredBuffer
+		};
+
+		// Repack meshlet triangles
+		std::vector<u32> meshletTrianglesU32;
+		meshletTrianglesU32.reserve(meshletTriangles.size() / 3);
+
+		for (SRMeshlet& meshlet : meshlets) {
+			u32 triangleOffset = (u32)meshletTrianglesU32.size();
+
+			for (u32 i = 0; i < meshlet.triangleCount; ++i) {
+				u32 i0 = 3 * i + 0 + meshlet.triangleOffset;
+				u32 i1 = 3 * i + 1 + meshlet.triangleOffset;
+				u32 i2 = 3 * i + 2 + meshlet.triangleOffset;
+
+				u8 vIdx0 = meshletTriangles[i0];
+				u8 vIdx1 = meshletTriangles[i1];
+				u8 vIdx2 = meshletTriangles[i2];
+
+				u32 packed = ((u32)vIdx0 << 0) | ((u32)vIdx1 << 8) | ((u32)vIdx2 << 16);
+				meshletTrianglesU32.push_back(packed);
+			}
+		}
 
 		gfxDevice.create_buffer(vertexBufferInfo, model.vertexBuffer, vertices);
 		gfxDevice.create_buffer(indexBufferInfo, model.indexBuffer, indices);
 		gfxDevice.create_buffer(meshletBufferInfo, model.meshletBuffer, meshlets.data());
+		gfxDevice.create_buffer(meshletVerticesBufferInfo, model.meshletVerticesBuffer, meshletVertices.data());
+		gfxDevice.create_buffer(meshletTrianglesBufferInfo, model.meshletTrianglesBuffer, meshletTrianglesU32.data());
 		model.numMeshlets = (u32)meshlets.size();
 
 		delete[] vertices;
