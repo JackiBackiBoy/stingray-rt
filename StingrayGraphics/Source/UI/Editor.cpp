@@ -2,6 +2,7 @@
 #include "Core/System/Time.h"
 #include "Graphics/DX12/GraphicsTypes_DX12.h"
 #include "Graphics/Vulkan/GraphicsTypes_Vulkan.h"
+#include "Core/Logger.h"
 
 #include <imgui.h>
 #include <imgui_impl_win32.h>
@@ -94,6 +95,7 @@ void SREditor::update(SRRenderGraph& renderGraph) {
 		ImGui::Text("FPS: %llu", fps);
 		ImGui::Text("Frame Time: %.2f ms", deltaTime * 1000.0);
 		ImGui::Text("Avg Frame Time: %.2f ms", avgFrameTime * 1000.0);
+		SRLOG_DEBUG("Frame Time: %.2f ms", deltaTime * 1000.0);
 
 		ImGui::SeparatorText("Shadows");
 

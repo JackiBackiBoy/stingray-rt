@@ -61,9 +61,7 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	VkSemaphore m_RenderFinishedSemaphores[FRAMES_IN_FLIGHT] = {};
 	VkDescriptorPool m_DescriptorPool = VK_NULL_HANDLE;
 	VkDescriptorSet m_ResourceDescriptorSet = VK_NULL_HANDLE; // CBV/SRV/UAV descriptor set
-	VkDescriptorSet m_SamplerDescriptorSet = VK_NULL_HANDLE;
 	VkDescriptorSetLayout m_ResourceDescriptorSetLayout = VK_NULL_HANDLE;
-	VkDescriptorSetLayout m_SamplerDescriptorSetLayout = VK_NULL_HANDLE;
 	VkDescriptorSetLayout m_PushDescriptorSetLayout = VK_NULL_HANDLE;
 	SRDescriptorHeap_Vulkan m_CbvSrvUavDescriptorHeap = { VK_DESCRIPTOR_TYPE_MUTABLE_EXT, 32000 };
 	SRDescriptorHeap_Vulkan m_SamplerDescriptorHeap = { VK_DESCRIPTOR_TYPE_SAMPLER, MAX_SAMPLER_DESCRIPTORS };
@@ -130,7 +128,6 @@ struct SRGraphicsDevice_Vulkan::Impl {
 		"glsl_460"
 	};
 	static constexpr u32 MAX_UNIFORM_BUFFER_DESCRIPTORS = 64;
-	static constexpr u32 MAX_TEXTURE_DESCRIPTORS = 16384;
 	static constexpr u32 MAX_SAMPLER_DESCRIPTORS = 32;
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -769,7 +766,11 @@ void SRGraphicsDevice_Vulkan::Impl::create_descriptors() {
 		&m_SamplerDescriptorHeap,
 	};
 	std::vector<VkDescriptorPoolSize> poolSizes;
+	std::vector<VkDescriptorBindingFlags> bindingFlags;
+	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
 	poolSizes.reserve(descriptorHeaps.size());
+	bindingFlags.reserve(descriptorHeaps.size());
+	layoutBindings.reserve(descriptorHeaps.size());
 
 	for (size_t i = 0; i < descriptorHeaps.size(); ++i) {
 		SRDescriptorHeap_Vulkan* heap = descriptorHeaps[i];
@@ -777,123 +778,89 @@ void SRGraphicsDevice_Vulkan::Impl::create_descriptors() {
 		u32 descriptorCount = heap->get_capacity();
 
 		VkDescriptorPoolSize poolSize = { descriptorType, descriptorCount };
+		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+		VkDescriptorSetLayoutBinding layoutBinding = {
+			.binding = static_cast<u32>(i),
+			.descriptorType = heap->get_type(),
+			.descriptorCount = heap->get_capacity(),
+			.stageFlags = VK_SHADER_STAGE_ALL,
+			.pImmutableSamplers = nullptr
+		};
+
 		poolSizes.push_back(poolSize);
+		bindingFlags.push_back(flags);
+		layoutBindings.push_back(layoutBinding);
 	}
 
 	// Descriptor pool
 	VkDescriptorPoolCreateInfo poolInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-		.maxSets = 2,
+		.maxSets = 1,
 		.poolSizeCount = static_cast<u32>(poolSizes.size()),
 		.pPoolSizes = poolSizes.data()
 	};
 	SR_VK_CHECK(vkCreateDescriptorPool(m_Device, &poolInfo, nullptr, &m_DescriptorPool), "Create descriptor pool");
 
-	// Resource descriptor set
-	{
-		VkDescriptorBindingFlags bindingFlags = (
-			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-			VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
-		);
-		VkDescriptorSetLayoutBinding layoutBinding = {
-			.binding = 0,
-			.descriptorType = VK_DESCRIPTOR_TYPE_MUTABLE_EXT,
-			.descriptorCount = m_CbvSrvUavDescriptorHeap.get_capacity(),
-			.stageFlags = VK_SHADER_STAGE_ALL,
-			.pImmutableSamplers = nullptr
-		};
-		VkDescriptorType mutableDescriptorTypes[] = {
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, // CBV
-			VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,  // SRV
-			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,  // UAV
-			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER  // SRV/UAV
-		};
-		VkMutableDescriptorTypeListEXT mutableDescriptorTypeList = {
-			.descriptorTypeCount = _countof(mutableDescriptorTypes),
-			.pDescriptorTypes = mutableDescriptorTypes
-		};
-		VkMutableDescriptorTypeCreateInfoEXT mutableDescriptorTypeInfo = {
-			.sType = VK_STRUCTURE_TYPE_MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT,
-			.mutableDescriptorTypeListCount = 1,
-			.pMutableDescriptorTypeLists = &mutableDescriptorTypeList
-		};
-		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-			.pNext = &mutableDescriptorTypeInfo,
-			.bindingCount = 1,
-			.pBindingFlags = &bindingFlags
-		};
-		VkDescriptorSetLayoutCreateInfo setLayoutInfo = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.pNext = &bindingFlagsInfo,
-			.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-			.bindingCount = 1,
-			.pBindings = &layoutBinding
-		};
-		VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.descriptorPool = m_DescriptorPool,
-			.descriptorSetCount = 1,
-			.pSetLayouts = &m_ResourceDescriptorSetLayout
-		};
-		SR_VK_CHECK(vkCreateDescriptorSetLayout(m_Device, &setLayoutInfo, nullptr, &m_ResourceDescriptorSetLayout), "Create descriptor set layout");
-		SR_VK_CHECK(vkAllocateDescriptorSets(m_Device, &descriptorSetAllocInfo, &m_ResourceDescriptorSet), "Allocate descriptor sets");
-	}
+	// Descriptor set layout
 
-	// Sampler descriptor set
-	{
-		VkDescriptorBindingFlags bindingFlags = (
-			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-			VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
-		);
-		VkDescriptorSetLayoutBinding layoutBinding = {
-			.binding = 0,
-			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-			.descriptorCount = m_SamplerDescriptorHeap.get_capacity(),
-			.stageFlags = VK_SHADER_STAGE_ALL,
-			.pImmutableSamplers = nullptr
-		};
-		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-			.bindingCount = 1,
-			.pBindingFlags = &bindingFlags
-		};
-		VkDescriptorSetLayoutCreateInfo setLayoutInfo = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.pNext = &bindingFlagsInfo,
-			.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-			.bindingCount = 1,
-			.pBindings = &layoutBinding
-		};
-		VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.descriptorPool = m_DescriptorPool,
-			.descriptorSetCount = 1,
-			.pSetLayouts = &m_SamplerDescriptorSetLayout
-		};
-		SR_VK_CHECK(vkCreateDescriptorSetLayout(m_Device, &setLayoutInfo, nullptr, &m_SamplerDescriptorSetLayout), "Create descriptor set layout");
-		SR_VK_CHECK(vkAllocateDescriptorSets(m_Device, &descriptorSetAllocInfo, &m_SamplerDescriptorSet), "Allocate descriptor sets");
-	}
+	VkDescriptorType mutableDescriptorTypes[] = {
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, // CBV
+		VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,  // SRV
+		VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,  // UAV
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER  // SRV/UAV
+	};
+	VkMutableDescriptorTypeListEXT mutableDescriptorTypeList = {
+		.descriptorTypeCount = _countof(mutableDescriptorTypes),
+		.pDescriptorTypes = mutableDescriptorTypes
+	};
+	VkMutableDescriptorTypeCreateInfoEXT mutableDescriptorTypeInfo = {
+		.sType = VK_STRUCTURE_TYPE_MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT,
+		.mutableDescriptorTypeListCount = 1,
+		.pMutableDescriptorTypeLists = &mutableDescriptorTypeList
+	};
+
+	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+		.pNext = &mutableDescriptorTypeInfo,
+		.bindingCount = static_cast<u32>(bindingFlags.size()),
+		.pBindingFlags = bindingFlags.data()
+	};
+	VkDescriptorSetLayoutCreateInfo setLayoutInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.pNext = &bindingFlagsInfo,
+		.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+		.bindingCount = static_cast<u32>(layoutBindings.size()),
+		.pBindings = layoutBindings.data()
+	};
+	SR_VK_CHECK(vkCreateDescriptorSetLayout(m_Device, &setLayoutInfo, nullptr, &m_ResourceDescriptorSetLayout), "Create descriptor set layout");
+
+	// Descriptor set
+	VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.descriptorPool = m_DescriptorPool,
+		.descriptorSetCount = 1,
+		.pSetLayouts = &m_ResourceDescriptorSetLayout
+	};
+	SR_VK_CHECK(vkAllocateDescriptorSets(m_Device, &descriptorSetAllocInfo, &m_ResourceDescriptorSet), "Allocate descriptor sets");
 
 	// Push descriptor
-	{
-		VkDescriptorSetLayoutBinding uboBinding = {
-			.binding = 0,
-			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			.descriptorCount = 1,
-			.stageFlags = VK_SHADER_STAGE_ALL,
-			.pImmutableSamplers = nullptr
-		};
-		VkDescriptorSetLayoutCreateInfo pushLayoutInfo = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT,
-			.bindingCount = 1,
-			.pBindings = &uboBinding
-		};
-		SR_VK_CHECK(vkCreateDescriptorSetLayout(m_Device, &pushLayoutInfo, nullptr, &m_PushDescriptorSetLayout), "Create push-descriptor set layout");
-	}
+	VkDescriptorSetLayoutBinding uboBinding = {
+		.binding = 0,
+		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		.descriptorCount = 1,
+		.stageFlags = VK_SHADER_STAGE_ALL,
+		.pImmutableSamplers = nullptr
+	};
+
+	VkDescriptorSetLayoutCreateInfo pushLayoutInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT,
+		.bindingCount = 1,
+		.pBindings = &uboBinding
+	};
+	SR_VK_CHECK(vkCreateDescriptorSetLayout(m_Device, &pushLayoutInfo, nullptr, &m_PushDescriptorSetLayout), "Create push-descriptor set layout");
 }
 
 void SRGraphicsDevice_Vulkan::Impl::create_destruction_handler() {
@@ -1160,8 +1127,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_pipeline(const SRPipelineInfo& info, 
 
 	const VkDescriptorSetLayout setLayouts[] = {
 		m_ResourceDescriptorSetLayout, // set 0
-		m_SamplerDescriptorSetLayout, // set 1
-		m_PushDescriptorSetLayout // set 2
+		m_PushDescriptorSetLayout // set 1
 	};
 
 	const VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
@@ -1733,8 +1699,8 @@ void SRGraphicsDevice_Vulkan::Impl::create_sampler(const SRSamplerInfo& info, SR
 
 	const VkWriteDescriptorSet write = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstSet = m_SamplerDescriptorSet,
-		.dstBinding = 0,
+		.dstSet = m_ResourceDescriptorSet,
+		.dstBinding = 1,
 		.dstArrayElement = 0,
 		.descriptorCount = 1,
 		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -1757,18 +1723,13 @@ void SRGraphicsDevice_Vulkan::Impl::bind_pipeline(const SRPipeline& pipeline, co
 	vkCmdBindPipeline(internalCmdList->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internalPipeline->pipeline);
 	m_ActivePipeline = internalPipeline;
 
-	VkDescriptorSet descriptorSets[] = {
-		m_ResourceDescriptorSet,
-		m_SamplerDescriptorSet
-	};
-
 	vkCmdBindDescriptorSets(
 		internalCmdList->cmdBuffer,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		internalPipeline->pipelineLayout,
 		0,
-		_countof(descriptorSets),
-		descriptorSets,
+		1,
+		&m_ResourceDescriptorSet,
 		0,
 		nullptr
 	);
@@ -1816,7 +1777,7 @@ void SRGraphicsDevice_Vulkan::Impl::bind_root_constant_buffer(const SRBuffer& bu
 		internalCmdList->cmdBuffer,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		m_ActivePipeline->pipelineLayout,
-		2,
+		1, // set 1
 		1,
 		&writeDescriptor
 	);
@@ -2150,7 +2111,7 @@ void SRGraphicsDevice_Vulkan::Impl::submit_command_lists(const SRSwapchain& swap
 	const u32 nextFrameIndex = (m_FrameIndex + 1) % FRAMES_IN_FLIGHT;
 
 	if (m_FrameCounter >= FRAMES_IN_FLIGHT) {
-		const u64 needed = m_FrameDoneValue[SRQueue_Universal][nextFrameIndex];
+		u64 needed = m_FrameDoneValue[SRQueue_Universal][nextFrameIndex];
 		u64 current = 0;
 		SR_VK_CHECK(vkGetSemaphoreCounterValue(m_Device, m_FrameFences[SRQueue_Universal], &current), "Get semaphore counter value");
 

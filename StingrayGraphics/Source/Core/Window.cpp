@@ -107,7 +107,7 @@ void SRWindow::Impl::create_window(const char* title, int width, int height, SRW
 	}
 
 	m_Hwnd = CreateWindowEx(
-		WS_EX_NOREDIRECTIONBITMAP,
+		0,
 		wndClassEx.lpszClassName,
 		wTitle,
 		windowStyles,

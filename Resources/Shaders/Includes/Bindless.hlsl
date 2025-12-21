@@ -20,6 +20,6 @@ struct PerFrameData {
 
 // NOTE: We do not support bindless UBOs/CBVs, instead it's bindfull, so this
 // is the only allowed constant buffer. We might add more in the future
-SR_VK_BINDING(0, 2) ConstantBuffer<PerFrameData> g_PerFrameData : register(b1, space0);
+SR_VK_BINDING(0, 1) ConstantBuffer<PerFrameData> g_PerFrameData : register(b1, space0);
 
 #endif
