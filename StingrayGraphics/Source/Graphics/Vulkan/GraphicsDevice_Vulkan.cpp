@@ -59,6 +59,8 @@ struct SRGraphicsDevice_Vulkan::Impl {
 	VkSemaphore m_FrameFences[SRQueue_COUNT] = {};
 	VkSemaphore m_ImageAvailableSemaphores[FRAMES_IN_FLIGHT] = {};
 	VkSemaphore m_RenderFinishedSemaphores[3] = {};
+	VkFence m_AcquireFence;
+
 	VkDescriptorPool m_DescriptorPool = VK_NULL_HANDLE;
 	VkDescriptorSet m_ResourceDescriptorSet = VK_NULL_HANDLE; // CBV/SRV/UAV descriptor set
 	VkDescriptorSetLayout m_ResourceDescriptorSetLayout = VK_NULL_HANDLE;
@@ -149,7 +151,6 @@ SRGraphicsDevice_Vulkan::Impl::~Impl() {
 
 	m_DestructionHandler->enqueue(m_Surface);
 
-	// Command pools
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
 		for (u32 f = 0; f < FRAMES_IN_FLIGHT; ++f) {
 			m_DestructionHandler->enqueue(m_CommandPools[q][f]);
@@ -157,12 +158,10 @@ SRGraphicsDevice_Vulkan::Impl::~Impl() {
 	}
 	m_DestructionHandler->enqueue(m_UploadCmdPool);
 
-	// Fences (timeline semaphores)
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
 		m_DestructionHandler->enqueue(m_FrameFences[q]);
 	}
 
-	// Semaphores
 	for (u32 f = 0; f < FRAMES_IN_FLIGHT; f++) {
 		m_DestructionHandler->enqueue(m_ImageAvailableSemaphores[f]);
 
@@ -170,11 +169,8 @@ SRGraphicsDevice_Vulkan::Impl::~Impl() {
 	for (u32 b = 0; b < 3; ++b) {
 		m_DestructionHandler->enqueue(m_RenderFinishedSemaphores[b]);
 	}
-
-	// Descriptor pool
+	m_DestructionHandler->enqueue(m_AcquireFence);
 	m_DestructionHandler->enqueue(m_DescriptorPool);
-
-	// Descriptor set layouts
 	m_DestructionHandler->enqueue(m_PushDescriptorSetLayout);
 	m_DestructionHandler->enqueue(m_ResourceDescriptorSetLayout);
 }
@@ -728,7 +724,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_command_pools() {
 	SR_VK_CHECK(vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_UploadCmdPool), "Create upload command pool");
 
 	// Create initial upload command buffer
-	const VkCommandBufferAllocateInfo allocInfo = {
+	VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = m_UploadCmdPool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -740,7 +736,7 @@ void SRGraphicsDevice_Vulkan::Impl::create_command_pools() {
 
 void SRGraphicsDevice_Vulkan::Impl::create_sync_objects() {
 	// Frame timeline semaphore
-	const VkSemaphoreTypeCreateInfo timelineInfo = {
+	VkSemaphoreTypeCreateInfo timelineInfo = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
 		.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
 		.initialValue = 0
@@ -764,6 +760,10 @@ void SRGraphicsDevice_Vulkan::Impl::create_sync_objects() {
 	for (u32 b = 0; b < 3; ++b) {
 		SR_VK_CHECK(vkCreateSemaphore(m_Device, &semaphoreInfo, nullptr, &m_RenderFinishedSemaphores[b]), "Render-finished semaphore creation");
 	}
+
+	// Debug fence
+	VkFenceCreateInfo fenceInfo = { .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+	SR_VK_CHECK(vkCreateFence(m_Device, &fenceInfo, nullptr, &m_AcquireFence), "Create Fence");
 }
 
 void SRGraphicsDevice_Vulkan::Impl::create_descriptors() {
@@ -1883,14 +1883,28 @@ void SRGraphicsDevice_Vulkan::Impl::begin_frame(const SRSwapchain& swapchain) {
 	m_DestructionHandler->update(m_FrameCounter, FRAMES_IN_FLIGHT);
 
 	auto* internalSwapchain = to_vk_internal(swapchain);
+
+	// NOTE: Swapchain image acquisition is an underspecified part of the Vulkan spec.
+	// vkAcquireNextImageKHR returns presentable image index immediately, but the
+	// presentation engine may not have finished reading from the image.
+	// The Vulkan spec states that:
+	// "the application must use semaphore and/or fence to ensure that the image layout and
+	// contents are not modified until the presentation engine reads have completed"
+	//
+	// Although the spec says "semaphores AND/OR fence", both are actually required.
+	// An acquire-semaphore for GPU-GPU sync, and an acquire-FENCE for CPU-CPU sync.
+	// The fence will be signaled when the acquire is complete, meaning that we can safely continue
+	// on CPU-side. Skipping the fence can result in subtle frame-pacing bugs.
+	SR_VK_CHECK(vkResetFences(m_Device, 1, &m_AcquireFence), "Reset fence");
 	SR_VK_CHECK(vkAcquireNextImageKHR(
 		m_Device,
 		internalSwapchain->swapchain,
 		UINT64_MAX,
 		m_ImageAvailableSemaphores[m_FrameIndex],
-		nullptr,
+		m_AcquireFence,
 		&m_ImageIndex
 	), "Acquire next swapchain image");
+	SR_VK_CHECK(vkWaitForFences(m_Device, 1, &m_AcquireFence, VK_TRUE, UINT64_MAX), "Wait for fence");
 }
 
 SRCmdList SRGraphicsDevice_Vulkan::Impl::begin_command_list(SRQueue queue) {
