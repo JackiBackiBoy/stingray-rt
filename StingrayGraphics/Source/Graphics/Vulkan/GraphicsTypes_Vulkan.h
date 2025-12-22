@@ -245,16 +245,23 @@ struct SRSwapchain_Vulkan {
 	~SRSwapchain_Vulkan() {
 		destructionHandler->enqueue(swapchain);
 
-		for (size_t i = 0; i < imageViews.size(); i++) {
-			destructionHandler->enqueue(imageViews[i]);
+		for (size_t i = 0; i < backbuffers.size(); i++) {
+			destructionHandler->enqueue(backbuffers[i].vkImageView);
 		}
 	}
 
 	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 	VkExtent2D extent = {};
-	std::vector<VkImage> images;
-	std::vector<VkImageView> imageViews;
+
+	// TODO: Find a better approach than this. We need this because of Vulkan's
+	// weird spec when it comes to swapchain presentation transitions.
+	struct Backbuffer {
+		VkImage vkImage;
+		VkImageView vkImageView;
+		bool hasBeenUsed;
+	};
+	std::vector<Backbuffer> backbuffers;
 };
 
 // ---------------------------- Converter Functions ----------------------------

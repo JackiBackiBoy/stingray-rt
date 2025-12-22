@@ -881,8 +881,8 @@ void SRGraphicsDevice_Vulkan::Impl::create_swapchain(const SRSwapchainInfo& info
 	swapchain.info = info;
 	swapchain.internalState = internalSwapchain;
 
-	const SRSwapchainSupportInfo supportInfo = SRVulkanHelpers::query_swapchain_support(m_PhysicalDevice, m_Surface);
-	const VkSurfaceFormatKHR surfaceFormat = SRVulkanHelpers::pick_surface_format(
+	SRSwapchainSupportInfo supportInfo = SRVulkanHelpers::query_swapchain_support(m_PhysicalDevice, m_Surface);
+	VkSurfaceFormatKHR surfaceFormat = SRVulkanHelpers::pick_surface_format(
 		to_vk_format(info.format),
 		info.useHDR,
 		supportInfo.surfaceFormats
@@ -950,15 +950,17 @@ void SRGraphicsDevice_Vulkan::Impl::create_swapchain(const SRSwapchainInfo& info
 	// Swapchain images
 	u32 numImages;
 	SR_VK_CHECK(vkGetSwapchainImagesKHR(m_Device, internalSwapchain->swapchain, &numImages, nullptr), "Get swapchain images");
-	internalSwapchain->images.resize(numImages);
-	internalSwapchain->imageViews.resize(numImages);
-	SR_VK_CHECK(vkGetSwapchainImagesKHR(m_Device, internalSwapchain->swapchain, &numImages, internalSwapchain->images.data()), "Get swapchain images");
+
+	std::vector<VkImage> images(numImages);
+	SR_VK_CHECK(vkGetSwapchainImagesKHR(m_Device, internalSwapchain->swapchain, &numImages, images.data()), "Get swapchain images");
 
 	// Swapchain image views
+	internalSwapchain->backbuffers.reserve(numImages);
 	for (u32 i = 0; i < numImages; ++i) {
-		const VkImageViewCreateInfo imageViewInfo = {
+		VkImageView imageView;
+		VkImageViewCreateInfo imageViewInfo = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = internalSwapchain->images[i],
+			.image = images[i],
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
 			.format = surfaceFormat.format,
 			.components = {
@@ -976,7 +978,13 @@ void SRGraphicsDevice_Vulkan::Impl::create_swapchain(const SRSwapchainInfo& info
 			}
 		};
 
-		SR_VK_CHECK(vkCreateImageView(m_Device, &imageViewInfo, nullptr, &internalSwapchain->imageViews[i]), "Swapchain image view creation");
+		SR_VK_CHECK(vkCreateImageView(m_Device, &imageViewInfo, nullptr, &imageView), "Swapchain image view creation");
+
+		internalSwapchain->backbuffers.push_back(SRSwapchain_Vulkan::Backbuffer{
+			.vkImage = images[i],
+			.vkImageView = imageView,
+			.hasBeenUsed = false
+		});
 	}
 }
 
@@ -1924,25 +1932,32 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRSwapchain& swapcha
 	auto internalSwapchain = to_vk_internal(swapchain);
 	auto internalCmdList = to_vk_internal(cmdList);
 
-	const SRImageTransitionInfo transitionInfo = {
-		.image = internalSwapchain->images[m_ImageIndex],
-		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+	SRSwapchain_Vulkan::Backbuffer* currBackbuffer = &internalSwapchain->backbuffers[m_ImageIndex];
+	SRImageTransitionInfo transitionInfo = {
+		.image = currBackbuffer->vkImage,
+		.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.srcAccessMask = VK_ACCESS_2_NONE,
 		.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-		.srcStageMask = VK_PIPELINE_STAGE_2_NONE,
+		.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 		.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 		.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT
 	};
+
+	// NOTE: This is dumb, but technically required by the Vulkan spec
+	if (!currBackbuffer->hasBeenUsed) {
+		transitionInfo.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		currBackbuffer->hasBeenUsed = true;
+	}
 	SRVulkanHelpers::transition_image_layout(transitionInfo, internalCmdList->cmdBuffer);
 
-	const VkClearValue clearColor = {
+	VkClearValue clearColor = {
 		.color = { 0.0f, 0.0f, 0.0f, 1.0f }
 	};
 
-	const VkRenderingAttachmentInfo colorAttachmentInfo = {
+	VkRenderingAttachmentInfo colorAttachmentInfo = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-		.imageView = internalSwapchain->imageViews[m_ImageIndex],
+		.imageView = currBackbuffer->vkImageView,
 		.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -1950,12 +1965,12 @@ void SRGraphicsDevice_Vulkan::Impl::begin_render_pass(const SRSwapchain& swapcha
 	};
 
 	// TODO: Depth attachment
-	const VkRect2D area{
+	VkRect2D area{
 		.offset = { 0, 0 },
 		.extent = internalSwapchain->extent
 	};
 
-	const VkRenderingInfo renderInfo = {
+	VkRenderingInfo renderInfo = {
 		.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
 		.renderArea = area,
 		.layerCount = 1,
@@ -2046,7 +2061,7 @@ void SRGraphicsDevice_Vulkan::Impl::end_render_pass(const SRSwapchain& swapchain
 	vkCmdEndRendering(internalCmdList->cmdBuffer);
 
 	const SRImageTransitionInfo transitionInfo = {
-		.image = internalSwapchain->images[m_ImageIndex],
+		.image = internalSwapchain->backbuffers[m_ImageIndex].vkImage,
 		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
