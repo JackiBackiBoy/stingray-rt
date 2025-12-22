@@ -12,6 +12,26 @@ The included licenses apply to the following files:
 - **LICENSE-CODE.txt** : applies to all files under `build/native/include/`
 
 ## Changelog
+
+### Version 1.618.5:
+
+- Reverted a change to pipeline library synchronization which caused unnecessary serialization during loads.
+- Correctly allow RTAS resources in reserved buffers
+- Fixed the output from D3D12StateObjectCompiler.exe when compiling an SODB with no state objects, only PSOs
+
+### Version 1.618.4:
+
+- Fix for broken behavior when using AddToStateObject and driver is newer than those that existed during 1.618 initial release (i.e. must be DDI version 119+)
+
+- Debug layer validation fix: Simultaneous access texture with common layout supports render target access; Skip layout validation when undefined layout is used as both before and after layouts.
+  
+### Version 1.618.3:
+- Runtime regression fix:  Creating resources in state D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE with custom heap properties validated L0 and L1 in backwards order. Apps hitting this incorrect stricter validation even if they didn't use new AgilitySDK just by using PIX which uses latest SDK, hence it looks like PIX regressed.  At least one developer also hit this bug directly.
+
+- Debug layer validation regression fix (no runtime impact): New compute and work graph dispatch grid size validation incorrectly validated against the mesh shader's 2^22 limit everywhere.  Compute dispatch has no spec limit, and the limit for work graphs is 2^24-1 groups.
+
+- Fixes an issue where, only with the debug layer enabled, recording ProcessFrames command in ID3D12VideoCommandList fails in the Close() method with E_INVALIDARG
+
 ### Version 1.618.2:
 - Correctly enable SODB capture for advanced shader delivery
 - Add ID3D12StateObjectDatabase for programmatic SODB generation

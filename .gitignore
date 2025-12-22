@@ -1,8 +1,7 @@
 # Build
-[Bb]in/
-[Ll]ib/
-[Bb]uild/
-.cache
+/[Bb]uild/
+/[Bb]in/
+/[Ll]ib/
 
 # Prerequisites
 *.d
@@ -49,5 +48,3 @@ CPackSourceConfig.cmake
 # MacOS
 .DS_Store
 
-# Vulkan
-*.spv
