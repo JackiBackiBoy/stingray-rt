@@ -23,7 +23,6 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
-#include <vector>
 
 struct alignas(256) PerFrameData {
 	glm::mat4 view    = { 1.0f };
@@ -34,7 +33,7 @@ struct alignas(256) PerFrameData {
 
 // NOTE: Trick for making sure that the logger exists longer than all other objects
 static auto& logger = SRLogger::get();
-static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::Vulkan;
+static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::DX12;
 static constexpr int WIDTH = 1920;
 static constexpr int HEIGHT = 1080;
 
@@ -132,8 +131,7 @@ void init_console() {
 			mode |= DISABLE_NEWLINE_AUTO_RETURN;
 			SetConsoleMode(h, mode);
 		}
-		};
-
+	};
 	enable_vt(STD_OUTPUT_HANDLE);
 	enable_vt(STD_ERROR_HANDLE);
 
@@ -154,18 +152,18 @@ void init_graphics() {
 	}
 	g_ShaderCompiler = std::make_unique<SRShaderCompiler>(g_GfxDevice->get_shader_platform_info());
 
-	const SRSwapchainInfo swapchainInfo = {
+	SRSwapchainInfo swapchainInfo = {
 		.width = WIDTH,
 		.height = HEIGHT,
 		.numBuffers = 3,
 		.format = SRFormat::RGBA8_UNORM,
-		.vSync = true
+		.vSync = false
 	};
 	g_GfxDevice->create_swapchain(swapchainInfo, g_Swapchain);
 	g_Editor = std::make_unique<SREditor>(*g_Window, *g_GfxDevice, g_API);
 
 	// Samplers
-	const SRSamplerInfo linearSamplerInfo = {
+	SRSamplerInfo linearSamplerInfo = {
 		.filter = SRFilter::MinMagMipLinear,
 		.addressU = SRTextureAddressMode::Wrap,
 		.addressV = SRTextureAddressMode::Wrap,
@@ -175,7 +173,7 @@ void init_graphics() {
 }
 
 void init_resources() {
-	const SRBufferInfo perFrameBufferInfo = {
+	SRBufferInfo perFrameBufferInfo = {
 		.size = sizeof(PerFrameData),
 		.stride = sizeof(PerFrameData),
 		.usage = SRUsage::Upload,
@@ -192,12 +190,12 @@ void init_resources() {
 void init_scene() {
 	g_Scene = std::make_unique<SRScene>(*g_GfxDevice, 65536);
 
-	const SREntityID entity = g_Scene->add_entity();
+	SREntityID entity = g_Scene->add_entity();
 	g_Scene->add_component<SRTransform>(entity, SRTransform{});
 	g_Scene->add_component<SRRenderable>(entity, SRRenderable{ &g_TestModel });
 
 	g_Camera = std::make_unique<SRCamera>(
-		glm::vec3(0.0f, 0.0f, -2.0f),
+		glm::vec3(0.0f, 0.1f, -0.3f),
 		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
 		60.0f,
 		g_Window->get_client_aspect_ratio(),
@@ -209,26 +207,26 @@ void init_scene() {
 void init_rendergraph() {
 	g_RenderGraph = std::make_unique<SRRenderGraph>();
 
-	auto& depthPrepass = g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::Graphics)
-		.add_depth_output("Depth", WIDTH, HEIGHT, SRFormat::D32_FLOAT)
-		.set_execute_callback(SRDepthPrepass::execute);
-	SRDepthPrepass::build(depthPrepass, *g_GfxDevice, *g_ShaderCompiler);
+	//auto& depthPrepass = g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::Graphics)
+	//	.add_depth_output("Depth", WIDTH, HEIGHT, SRFormat::D32_FLOAT)
+	//	.set_execute_callback(SRDepthPrepass::execute);
+	//SRDepthPrepass::build(depthPrepass, *g_GfxDevice, *g_ShaderCompiler);
 
-	auto& gBufferPass = g_RenderGraph->add_render_pass("GBufferPass", SRPassType::Graphics)
-		.add_depth_input("Depth")
-		.add_color_output("GBufferAlbedo", WIDTH, HEIGHT, SRFormat::RGBA8_UNORM)
-		.set_execute_callback(SRGBufferPass::execute);
-	SRGBufferPass::build(gBufferPass, *g_GfxDevice, *g_ShaderCompiler);
+	//auto& gBufferPass = g_RenderGraph->add_render_pass("GBufferPass", SRPassType::Graphics)
+	//	.add_depth_input("Depth")
+	//	.add_color_output("GBufferAlbedo", WIDTH, HEIGHT, SRFormat::RGBA8_UNORM)
+	//	.set_execute_callback(SRGBufferPass::execute);
+	//SRGBufferPass::build(gBufferPass, *g_GfxDevice, *g_ShaderCompiler);
 
-	auto& compositionPass = g_RenderGraph->add_render_pass("CompositionPass", SRPassType::Graphics)
-		.add_color_input("GBufferAlbedo", SRAccessFlag::Read)
-		.set_execute_callback(SRCompositionPass::execute);
-	SRCompositionPass::build(compositionPass, *g_GfxDevice, *g_ShaderCompiler);
+	//auto& compositionPass = g_RenderGraph->add_render_pass("CompositionPass", SRPassType::Graphics)
+	//	.add_color_input("GBufferAlbedo", SRAccessFlag::Read)
+	//	.set_execute_callback(SRCompositionPass::execute);
+	//SRCompositionPass::build(compositionPass, *g_GfxDevice, *g_ShaderCompiler);
 
 	// TODO: Update render graph to respect mesh shading pipeline
-	//auto& meshletPass = g_RenderGraph->add_render_pass("MeshletPass", SRPassType::Graphics)
-	//	.set_execute_callback(SRMeshletGenerationpass::execute);
-	//SRMeshletGenerationpass::build(meshletPass, *g_GfxDevice, *g_ShaderCompiler);
+	auto& meshletPass = g_RenderGraph->add_render_pass("MeshletPass", SRPassType::Graphics)
+		.set_execute_callback(SRMeshletGenerationpass::execute);
+	SRMeshletGenerationpass::build(meshletPass, *g_GfxDevice, *g_ShaderCompiler);
 
 	auto& imguiPass = g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::Graphics)
 		.set_execute_callback([&](SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
@@ -244,10 +242,10 @@ void update(const SRFrameInfo& frameInfo) {
 	SRMouseState mouse = SRInput::get_mouse_state();
 	//SRLOG_TRACE("Mouse Delta: %d, %d", mouse.dx, mouse.dy);
 
-	const float cameraMoveSpeed = 0.9f;
-	const float mouseSensitivity = 0.001f;
-	const float dx = mouseSensitivity * mouse.dx;
-	const float dy = mouseSensitivity * mouse.dy;
+	f32 cameraMoveSpeed = 0.9f;
+	f32 mouseSensitivity = 0.001f;
+	f32 dx = mouseSensitivity * mouse.dx;
+	f32 dy = mouseSensitivity * mouse.dy;
 
 	if (mouse.buttonStates & SRMouseButton_Middle) {
 		glm::quat orientation = g_Camera->get_orientation();
@@ -256,9 +254,9 @@ void update(const SRFrameInfo& frameInfo) {
 		g_Camera->set_orientation(orientation);
 	}
 
-	const glm::vec3 camRight = g_Camera->get_right();
-	const glm::vec3 camUp = g_Camera->get_up();
-	const glm::vec3 camForward = g_Camera->get_forward();
+	glm::vec3 camRight = g_Camera->get_right();
+	glm::vec3 camUp = g_Camera->get_up();
+	glm::vec3 camForward = g_Camera->get_forward();
 	glm::vec3 newPosition = g_Camera->get_position();
 
 	if (SRInput::is_key_down(SRKey_W)) {
@@ -283,7 +281,7 @@ void update(const SRFrameInfo& frameInfo) {
 }
 
 void render(const SRFrameInfo& frameInfo) {
-	const SRCmdList cmdList = g_GfxDevice->begin_command_list(SRQueue_Universal);
+	SRCmdList cmdList = g_GfxDevice->begin_command_list(SRQueue_Universal);
 	g_RenderGraph->execute(*g_GfxDevice, g_Swapchain, cmdList, frameInfo);
 	g_GfxDevice->submit_command_lists(g_Swapchain);
 }

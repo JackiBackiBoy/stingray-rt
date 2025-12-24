@@ -13,7 +13,7 @@ struct SRMeshlet {
 
 struct SRVertex {
 	float3 pos;
-	f32 pad;
+	//f32 pad;
 };
 
 struct MSOutput {
@@ -32,12 +32,6 @@ struct PushConstants {
 	SRDescriptorIndex meshletTrianglesBufferIdx;
 };
 
-// TODO: For now we pack 3 u8s into a u32 for alignment reasons, but
-// it would probably better to pack this without padding byte.
-SR_STRUCTURED_BUFFER(SRVertex, g_VertexBuffers);
-SR_STRUCTURED_BUFFER(SRMeshlet, g_MeshletBuffers);
-SR_STRUCTURED_BUFFER(u32, g_MeshletVerticesBuffers);
-SR_STRUCTURED_BUFFER(u32, g_MeshletTrianglesBuffers);
 SR_PUSH_CONSTANT(PushConstants, g_Push);
 
 [shader("mesh")]
@@ -50,10 +44,12 @@ void meshMain(
 	out vertices MSOutput emitVertices[MAX_VERTICES],
 	out indices u32vec3 emitTriangles[MAX_TRIANGLES]
 ) {
-	StructuredBuffer<SRVertex> vertexBuffer = g_VertexBuffers[g_Push.vertexBufferIdx];
-	StructuredBuffer<SRMeshlet> meshletBuffer = g_MeshletBuffers[g_Push.meshletBufferIdx];
-	StructuredBuffer<u32> meshletVerticesBuffer = g_MeshletVerticesBuffers[g_Push.meshletVerticesBufferIdx];
-	StructuredBuffer<u32> meshletTrianglesBuffer = g_MeshletTrianglesBuffers[g_Push.meshletTrianglesBufferIdx];
+	// TODO: For now we pack 3 u8s into a u32 for alignment reasons, but
+	// it would probably better to pack this without padding byte.
+	StructuredBuffer<SRVertex> vertexBuffer = ResourceDescriptorHeap[g_Push.vertexBufferIdx];
+	StructuredBuffer<SRMeshlet> meshletBuffer = ResourceDescriptorHeap[g_Push.meshletBufferIdx];
+	StructuredBuffer<u32> meshletVerticesBuffer = ResourceDescriptorHeap[g_Push.meshletVerticesBufferIdx];
+	StructuredBuffer<u32> meshletTrianglesBuffer = ResourceDescriptorHeap[g_Push.meshletTrianglesBufferIdx];
 
 	SRMeshlet meshlet = meshletBuffer[groupID.x];
 	SetMeshOutputCounts(meshlet.vertexCount, meshlet.triangleCount);
@@ -72,12 +68,22 @@ void meshMain(
 		vertexIdx = meshletVerticesBuffer[vertexIdx];
 
 		SRVertex vertex = vertexBuffer[vertexIdx];
-		emitVertices[localThreadID.x].pos = float4(vertex.pos, 1.0f);
-		emitVertices[localThreadID.x].color = float3(1.0f, 0.0f, 0.0f);
+		float4 outPosition;
+		outPosition = mul(g_PerFrameData.view, float4(vertex.pos, 1.0f));
+		outPosition = mul(g_PerFrameData.proj, outPosition);
+
+		float3 outColor = float3(
+            float(groupID.x & 1),
+            float(groupID.x & 3) / 4,
+            float(groupID.x & 7) / 8
+		);
+
+		emitVertices[localThreadID.x].pos = outPosition;
+		emitVertices[localThreadID.x].color = outColor;
 	}
 }
 
 [shader("pixel")]
-float4 pixelMain(MSOutput input) {
+float4 pixelMain(MSOutput input) : SV_Target {
 	return float4(input.color, 1.0f);
 }

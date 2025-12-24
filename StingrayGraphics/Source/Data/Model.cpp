@@ -150,18 +150,18 @@ namespace SRModelLoader {
 		std::vector<u32> meshletVertices;
 		std::vector<u8> meshletTriangles;
 		
-		const size_t maxMeshlets = meshopt_buildMeshletsBound(numIndices, MAX_VERTICES, MAX_TRIANGLES);
+		size_t maxMeshlets = meshopt_buildMeshletsBound(numIndices, MAX_VERTICES, MAX_TRIANGLES);
 		meshlets.resize(maxMeshlets);
 		meshletVertices.resize(maxMeshlets * MAX_VERTICES);
 		meshletTriangles.resize(maxMeshlets * MAX_TRIANGLES * 3);
 
-		const size_t meshletCount = meshopt_buildMeshlets(
+		size_t meshletCount = meshopt_buildMeshlets(
 			reinterpret_cast<meshopt_Meshlet*>(meshlets.data()),
 			meshletVertices.data(),
 			meshletTriangles.data(),
 			indices,
 			numIndices,
-			reinterpret_cast<const float*>(vertices),
+			reinterpret_cast<const f32*>(vertices),
 			numVertices,
 			sizeof(SRVertex),
 			MAX_VERTICES,
@@ -169,12 +169,12 @@ namespace SRModelLoader {
 			0.0f // TODO: Cone-weight, look into
 		);
 
-		const SRMeshlet& lastMeshlet = meshlets[meshletCount - 1];
+		SRMeshlet& lastMeshlet = meshlets[meshletCount - 1];
 		meshletVertices.resize(lastMeshlet.vertexOffset + lastMeshlet.vertexCount);
 		meshletTriangles.resize(lastMeshlet.triangleOffset + ((lastMeshlet.triangleCount * 3U + 3U) & ~3U));
 		meshlets.resize(meshletCount);
 
-		for (const SRMeshlet& meshlet : meshlets) {
+		for (SRMeshlet& meshlet : meshlets) {
 			meshopt_optimizeMeshlet(
 				&meshletVertices[meshlet.vertexOffset],
 				&meshletTriangles[meshlet.triangleOffset],
@@ -190,14 +190,15 @@ namespace SRModelLoader {
 			.size = numVertices * sizeof(SRVertex),
 			.stride = sizeof(SRVertex),
 			.usage = SRUsage::Default,
-			.bindFlags = SRBindFlag::VertexBuffer,
+			.bindFlags = SRBindFlag::ShaderResource,
+			.miscFlags = SRMiscFlag::StructuredBuffer
 		};
-		SRBufferInfo indexBufferInfo = {
-			.size = numIndices * sizeof(u32),
-			.stride = sizeof(u32),
-			.usage = SRUsage::Default,
-			.bindFlags = SRBindFlag::IndexBuffer
-		};
+		//SRBufferInfo indexBufferInfo = {
+		//	.size = numIndices * sizeof(u32),
+		//	.stride = sizeof(u32),
+		//	.usage = SRUsage::Default,
+		//	.bindFlags = SRBindFlag::IndexBuffer
+		//};
 		SRBufferInfo meshletBufferInfo = {
 			.size = meshlets.size() * sizeof(SRMeshlet),
 			.stride = sizeof(SRMeshlet),
@@ -239,10 +240,12 @@ namespace SRModelLoader {
 				u32 packed = ((u32)vIdx0 << 0) | ((u32)vIdx1 << 8) | ((u32)vIdx2 << 16);
 				meshletTrianglesU32.push_back(packed);
 			}
+
+			meshlet.triangleOffset = triangleOffset;
 		}
 
 		gfxDevice.create_buffer(vertexBufferInfo, model.vertexBuffer, vertices);
-		gfxDevice.create_buffer(indexBufferInfo, model.indexBuffer, indices);
+		//gfxDevice.create_buffer(indexBufferInfo, model.indexBuffer, indices);
 		gfxDevice.create_buffer(meshletBufferInfo, model.meshletBuffer, meshlets.data());
 		gfxDevice.create_buffer(meshletVerticesBufferInfo, model.meshletVerticesBuffer, meshletVertices.data());
 		gfxDevice.create_buffer(meshletTrianglesBufferInfo, model.meshletTrianglesBuffer, meshletTrianglesU32.data());

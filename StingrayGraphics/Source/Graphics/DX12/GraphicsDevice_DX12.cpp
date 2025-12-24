@@ -1333,8 +1333,6 @@ void SRGraphicsDevice_DX12::Impl::setup_imgui_init_info(SRFormat swapchainFormat
 }
 
 SRDescriptorIndex SRGraphicsDevice_DX12::Impl::get_descriptor_index_srv(const SRResource& resource) {
-	assert(resource.type == SRResourceType::Texture); // TODO: Support other SRV types
-
 	if (resource.type == SRResourceType::Texture) {
 		auto* internalTexture = (SRTexture_DX12*)resource.internalState.get();
 		return internalTexture->srvDescriptor;

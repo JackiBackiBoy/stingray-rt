@@ -54,6 +54,8 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Core/System/Time.h
 
 	# Data
+	${SOURCE_DIR}/Data/ArenaAllocator.cpp
+	${SOURCE_DIR}/Data/ArenaAllocator.h
 	${SOURCE_DIR}/Data/Camera.cpp
 	${SOURCE_DIR}/Data/Camera.h
 	${SOURCE_DIR}/Data/ComponentTypes.cpp
@@ -132,6 +134,8 @@ source_group("Core/System" FILES
 )
 
 source_group("Data" FILES
+	${SOURCE_DIR}/Data/ArenaAllocator.cpp
+	${SOURCE_DIR}/Data/ArenaAllocator.h
 	${SOURCE_DIR}/Data/Camera.cpp
 	${SOURCE_DIR}/Data/Camera.h
 	${SOURCE_DIR}/Data/ComponentTypes.cpp
