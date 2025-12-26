@@ -71,11 +71,6 @@ SR_ENABLE_BITMASK_OPERATORS(SRAccessMask);
 SR_ENABLE_BITMASK_OPERATORS(SRBindFlag);
 SR_ENABLE_BITMASK_OPERATORS(SRMiscFlag);
 
-enum class SRGraphicsAPI : u8 {
-	DX12,
-	Vulkan
-};
-
 enum class SRBlend : u8 {
 	Zero,
 	One,
@@ -533,12 +528,12 @@ struct SRPassInfo {
 };
 
 struct SRViewport {
-	float topLeftX = 0.0f;
-	float topLeftY = 0.0f;
-	float width = 0.0f;
-	float height = 0.0f;
-	float minDepth = 0.0f;
-	float maxDepth = 1.0f;
+	f32 topLeftX = 0.0f;
+	f32 topLeftY = 0.0f;
+	f32 width = 0.0f;
+	f32 height = 0.0f;
+	f32 minDepth = 0.0f;
+	f32 maxDepth = 1.0f;
 };
 
 namespace SRGraphicsHelpers {

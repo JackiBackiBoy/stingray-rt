@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-//#define internal      static
+#define internal      static
 //#define global        static
 //#define local_persist static
 

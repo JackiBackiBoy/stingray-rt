@@ -69,6 +69,7 @@ set(SOURCE_FILES
 
 	# Graphics
 	${SOURCE_DIR}/Graphics/FrameInfo.h
+	${SOURCE_DIR}/Graphics/GraphicsDevice.cpp
 	${SOURCE_DIR}/Graphics/GraphicsDevice.h
 	${SOURCE_DIR}/Graphics/GraphicsTypes.h
 	${SOURCE_DIR}/Graphics/RenderGraph.cpp
@@ -150,6 +151,7 @@ source_group("Data" FILES
 
 source_group("Graphics" FILES
 	${SOURCE_DIR}/Graphics/FrameInfo.h
+	${SOURCE_DIR}/Graphics/GraphicsDevice.cpp
 	${SOURCE_DIR}/Graphics/GraphicsDevice.h
 	${SOURCE_DIR}/Graphics/GraphicsTypes.h
 	${SOURCE_DIR}/Graphics/RenderGraph.cpp
@@ -222,14 +224,14 @@ endif()
 # ------------------------------- Target Sources -------------------------------
 # ImGui
 set(IMGUI_SOURCE_FILES
-    ${IMGUI_INCLUDE_DIR}imgui.cpp
-    ${IMGUI_INCLUDE_DIR}imgui_demo.cpp
-    ${IMGUI_INCLUDE_DIR}imgui_draw.cpp
-    ${IMGUI_INCLUDE_DIR}imgui_widgets.cpp
-    ${IMGUI_INCLUDE_DIR}imgui_tables.cpp
-    ${IMGUI_INCLUDE_DIR}backends/imgui_impl_dx12.cpp
-    ${IMGUI_INCLUDE_DIR}backends/imgui_impl_vulkan.cpp
-    ${IMGUI_INCLUDE_DIR}backends/imgui_impl_win32.cpp
+	${IMGUI_INCLUDE_DIR}imgui.cpp
+	${IMGUI_INCLUDE_DIR}imgui_demo.cpp
+	${IMGUI_INCLUDE_DIR}imgui_draw.cpp
+	${IMGUI_INCLUDE_DIR}imgui_widgets.cpp
+	${IMGUI_INCLUDE_DIR}imgui_tables.cpp
+	${IMGUI_INCLUDE_DIR}backends/imgui_impl_dx12.cpp
+	${IMGUI_INCLUDE_DIR}backends/imgui_impl_vulkan.cpp
+	${IMGUI_INCLUDE_DIR}backends/imgui_impl_win32.cpp
 )
 source_group("ImGui" FILES ${IMGUI_SOURCE_FILES})
 

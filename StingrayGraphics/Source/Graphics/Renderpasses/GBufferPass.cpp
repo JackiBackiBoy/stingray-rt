@@ -9,7 +9,7 @@ namespace SRGBufferPass {
 		SRShader pixelShader;
 	};
 
-	void build(SRRenderPass& self, SRGraphicsDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
+	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<GBufferPassData>();
 		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);
 		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, passData.pixelShader);
@@ -37,10 +37,10 @@ namespace SRGBufferPass {
 			.renderTargetFormats = { SRFormat::RGBA8_UNORM },
 			.depthStencilFormat = SRFormat::D32_FLOAT
 		};
-		gfxDevice.create_pipeline(pipelineInfo, passData.pipeline);
+		SRGFX_CreatePipeline(&gfxDevice, &pipelineInfo, &passData.pipeline);
 	}
 
-	void execute(SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+	void execute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 		auto* passData = self.get_pass_data<GBufferPassData>();
 
 		const SRViewport viewport = {
@@ -48,23 +48,23 @@ namespace SRGBufferPass {
 			.height = static_cast<float>(frameInfo.height),
 		};
 
-		gfxDevice.bind_viewport(viewport, cmdList);
-		gfxDevice.bind_pipeline(passData->pipeline, cmdList);
-		gfxDevice.bind_root_constant_buffer(*frameInfo.perFrameBuffer, cmdList);
+		SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
+		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, &cmdList);
+		SRGFX_BindRootConstantBuffer(&gfxDevice, frameInfo.perFrameBuffer, &cmdList);
 
 		frameInfo.scene->for_each<SRTransform, SRRenderable>([&](SRTransform& t, SRRenderable& r) {
 			(void)t;
 			const SRModel* model = r.model;
 
-			gfxDevice.bind_vertex_buffer(model->vertexBuffer, cmdList);
-			gfxDevice.bind_index_buffer(model->indexBuffer, cmdList);
+			SRGFX_BindVertexBuffer(&gfxDevice, &model->vertexBuffer, &cmdList);
+			SRGFX_BindIndexBuffer(&gfxDevice, &model->indexBuffer, &cmdList);
 
 			// TODO: Transform
 			for (const auto& mesh : model->meshes) {
 				for (u32 i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
 					const SRMeshPrimitive& primitive = model->primitives[i];
 
-					gfxDevice.draw_indexed(primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);
+					SRGFX_DrawIndexed(&gfxDevice, primitive.numIndices, primitive.baseIndex, primitive.baseVertex, &cmdList);
 				}
 			}
 		});

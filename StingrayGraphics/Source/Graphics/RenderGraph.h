@@ -121,10 +121,10 @@ public:
 	SRRenderPass& add_color_output(const std::string& name, int width, int height, SRFormat format, int mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
 	SRRenderPass& add_depth_output(const std::string& name, int width, int height, SRFormat format, float clearValue = 0.0f, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
 	SRRenderPass& add_rw_texture_output(const std::string& name, int width, int height, SRFormat format, int mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
-	SRRenderPass& set_execute_callback(std::function<void(SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> callback);
+	SRRenderPass& set_execute_callback(std::function<void(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> callback);
 
 	// --------------------------- Miscellaneous ---------------------------
-	void execute(SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
+	void execute(SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
 
 	template <typename T>
 	T& allocate_pass_data() {
@@ -151,7 +151,7 @@ private:
 	SRPassType m_Type;
 	std::vector<SRRenderPassAttachmentInput> m_InputAttachments;
 	std::vector<SRRenderPassAttachment*> m_OutputAttachments;
-	std::function<void(SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> m_ExecuteCallback;
+	std::function<void(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> m_ExecuteCallback;
 	std::shared_ptr<void> m_PassData = nullptr;
 };
 
@@ -163,9 +163,9 @@ public:
 	SRRenderPass& add_render_pass(const std::string& name, SRPassType type);
 	PrefabPass& add_prefab_pass(const std::string& name);
 
-	void build(SRGraphicsDevice& gfxDevice);
-	void execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swapchain, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
-	void notify_swapchain_resize(SRGraphicsDevice& gfxDevice, int newWidth, int newHeight);
+	void build(SRGFXDevice& gfxDevice);
+	void execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
+	void notify_swapchain_resize(SRGFXDevice& gfxDevice, int newWidth, int newHeight);
 
 	SRRenderPassAttachment* get_attachment(const std::string& name);
 	// TODO: Improve this garbage

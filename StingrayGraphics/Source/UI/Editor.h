@@ -6,7 +6,7 @@
 
 class SREditor {
 public:
-	SREditor(SRWindow& window, SRGraphicsDevice& gfxDevice, SRGraphicsAPI api);
+	SREditor(SRWindow& window, SRGFXDevice& gfxDevice, SRGFXBackend api);
 	~SREditor();
 
 	void update(SRRenderGraph& renderGraph);
@@ -14,8 +14,8 @@ public:
 
 private:
 	SRWindow& m_Window;
-	SRGraphicsDevice& m_GfxDevice;
-	SRGraphicsAPI m_API;
+	SRGFXDevice& m_GfxDevice;
+	SRGFXBackend m_API;
 	void (*begin_render_func)() = nullptr;
 	void (*end_render_func)(const SRCmdList& cmdList) = nullptr;
 	void (*shutdown_func)() = nullptr;

@@ -14,7 +14,7 @@ typedef u64 SRComponentSignature; // Bitset based on 1 << componentID
 
 class SRScene {
 public:
-	SRScene(SRGraphicsDevice& gfxDevice, SREntityID maxEntities);
+	SRScene(SRGFXDevice& gfxDevice, SREntityID maxEntities);
 	~SRScene();
 
 	SREntityID add_entity(const char* name = nullptr);
@@ -109,7 +109,7 @@ private:
 	}
 	inline static SRComponentID g_ComponentIDCounter = 0;
 
-	SRGraphicsDevice& m_GfxDevice;
+	SRGFXDevice& m_GfxDevice;
 	SREntityID m_MaxEntities;
 	SREntityID m_EntityCount = 0;
 	std::vector<SREntityID> m_Entities;

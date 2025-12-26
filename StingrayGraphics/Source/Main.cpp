@@ -8,8 +8,6 @@
 #include "Graphics/FrameInfo.h"
 #include "Graphics/GraphicsDevice.h"
 #include "Graphics/RenderGraph.h"
-#include "Graphics/DX12/GraphicsDevice_DX12.h"
-#include "Graphics/Vulkan/GraphicsDevice_Vulkan.h"
 #include "Graphics/Renderpasses/DepthPrepass.h"
 #include "Graphics/Renderpasses/GBufferPass.h"
 #include "Graphics/Renderpasses/CompositionPass.h"
@@ -21,7 +19,6 @@
 #include <Windows.h>
 #include <glm/glm.hpp>
 #include <cassert>
-#include <iostream>
 #include <memory>
 
 struct alignas(256) PerFrameData {
@@ -33,20 +30,22 @@ struct alignas(256) PerFrameData {
 
 // NOTE: Trick for making sure that the logger exists longer than all other objects
 static auto& logger = SRLogger::get();
-static constexpr SRGraphicsAPI g_API = SRGraphicsAPI::DX12;
 static constexpr int WIDTH = 1920;
 static constexpr int HEIGHT = 1080;
 
 std::unique_ptr<SRWindow> g_Window = {};
-std::unique_ptr<SRGraphicsDevice> g_GfxDevice = {};
+//std::unique_ptr<SRGraphicsDevice> g_GfxDevice = {};
 std::unique_ptr<SRRenderGraph> g_RenderGraph = {};
 std::unique_ptr<SRShaderCompiler> g_ShaderCompiler = {};
 std::unique_ptr<SREditor> g_Editor = {};
 std::unique_ptr<SRScene> g_Scene = {};
 std::unique_ptr<SRCamera> g_Camera = {};
 
+SRGFXBackend g_GfxBackend = SRGFXBackend::DX12;
+SRGFXDevice g_GfxDevice;
+
 SRModel g_TestModel = {};
-SRBuffer g_PerFrameBuffers[SRGraphicsDevice::FRAMES_IN_FLIGHT] = {};
+SRBuffer g_PerFrameBuffers[SR_GFX_FRAMES_IN_FLIGHT] = {};
 PerFrameData g_PerFrameData = {};
 SRSwapchain g_Swapchain = {};
 SRSampler g_LinearSampler = {};
@@ -75,7 +74,7 @@ int APIENTRY wWinMain(
 	init_resources();
 	init_scene();
 	init_rendergraph();
-	g_GfxDevice->flush_initial_uploads(); // TEMPORARY but important for now
+	SRGFX_FlushInitialUploads(&g_GfxDevice); // TEMPORARY but important for now
 
 	SRFrameInfo frameInfo = {
 		.camera = g_Camera.get(),
@@ -93,8 +92,8 @@ int APIENTRY wWinMain(
 	while (g_Window->poll_events()) {
 		SRTime::begin_frame();
 
-		g_GfxDevice->begin_frame(g_Swapchain);
-		frameInfo.perFrameBuffer = &g_PerFrameBuffers[g_GfxDevice->get_frame_index()];
+		SRGFX_BeginFrame(&g_GfxDevice, &g_Swapchain);
+		frameInfo.perFrameBuffer = &g_PerFrameBuffers[SRGFX_GetFrameIndex(&g_GfxDevice)];
 		frameInfo.dt = static_cast<float>(SRTime::get_delta_sec());
 		frameInfo.width = WIDTH;
 		frameInfo.height = HEIGHT;
@@ -108,7 +107,8 @@ int APIENTRY wWinMain(
 		}
 	}
 
-	g_GfxDevice->wait_for_gpu();
+	SRGFX_WaitForGPU(&g_GfxDevice);
+	SRGFX_DestroyDevice(&g_GfxDevice);
 
 	return 0;
 }
@@ -139,18 +139,13 @@ void init_console() {
 }
 
 void init_window() {
-	const char* windowTitle = (g_API == SRGraphicsAPI::Vulkan ? "Stingray (Vulkan)" : "Stingray (DX12)");
+	const char* windowTitle = (g_GfxBackend == SRGFXBackend::Vulkan ? "Stingray (Vulkan)" : "Stingray (DX12)");
 	g_Window = std::make_unique<SRWindow>(windowTitle, WIDTH, HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
 }
 
 void init_graphics() {
-	if constexpr (g_API == SRGraphicsAPI::Vulkan) {
-		g_GfxDevice = std::make_unique<SRGraphicsDevice_Vulkan>(*g_Window);
-	}
-	else if constexpr (g_API == SRGraphicsAPI::DX12) {
-		g_GfxDevice = std::make_unique<SRGraphicsDevice_DX12>(*g_Window);
-	}
-	g_ShaderCompiler = std::make_unique<SRShaderCompiler>(g_GfxDevice->get_shader_platform_info());
+	SRGFX_CreateDevice(g_Window.get(), &g_GfxDevice, g_GfxBackend);
+	g_ShaderCompiler = std::make_unique<SRShaderCompiler>(SRGFX_GetShaderPlatformInfo(&g_GfxDevice));
 
 	SRSwapchainInfo swapchainInfo = {
 		.width = WIDTH,
@@ -159,8 +154,8 @@ void init_graphics() {
 		.format = SRFormat::RGBA8_UNORM,
 		.vSync = false
 	};
-	g_GfxDevice->create_swapchain(swapchainInfo, g_Swapchain);
-	g_Editor = std::make_unique<SREditor>(*g_Window, *g_GfxDevice, g_API);
+	SRGFX_CreateSwapchain(&g_GfxDevice, g_Window.get(), &swapchainInfo, &g_Swapchain);
+	g_Editor = std::make_unique<SREditor>(*g_Window, g_GfxDevice, g_GfxBackend);
 
 	// Samplers
 	SRSamplerInfo linearSamplerInfo = {
@@ -169,7 +164,7 @@ void init_graphics() {
 		.addressV = SRTextureAddressMode::Wrap,
 		.addressW = SRTextureAddressMode::Wrap
 	};
-	g_GfxDevice->create_sampler(linearSamplerInfo, g_LinearSampler);
+	SRGFX_CreateSampler(&g_GfxDevice, &linearSamplerInfo, &g_LinearSampler);
 }
 
 void init_resources() {
@@ -180,15 +175,15 @@ void init_resources() {
 		.bindFlags = SRBindFlag::ConstantBuffer
 	};
 
-	for (u32 f = 0; f < SRGraphicsDevice::FRAMES_IN_FLIGHT; ++f) {
-		g_GfxDevice->create_buffer(perFrameBufferInfo, g_PerFrameBuffers[f], &g_PerFrameData);
+	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
+		SRGFX_CreateBuffer(&g_GfxDevice, &perFrameBufferInfo, &g_PerFrameBuffers[f], &g_PerFrameData);
 	}
 
-	SRModelLoader::load_gltf(RES_DIR "Models/StanfordBunny/StanfordBunny.gltf", g_TestModel, *g_GfxDevice);
+	SRModelLoader::load_gltf(RES_DIR "Models/StanfordBunny/StanfordBunny.gltf", g_TestModel, g_GfxDevice);
 }
 
 void init_scene() {
-	g_Scene = std::make_unique<SRScene>(*g_GfxDevice, 65536);
+	g_Scene = std::make_unique<SRScene>(g_GfxDevice, 65536);
 
 	SREntityID entity = g_Scene->add_entity();
 	g_Scene->add_component<SRTransform>(entity, SRTransform{});
@@ -207,34 +202,34 @@ void init_scene() {
 void init_rendergraph() {
 	g_RenderGraph = std::make_unique<SRRenderGraph>();
 
-	//auto& depthPrepass = g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::Graphics)
-	//	.add_depth_output("Depth", WIDTH, HEIGHT, SRFormat::D32_FLOAT)
-	//	.set_execute_callback(SRDepthPrepass::execute);
-	//SRDepthPrepass::build(depthPrepass, *g_GfxDevice, *g_ShaderCompiler);
+	auto& depthPrepass = g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::Graphics)
+		.add_depth_output("Depth", WIDTH, HEIGHT, SRFormat::D32_FLOAT)
+		.set_execute_callback(SRDepthPrepass::execute);
+	SRDepthPrepass::build(depthPrepass, g_GfxDevice, *g_ShaderCompiler);
 
-	//auto& gBufferPass = g_RenderGraph->add_render_pass("GBufferPass", SRPassType::Graphics)
-	//	.add_depth_input("Depth")
-	//	.add_color_output("GBufferAlbedo", WIDTH, HEIGHT, SRFormat::RGBA8_UNORM)
-	//	.set_execute_callback(SRGBufferPass::execute);
-	//SRGBufferPass::build(gBufferPass, *g_GfxDevice, *g_ShaderCompiler);
+	auto& gBufferPass = g_RenderGraph->add_render_pass("GBufferPass", SRPassType::Graphics)
+		.add_depth_input("Depth")
+		.add_color_output("GBufferAlbedo", WIDTH, HEIGHT, SRFormat::RGBA8_UNORM)
+		.set_execute_callback(SRGBufferPass::execute);
+	SRGBufferPass::build(gBufferPass, g_GfxDevice, *g_ShaderCompiler);
 
-	//auto& compositionPass = g_RenderGraph->add_render_pass("CompositionPass", SRPassType::Graphics)
-	//	.add_color_input("GBufferAlbedo", SRAccessFlag::Read)
-	//	.set_execute_callback(SRCompositionPass::execute);
-	//SRCompositionPass::build(compositionPass, *g_GfxDevice, *g_ShaderCompiler);
+	auto& compositionPass = g_RenderGraph->add_render_pass("CompositionPass", SRPassType::Graphics)
+		.add_color_input("GBufferAlbedo", SRAccessFlag::Read)
+		.set_execute_callback(SRCompositionPass::execute);
+	SRCompositionPass::build(compositionPass, g_GfxDevice, *g_ShaderCompiler);
 
 	// TODO: Update render graph to respect mesh shading pipeline
-	auto& meshletPass = g_RenderGraph->add_render_pass("MeshletPass", SRPassType::Graphics)
-		.set_execute_callback(SRMeshletGenerationpass::execute);
-	SRMeshletGenerationpass::build(meshletPass, *g_GfxDevice, *g_ShaderCompiler);
+	//auto& meshletPass = g_RenderGraph->add_render_pass("MeshletPass", SRPassType::Graphics)
+	//	.set_execute_callback(SRMeshletGenerationpass::execute);
+	//SRMeshletGenerationpass::build(meshletPass, g_GfxDevice, *g_ShaderCompiler);
 
 	auto& imguiPass = g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::Graphics)
-		.set_execute_callback([&](SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+		.set_execute_callback([&](SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 			g_Editor->update(*g_RenderGraph);
 			g_Editor->render(cmdList);
 		});
 
-	g_RenderGraph->build(*g_GfxDevice);
+	g_RenderGraph->build(g_GfxDevice);
 }
 
 void update(const SRFrameInfo& frameInfo) {
@@ -277,11 +272,11 @@ void update(const SRFrameInfo& frameInfo) {
 	g_PerFrameData.view = g_Camera->get_view_matrix();
 	g_PerFrameData.proj = g_Camera->get_proj_matrix();
 
-	std::memcpy(g_PerFrameBuffers[g_GfxDevice->get_frame_index()].mappedData, &g_PerFrameData, sizeof(g_PerFrameData));
+	std::memcpy(g_PerFrameBuffers[SRGFX_GetFrameIndex(&g_GfxDevice)].mappedData, &g_PerFrameData, sizeof(g_PerFrameData));
 }
 
 void render(const SRFrameInfo& frameInfo) {
-	SRCmdList cmdList = g_GfxDevice->begin_command_list(SRQueue_Universal);
-	g_RenderGraph->execute(*g_GfxDevice, g_Swapchain, cmdList, frameInfo);
-	g_GfxDevice->submit_command_lists(g_Swapchain);
+	SRCmdList cmdList = SRGFX_BeginCommandList(&g_GfxDevice, SRQueue_Universal);
+	g_RenderGraph->execute(g_GfxDevice, g_Swapchain, cmdList, frameInfo);
+	SRGFX_SubmitCommandLists(&g_GfxDevice, &g_Swapchain);
 }

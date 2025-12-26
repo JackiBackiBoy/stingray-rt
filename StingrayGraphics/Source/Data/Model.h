@@ -48,5 +48,5 @@ struct SRMeshlet {
 
 // TODO: Move to unified resource manager perhaps?
 namespace SRModelLoader {
-	void load_gltf(const char* path, SRModel& model, SRGraphicsDevice& gfxDevice);
+	void load_gltf(const char* path, SRModel& model, SRGFXDevice& gfxDevice);
 }

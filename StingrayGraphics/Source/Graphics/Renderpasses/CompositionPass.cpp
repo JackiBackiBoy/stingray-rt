@@ -13,7 +13,7 @@ namespace SRCompositionPass {
 		} pushConstants;
 	};
 
-	void build(SRRenderPass& self, SRGraphicsDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
+	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<CompositionPassData>();
 		shaderCompiler.compile_from_file(RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);
 		shaderCompiler.compile_from_file(RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, passData.pixelShader);
@@ -24,10 +24,10 @@ namespace SRCompositionPass {
 			.numRenderTargets = 1,
 			.renderTargetFormats = { SRFormat::RGBA8_UNORM }
 		};
-		gfxDevice.create_pipeline(pipelineInfo, passData.pipeline);
+		SRGFX_CreatePipeline(&gfxDevice, &pipelineInfo, &passData.pipeline);
 	}
 
-	void execute(SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+	void execute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 		auto* passData = self.get_pass_data<CompositionPassData>();
 
 		const SRViewport viewport = {
@@ -36,11 +36,11 @@ namespace SRCompositionPass {
 		};
 
 		const auto* gBufferAlbedo = self.get_attachment("GBufferAlbedo");
-		passData->pushConstants.gBufferAlbedoIndex = gfxDevice.get_descriptor_index_srv(gBufferAlbedo->texture);
+		passData->pushConstants.gBufferAlbedoIndex = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &gBufferAlbedo->texture);
 
-		gfxDevice.bind_viewport(viewport, cmdList);
-		gfxDevice.bind_pipeline(passData->pipeline, cmdList);
-		gfxDevice.push_constants(&passData->pushConstants, sizeof(passData->pushConstants), cmdList);
-		gfxDevice.draw(3, 0, cmdList);
+		SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
+		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, &cmdList);
+		SRGFX_PushConstants(&gfxDevice, &passData->pushConstants, sizeof(passData->pushConstants), &cmdList);
+		SRGFX_Draw(&gfxDevice, 3, 0, &cmdList);
 	}
 }

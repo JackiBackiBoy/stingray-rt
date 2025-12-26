@@ -1,6 +1,6 @@
 #include "Scene.h"
 
-SRScene::SRScene(SRGraphicsDevice& gfxDevice, SREntityID maxEntities) :
+SRScene::SRScene(SRGFXDevice& gfxDevice, SREntityID maxEntities) :
 	m_GfxDevice(gfxDevice), m_MaxEntities(maxEntities) {
 
 }

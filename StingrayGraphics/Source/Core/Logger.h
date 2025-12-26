@@ -2,7 +2,6 @@
 
 #include "Core/Types.h"
 
-#include <chrono>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -68,9 +67,9 @@ public:
 		}
 
 		char line[4600];
-		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+		//auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 		std::tm tm = {};
-		localtime_s(&tm, &now);
+		//localtime_s(&tm, &now);
 
 		int m = std::snprintf(
 			line,
@@ -130,9 +129,9 @@ public:
 		}
 
 		char line[4600];
-		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+		//auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 		std::tm tm = {};
-		localtime_s(&tm, &now);
+		//localtime_s(&tm, &now);
 
 		int m = std::snprintf(
 			line,

@@ -97,12 +97,12 @@ SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, int w
 	return *this;
 }
 
-SRRenderPass& SRRenderPass::set_execute_callback(std::function<void(SRRenderPass& self, SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> callback) {
+SRRenderPass& SRRenderPass::set_execute_callback(std::function<void(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> callback) {
 	m_ExecuteCallback = callback;
 	return *this;
 }
 
-void SRRenderPass::execute(SRGraphicsDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+void SRRenderPass::execute(SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 	if (m_ExecuteCallback) {
 		m_ExecuteCallback(*this, gfxDevice, cmdList, frameInfo);
 	}
@@ -151,7 +151,7 @@ PrefabPass& SRRenderGraph::add_prefab_pass(const std::string& name) {
 	return passRef;
 }
 
-void SRRenderGraph::build(SRGraphicsDevice& gfxDevice) {
+void SRRenderGraph::build(SRGFXDevice& gfxDevice) {
 	// NOTE: This render graph performs NO pass re-ordering of any kind and
 	// does not currently deal with aliasing or transient resources.
 	// This might change in the future, but for now the purpose of this
@@ -198,12 +198,12 @@ void SRRenderGraph::build(SRGraphicsDevice& gfxDevice) {
 				break;
 			}
 
-			gfxDevice.create_texture(textureInfo, output->texture, nullptr);
+			SRGFX_CreateTexture(&gfxDevice, &textureInfo, &output->texture, nullptr);
 		}
 	}
 }
 
-void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swapchain, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+void SRRenderGraph::execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 	bool encounteredFirstRootPass = false;
 
 	for (size_t i = 0; i < m_RenderPasses.size(); ++i) {
@@ -348,10 +348,11 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 
 		// Execute resource barriers if any
 		if (!barriers.empty()) {
-			gfxDevice.barrier(
+			SRGFX_Barrier(
+				&gfxDevice,
 				barriers.data(),
 				static_cast<u32>(barriers.size()),
-				cmdList
+				&cmdList
 			);
 		}
 
@@ -366,30 +367,30 @@ void SRRenderGraph::execute(SRGraphicsDevice& gfxDevice, const SRSwapchain& swap
 		// pass to write to the swapchain.
 		if (encounteredFirstRootPass) {
 			if (isFirstRootPass) {
-				gfxDevice.begin_render_pass(swapchain, cmdList);
+				SRGFX_BeginRenderPassSwapchain(&gfxDevice, &swapchain, &cmdList);
 			}
 
 			pass->execute(gfxDevice, cmdList, frameInfo);
 
 			if (i == m_RenderPasses.size() - 1) {
-				gfxDevice.end_render_pass(swapchain, cmdList);
+				SRGFX_EndRenderPassSwapchain(&gfxDevice, &swapchain, &cmdList);
 			}
 			continue;
 		}
 
 		// "Normal" render passes
 		if (pass->get_type() == SRPassType::Graphics) {
-			gfxDevice.begin_render_pass(passInfo, cmdList);
+			SRGFX_BeginRenderPass(&gfxDevice, &passInfo, &cmdList);
 		}
 
 		pass->execute(gfxDevice, cmdList, frameInfo);
 		if (pass->get_type() == SRPassType::Graphics) {
-			gfxDevice.end_render_pass(cmdList);
+			SRGFX_EndRenderPass(&gfxDevice, &cmdList);
 		}
 	}
 }
 
-void SRRenderGraph::notify_swapchain_resize(SRGraphicsDevice& gfxDevice, int newWidth, int newHeight) {
+void SRRenderGraph::notify_swapchain_resize(SRGFXDevice& gfxDevice, int newWidth, int newHeight) {
 	(void)gfxDevice;
 
 	for (auto& attachment : m_Attachments) {

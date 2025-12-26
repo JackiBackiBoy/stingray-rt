@@ -6,7 +6,6 @@
 #include <dxcapi.h>
 #include <assert.h>
 
-#include <fstream>
 #include <stdexcept>
 #include <string>
 
@@ -49,19 +48,8 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 	SRWideTemp wDirStr = SRWideTemp(directory.c_str());
 	SRWideTemp wEntryPointStr = SRWideTemp(info.entryPoint);
 
-	std::ifstream file(path, std::ios::ate | std::ios::binary);
-	if (!file.is_open()) {
-		SRLOG_ERROR("Failed to open shader file %s", path);
-		throw std::runtime_error("Failed to open file");
-	}
-
-	size_t fileSize = static_cast<size_t>(file.tellg());
-	std::vector<char> shaderCode(fileSize);
-
-	file.seekg(0);
-	file.read(shaderCode.data(), fileSize);
-	file.close();
-	shaderCode.push_back('\0');
+	IDxcBlobEncoding* sourceBlob;
+	HR(m_DXCUtils->LoadFile(wPathStr, nullptr, &sourceBlob));
 
 	const WCHAR* profile;
 	switch (info.stage) {
@@ -116,7 +104,11 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 		args[argCount++] = DXC_ARG_OPTIMIZATION_LEVEL3;
 	#endif
 
-	DxcBuffer srcBuffer = { .Ptr = shaderCode.data(), .Size = shaderCode.size(), .Encoding = 0 };
+	DxcBuffer srcBuffer = {
+		.Ptr = sourceBlob->GetBufferPointer(),
+		.Size = sourceBlob->GetBufferSize(),
+		.Encoding = 0
+	};
 	IDxcResult* compiledShaderBuffer = nullptr;
 	HRESULT hr = m_DXCCompiler->Compile(
 		&srcBuffer,
@@ -149,6 +141,7 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 	compiledShaderBlob->Release();
 	errors->Release();
 	compiledShaderBuffer->Release();
+	sourceBlob->Release();
 }
 
 SRShaderCompiler::SRShaderCompiler(const SRShaderPlatformInfo& shaderPlatformInfo) {

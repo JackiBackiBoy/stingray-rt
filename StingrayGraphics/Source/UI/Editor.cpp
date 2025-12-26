@@ -29,16 +29,16 @@ namespace {
 	}
 }
 
-SREditor::SREditor(SRWindow& window, SRGraphicsDevice& gfxDevice, SRGraphicsAPI api) :
+SREditor::SREditor(SRWindow& window, SRGFXDevice& gfxDevice, SRGFXBackend api) :
 	m_Window(window), m_GfxDevice(gfxDevice), m_API(api) {
 
 	switch (m_API) {
-	case SRGraphicsAPI::DX12:
+	case SRGFXBackend::DX12:
 		begin_render_func = begin_render_dx12;
 		end_render_func = end_render_dx12;
 		shutdown_func = ImGui_ImplDX12_Shutdown;
 		break;
-	case SRGraphicsAPI::Vulkan:
+	case SRGFXBackend::Vulkan:
 		begin_render_func = begin_render_vulkan;
 		end_render_func = end_render_vulkan;
 		shutdown_func = ImGui_ImplVulkan_Shutdown;
@@ -54,7 +54,7 @@ SREditor::SREditor(SRWindow& window, SRGraphicsDevice& gfxDevice, SRGraphicsAPI 
 
 	ImGui_ImplWin32_Init(window.get_internal_handle());
 	// TODO: Make format dynamic
-	gfxDevice.setup_imgui_init_info(SRFormat::RGBA8_UNORM);
+	SRGFX_SetupImGuiInitInfo(&gfxDevice, SRFormat::RGBA8_UNORM);
 }
 
 SREditor::~SREditor() {

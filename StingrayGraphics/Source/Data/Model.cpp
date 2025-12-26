@@ -1,6 +1,8 @@
 #include "Model.h"
 #include "Core/Logger.h"
 
+// TODO: Get rid of stupid fastgltf library
+#undef internal
 #include "fastgltf/core.hpp"
 #include "fastgltf/tools.hpp"
 #include <meshoptimizer.h>
@@ -96,7 +98,7 @@ namespace {
 }
 
 namespace SRModelLoader {
-	void load_gltf(const char* path, SRModel& model, SRGraphicsDevice& gfxDevice) {
+	void load_gltf(const char* path, SRModel& model, SRGFXDevice& gfxDevice) {
 		fastgltf::Parser gltfParser = fastgltf::Parser();
 
 		const fastgltf::Options gltfOptions = (
@@ -190,15 +192,15 @@ namespace SRModelLoader {
 			.size = numVertices * sizeof(SRVertex),
 			.stride = sizeof(SRVertex),
 			.usage = SRUsage::Default,
-			.bindFlags = SRBindFlag::ShaderResource,
+			.bindFlags = SRBindFlag::VertexBuffer | SRBindFlag::ShaderResource,
 			.miscFlags = SRMiscFlag::StructuredBuffer
 		};
-		//SRBufferInfo indexBufferInfo = {
-		//	.size = numIndices * sizeof(u32),
-		//	.stride = sizeof(u32),
-		//	.usage = SRUsage::Default,
-		//	.bindFlags = SRBindFlag::IndexBuffer
-		//};
+		SRBufferInfo indexBufferInfo = {
+			.size = numIndices * sizeof(u32),
+			.stride = sizeof(u32),
+			.usage = SRUsage::Default,
+			.bindFlags = SRBindFlag::IndexBuffer
+		};
 		SRBufferInfo meshletBufferInfo = {
 			.size = meshlets.size() * sizeof(SRMeshlet),
 			.stride = sizeof(SRMeshlet),
@@ -244,11 +246,11 @@ namespace SRModelLoader {
 			meshlet.triangleOffset = triangleOffset;
 		}
 
-		gfxDevice.create_buffer(vertexBufferInfo, model.vertexBuffer, vertices);
-		//gfxDevice.create_buffer(indexBufferInfo, model.indexBuffer, indices);
-		gfxDevice.create_buffer(meshletBufferInfo, model.meshletBuffer, meshlets.data());
-		gfxDevice.create_buffer(meshletVerticesBufferInfo, model.meshletVerticesBuffer, meshletVertices.data());
-		gfxDevice.create_buffer(meshletTrianglesBufferInfo, model.meshletTrianglesBuffer, meshletTrianglesU32.data());
+		SRGFX_CreateBuffer(&gfxDevice, &vertexBufferInfo, &model.vertexBuffer, vertices);
+		SRGFX_CreateBuffer(&gfxDevice, &indexBufferInfo, &model.indexBuffer, indices);
+		SRGFX_CreateBuffer(&gfxDevice, &meshletBufferInfo, &model.meshletBuffer, meshlets.data());
+		SRGFX_CreateBuffer(&gfxDevice, &meshletVerticesBufferInfo, &model.meshletVerticesBuffer, meshletVertices.data());
+		SRGFX_CreateBuffer(&gfxDevice, &meshletTrianglesBufferInfo, &model.meshletTrianglesBuffer, meshletTrianglesU32.data());
 		model.numMeshlets = (u32)meshlets.size();
 
 		delete[] vertices;
