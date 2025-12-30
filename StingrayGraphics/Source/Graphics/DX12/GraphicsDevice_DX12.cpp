@@ -60,53 +60,49 @@ internal SRGFXDeviceVTable SRGFXDevice_DX12_VTable = {
 
 struct SRGFXDeviceDX12 {
 	#ifdef _DEBUG
-		ID3D12Debug* m_DebugInterface;
-		IDXGIInfoQueue* m_DXGIDebugInfoQueue;
-		ID3D12DebugDevice* m_DebugDevice;
+		ID3D12Debug* debug_interface;
+		ID3D12DebugDevice* debug_device;
+		IDXGIInfoQueue* dxgi_debug_info_queue;
 	#endif
-	IDXGIFactory2* m_DXGIFactory;
-	IDXGIAdapter1* m_Adapter;
-	ID3D12Device10* m_Device;
-	ID3D12CommandAllocator* m_UploadCmdAllocator;
-	ID3D12GraphicsCommandList7* m_UploadCmdList;
-	ID3D12Fence* m_FrameFences[SRQueue_COUNT];
-	ID3D12CommandAllocator* m_CommandAllocators[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT];
-	ID3D12CommandQueue* m_CommandQueues[SRQueue_COUNT];
+	IDXGIFactory2* dxgi_factory;
+	IDXGIAdapter1* dxgi_adapter;
+	ID3D12Device10* device;
+	ID3D12CommandAllocator* upload_cmd_allocator;
+	ID3D12GraphicsCommandList7* upload_cmd_list;
+	ID3D12Fence* frame_fences[SRQueue_COUNT];
+	ID3D12CommandAllocator* cmd_allocators[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT];
+	ID3D12CommandQueue* cmd_queues[SRQueue_COUNT];
+	D3D12MA::Allocator* d3d12ma_allocator;
 
-	SRArena* m_Arena;
-	SRArena* m_UploadArena;
-	SRWindow* m_Window;
-	D3D12MA::Allocator* m_Allocator = nullptr;
+	SRCmdList_DX12 cmd_lists[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT];
+	SRDescriptorHeap_DX12* descriptor_heap_cbv_srv_uav;
+	SRDescriptorHeap_DX12* descriptor_heap_sampler;
+	SRDescriptorHeap_DX12* descriptor_heap_rtv;
+	SRDescriptorHeap_DX12* descriptor_heap_dsv;
+	SRDeviceCapabilities_DX12 device_capabilities;
+	bool is_tearing_supported;
+	bool is_upload_cmd_list_recording;
 
-	SRDescriptorHeap_DX12* m_ResourceDescriptorHeap; // CBV + SRV + UAV
-	SRDescriptorHeap_DX12* m_SamplerDescriptorHeap;
-	SRDescriptorHeap_DX12* m_RTVDescriptorHeap;
-	SRDescriptorHeap_DX12* m_DSVDescriptorHeap;
-	
-	u64 m_FrameDoneValues[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT] = {};
-	u64 m_NextGPUSignalValue = 1;
-
-	// TODO: For now we only use the universal queues, in the future we will use other ones too
-	SRCmdList_DX12 m_PerFrameCmdLists[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT];
-	u32 m_FrameIndex = 0;
-	u32 m_ImageIndex = 0;
-	u64 m_FrameCounter = 0;
-	SRDeviceCapabilities_DX12 m_DeviceCapabilities = {};
-	bool m_IsTearingSupported = false;
-	bool m_IsUploadCmdListRecording = false;
+	SRArena* arena_general;
+	SRArena* arena_upload;
+	SRWindow* window;
+	u64 frame_done_values[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT];
+	u32 frame_index;
+	u32 image_index;
+	u64 frame_counter;
 };
 
 internal void SRGFXDeviceDX12_CreateDebugInterface(SRGFXDeviceDX12* dev) {
 #ifdef _DEBUG
-	if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&dev->m_DebugInterface)))) {
+	if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&dev->debug_interface)))) {
 		SRLOG_WARN_CAT(SRLOG_CAT_DX12, "Failed to create base ID3D12Debug interface. Debug information will be limited");
 		return;
 	}
 
-	dev->m_DebugInterface->EnableDebugLayer();
+	dev->debug_interface->EnableDebugLayer();
 
 	ID3D12Debug1* debugInterface1 = nullptr;
-	if (FAILED(dev->m_DebugInterface->QueryInterface(IID_PPV_ARGS(&debugInterface1)))) {
+	if (FAILED(dev->debug_interface->QueryInterface(IID_PPV_ARGS(&debugInterface1)))) {
 		SRLOG_WARN_CAT(SRLOG_CAT_DX12, "Failed to create ID3D12Debug1 interface. GBV/SCQV information will not be available");
 		return;
 	}
@@ -121,17 +117,17 @@ internal void SRGFXDeviceDX12_CreateDebugInterface(SRGFXDeviceDX12* dev) {
 
 internal void SRGFXDeviceDX12_CreateDXGIDebugInterface(SRGFXDeviceDX12* dev) {
 #ifdef _DEBUG
-	if (FAILED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dev->m_DXGIDebugInfoQueue)))) {
+	if (FAILED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dev->dxgi_debug_info_queue)))) {
 		SRLOG_WARN_CAT(SRLOG_CAT_DX12, "Failed to create DXGI debug interface. DXGI-related information will not be available");
 		return;
 	}
 
 	SR_DX12_CHECK(
-		dev->m_DXGIDebugInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE),
+		dev->dxgi_debug_info_queue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE),
 		"Set break on severity"
 	);
 	SR_DX12_CHECK(
-		dev->m_DXGIDebugInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE),
+		dev->dxgi_debug_info_queue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE),
 		"Set break on severity"
 	);
 #else
@@ -145,11 +141,11 @@ internal void SRGFXDeviceDX12_CreateDXGIFactory(SRGFXDeviceDX12* dev) {
 		dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
 	#endif
 
-	SR_DX12_CHECK(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&dev->m_DXGIFactory)), "DXGI factory creation");
+	SR_DX12_CHECK(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&dev->dxgi_factory)), "DXGI factory creation");
 	SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "Successfully created DXGI factory");
 
 	IDXGIFactory5* dxgiFactory5 = nullptr;
-	if (SUCCEEDED(dev->m_DXGIFactory->QueryInterface(IID_PPV_ARGS(&dxgiFactory5)))) {
+	if (SUCCEEDED(dev->dxgi_factory->QueryInterface(IID_PPV_ARGS(&dxgiFactory5)))) {
 		BOOL allowTearing = FALSE;
 		HRESULT hr = dxgiFactory5->CheckFeatureSupport(
 			DXGI_FEATURE_PRESENT_ALLOW_TEARING,
@@ -158,7 +154,7 @@ internal void SRGFXDeviceDX12_CreateDXGIFactory(SRGFXDeviceDX12* dev) {
 		);
 		dxgiFactory5->Release();
 
-		dev->m_IsTearingSupported = SUCCEEDED(hr) && allowTearing == TRUE;
+		dev->is_tearing_supported = SUCCEEDED(hr) && allowTearing == TRUE;
 	}
 }
 
@@ -170,7 +166,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 	// based on GPU preference. If it's not available, we pick a device with
 	// EnumAdapters1 instead.
 	IDXGIFactory6* dxgiFactory6 = nullptr;
-	bool isDXGIFactory6Available = SUCCEEDED(dev->m_DXGIFactory->QueryInterface(IID_PPV_ARGS(&dxgiFactory6)));
+	bool isDXGIFactory6Available = SUCCEEDED(dev->dxgi_factory->QueryInterface(IID_PPV_ARGS(&dxgiFactory6)));
 
 	for (UINT i = 0;; ++i) {
 		IDXGIAdapter1* adapter = nullptr;
@@ -184,7 +180,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 			);
 		}
 		else {
-			hr = dev->m_DXGIFactory->EnumAdapters1(i, &adapter);
+			hr = dev->dxgi_factory->EnumAdapters1(i, &adapter);
 		}
 
 		if (FAILED(hr)) {
@@ -235,16 +231,16 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 			continue;
 		}
 
-		SR_DX12_CHECK(device->QueryInterface(IID_PPV_ARGS(&dev->m_Device)), "Create as ID3D12Device10");
-		dev->m_Adapter = adapter;
+		SR_DX12_CHECK(device->QueryInterface(IID_PPV_ARGS(&dev->device)), "Create as ID3D12Device10");
+		dev->dxgi_adapter = adapter;
 
 		#ifdef _DEBUG
-			if (FAILED(dev->m_Device->QueryInterface(IID_PPV_ARGS(&dev->m_DebugDevice)))) {
+			if (FAILED(dev->device->QueryInterface(IID_PPV_ARGS(&dev->debug_device)))) {
 				SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "ID3D12DebugDevice not available. D3D12 object reporting disabled");
 			}
 		#endif
 
-		dev->m_DeviceCapabilities = capabilities;
+		dev->device_capabilities = capabilities;
 		pickedDeviceIdx = i;
 		device->Release();
 
@@ -266,19 +262,19 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 internal void SRGFXDeviceDX12_CreateMemoryAllocator(SRGFXDeviceDX12* dev) {
 	D3D12MA::ALLOCATOR_DESC allocatorDesc = {
 		.Flags = D3D12MA_RECOMMENDED_ALLOCATOR_FLAGS,
-		.pDevice = dev->m_Device,
-		.pAdapter = dev->m_Adapter
+		.pDevice = dev->device,
+		.pAdapter = dev->dxgi_adapter
 	};
 
-	SR_DX12_CHECK(D3D12MA::CreateAllocator(&allocatorDesc, &dev->m_Allocator), "Create D3D12 Memory Allocator");
+	SR_DX12_CHECK(D3D12MA::CreateAllocator(&allocatorDesc, &dev->d3d12ma_allocator), "Create D3D12 Memory Allocator");
 }
 
 internal void SRGFXDeviceDX12_CreateCommandAllocators(SRGFXDeviceDX12* dev) {
 	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
 		// Universal command allocators (direct)
-		SR_DX12_CHECK(dev->m_Device->CreateCommandAllocator(
+		SR_DX12_CHECK(dev->device->CreateCommandAllocator(
 			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&dev->m_CommandAllocators[SRQueue_Universal][f])
+			IID_PPV_ARGS(&dev->cmd_allocators[SRQueue_Universal][f])
 		), "Command allocator creation");
 
 		// TODO: Create command allocators for other queue types too. We will need
@@ -290,19 +286,19 @@ internal void SRGFXDeviceDX12_CreateCommandAllocators(SRGFXDeviceDX12* dev) {
 	}
 
 	// TEMPORARY
-	SR_DX12_CHECK(dev->m_Device->CreateCommandAllocator(
+	SR_DX12_CHECK(dev->device->CreateCommandAllocator(
 		D3D12_COMMAND_LIST_TYPE_COPY,
-		IID_PPV_ARGS(&dev->m_UploadCmdAllocator)
+		IID_PPV_ARGS(&dev->upload_cmd_allocator)
 	), "Upload command allocator creation");
 
-	SR_DX12_CHECK(dev->m_Device->CreateCommandList(
+	SR_DX12_CHECK(dev->device->CreateCommandList(
 		0,
 		D3D12_COMMAND_LIST_TYPE_COPY,
-		dev->m_UploadCmdAllocator,
+		dev->upload_cmd_allocator,
 		nullptr,
-		IID_PPV_ARGS(&dev->m_UploadCmdList)
+		IID_PPV_ARGS(&dev->upload_cmd_list)
 	), "Command list creation");
-	dev->m_UploadCmdList->Close();
+	dev->upload_cmd_list->Close();
 }
 
 internal void SRGFXDeviceDX12_CreateCommandQueues(SRGFXDeviceDX12* dev) {
@@ -313,16 +309,16 @@ internal void SRGFXDeviceDX12_CreateCommandQueues(SRGFXDeviceDX12* dev) {
 		.NodeMask = 0
 	};
 
-	SR_DX12_CHECK(dev->m_Device->CreateCommandQueue(
+	SR_DX12_CHECK(dev->device->CreateCommandQueue(
 		&commandQueueDesc,
-		IID_PPV_ARGS(&dev->m_CommandQueues[SRQueue_Universal])
+		IID_PPV_ARGS(&dev->cmd_queues[SRQueue_Universal])
 	), "Command queue creation");
 
 	commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
 
-	SR_DX12_CHECK(dev->m_Device->CreateCommandQueue(
+	SR_DX12_CHECK(dev->device->CreateCommandQueue(
 		&commandQueueDesc,
-		IID_PPV_ARGS(&dev->m_CommandQueues[SRQueue_Copy])
+		IID_PPV_ARGS(&dev->cmd_queues[SRQueue_Copy])
 	), "Command queue creation");
 
 	// TODO: Create command queues for other queue types too. We will need it
@@ -331,68 +327,68 @@ internal void SRGFXDeviceDX12_CreateCommandQueues(SRGFXDeviceDX12* dev) {
 
 void SRGFXDeviceDX12_CreateSyncObjects(SRGFXDeviceDX12* dev) {
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
-		SR_DX12_CHECK(dev->m_Device->CreateFence(
+		SR_DX12_CHECK(dev->device->CreateFence(
 			0,
 			D3D12_FENCE_FLAG_NONE,
-			IID_PPV_ARGS(&dev->m_FrameFences[q])
+			IID_PPV_ARGS(&dev->frame_fences[q])
 		), "Create frame fence");
 	}
 }
 
 internal void SRGFXDeviceDX12_CreateDescriptorHeaps(SRGFXDeviceDX12* dev) {
-	dev->m_ResourceDescriptorHeap = SRDescriptorHeap_DX12_Create(dev->m_Arena, dev->m_Device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, SR_MAX_CBV_SRV_UAV_DESCRIPTORS);
-	dev->m_SamplerDescriptorHeap  = SRDescriptorHeap_DX12_Create(dev->m_Arena, dev->m_Device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, SR_MAX_SAMPLER_DESCRIPTORS);
-	dev->m_RTVDescriptorHeap      = SRDescriptorHeap_DX12_Create(dev->m_Arena, dev->m_Device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, SR_MAX_RTV_DESCRIPTORS);
-	dev->m_DSVDescriptorHeap      = SRDescriptorHeap_DX12_Create(dev->m_Arena, dev->m_Device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, SR_MAX_DSV_DESCRIPTORS);
+	dev->descriptor_heap_cbv_srv_uav = SRDescriptorHeap_DX12_Create(dev->arena_general, dev->device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, SR_MAX_CBV_SRV_UAV_DESCRIPTORS);
+	dev->descriptor_heap_sampler  = SRDescriptorHeap_DX12_Create(dev->arena_general, dev->device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, SR_MAX_SAMPLER_DESCRIPTORS);
+	dev->descriptor_heap_rtv      = SRDescriptorHeap_DX12_Create(dev->arena_general, dev->device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, SR_MAX_RTV_DESCRIPTORS);
+	dev->descriptor_heap_dsv      = SRDescriptorHeap_DX12_Create(dev->arena_general, dev->device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, SR_MAX_DSV_DESCRIPTORS);
 }
 
 // ------------------------------ Public API ------------------------------
 void SRGFXDX12_CreateDevice(SRWindow* window, SRGFXDevice* device) {
-	//SRGFXDeviceDX12* devDX12 = (SRGFXDeviceDX12*)malloc(sizeof(SRGFXDeviceDX12));
-	SRGFXDeviceDX12* devDX12 = new SRGFXDeviceDX12();
-	//ZeroMemory(devDX12, sizeof(*devDX12));
+	SRGFXDeviceDX12* dev_dx12 = (SRGFXDeviceDX12*)malloc(sizeof(SRGFXDeviceDX12));
+	assert(dev_dx12 != nullptr);
+	ZeroMemory(dev_dx12, sizeof(*dev_dx12));
 
-	device->internalState = devDX12;
+	device->internalState = dev_dx12;
 	device->vtbl = &SRGFXDevice_DX12_VTable;
 
-	devDX12->m_Window = window;
-	devDX12->m_Arena = SRArena_Create();
-	devDX12->m_UploadArena = SRArena_Create();
+	dev_dx12->window = window;
+	dev_dx12->arena_general = SRArena_Create();
+	dev_dx12->arena_upload = SRArena_Create();
 
-	SRGFXDeviceDX12_CreateDebugInterface(devDX12);
-	SRGFXDeviceDX12_CreateDXGIDebugInterface(devDX12);
-	SRGFXDeviceDX12_CreateDXGIFactory(devDX12);
-	SRGFXDeviceDX12_CreateDevice(devDX12);
-	SRGFXDeviceDX12_CreateMemoryAllocator(devDX12);
-	SRGFXDeviceDX12_CreateCommandAllocators(devDX12);
-	SRGFXDeviceDX12_CreateCommandQueues(devDX12);
-	SRGFXDeviceDX12_CreateSyncObjects(devDX12);
-	SRGFXDeviceDX12_CreateDescriptorHeaps(devDX12);	
+	SRGFXDeviceDX12_CreateDebugInterface(dev_dx12);
+	SRGFXDeviceDX12_CreateDXGIDebugInterface(dev_dx12);
+	SRGFXDeviceDX12_CreateDXGIFactory(dev_dx12);
+	SRGFXDeviceDX12_CreateDevice(dev_dx12);
+	SRGFXDeviceDX12_CreateMemoryAllocator(dev_dx12);
+	SRGFXDeviceDX12_CreateCommandAllocators(dev_dx12);
+	SRGFXDeviceDX12_CreateCommandQueues(dev_dx12);
+	SRGFXDeviceDX12_CreateSyncObjects(dev_dx12);
+	SRGFXDeviceDX12_CreateDescriptorHeaps(dev_dx12);
 }
 
 void SRGFXDX12_DestroyDevice(SRGFXDevice* device) {
 	SRGFXDeviceDX12* dev = (SRGFXDeviceDX12*)device->internalState;
-	SRDescriptorHeap_DX12_Destroy(dev->m_ResourceDescriptorHeap);
-	SRDescriptorHeap_DX12_Destroy(dev->m_SamplerDescriptorHeap);
-	SRDescriptorHeap_DX12_Destroy(dev->m_RTVDescriptorHeap);
-	SRDescriptorHeap_DX12_Destroy(dev->m_DSVDescriptorHeap);
-	SRArena_Destroy(dev->m_Arena);
-	SRArena_Destroy(dev->m_UploadArena);
+	SRDescriptorHeap_DX12_Destroy(dev->descriptor_heap_cbv_srv_uav);
+	SRDescriptorHeap_DX12_Destroy(dev->descriptor_heap_sampler);
+	SRDescriptorHeap_DX12_Destroy(dev->descriptor_heap_rtv);
+	SRDescriptorHeap_DX12_Destroy(dev->descriptor_heap_dsv);
+	SRArena_Destroy(dev->arena_general);
+	SRArena_Destroy(dev->arena_upload);
 
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
-		dev->m_FrameFences[q]->Release();
+		dev->frame_fences[q]->Release();
 	}
 
-	dev->m_CommandQueues[SRQueue_Universal]->Release();
-	dev->m_CommandQueues[SRQueue_Copy]->Release();
+	dev->cmd_queues[SRQueue_Universal]->Release();
+	dev->cmd_queues[SRQueue_Copy]->Release();
 
 	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-		dev->m_CommandAllocators[SRQueue_Universal][f]->Release();
+		dev->cmd_allocators[SRQueue_Universal][f]->Release();
 	}
 
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
 		for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-			SRCmdList_DX12* cmd_list = &dev->m_PerFrameCmdLists[q][f];
+			SRCmdList_DX12* cmd_list = &dev->cmd_lists[q][f];
 
 			if (cmd_list->graphicsCmdList) {
 				cmd_list->graphicsCmdList->Release();
@@ -400,34 +396,33 @@ void SRGFXDX12_DestroyDevice(SRGFXDevice* device) {
 		}
 	}
 
-	dev->m_DXGIFactory->Release();
-	dev->m_UploadCmdList->Release();
-	dev->m_UploadCmdAllocator->Release();
-	dev->m_Allocator->Release();
-	dev->m_Adapter->Release();
-	dev->m_Device->Release();
+	dev->dxgi_factory->Release();
+	dev->upload_cmd_list->Release();
+	dev->upload_cmd_allocator->Release();
+	dev->d3d12ma_allocator->Release();
+	dev->dxgi_adapter->Release();
+	dev->device->Release();
 
 	#ifdef _DEBUG
-		dev->m_DebugDevice->Release();
-		dev->m_DXGIDebugInfoQueue->Release();
-		dev->m_DebugInterface->Release();
+		dev->debug_device->Release();
+		dev->dxgi_debug_info_queue->Release();
+		dev->debug_interface->Release();
 	#endif
 
-	//free(device->internalState);
-	delete dev;
+	free(dev);
 	device->internalState = nullptr;
 }
 
 u32 SRGFXDX12_GetFrameIndex(SRGFXDevice* device) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	return dev->m_FrameIndex;
+	return dev->frame_index;
 }
 
 void SRGFXDX12_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info, SRSwapchain* swapchain) {
 	assert(info->numBuffers <= SR_MAX_SWAPCHAIN_IMAGES);
 
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internalSwapchain = SRArena_PushStructZero(dev->m_Arena, SRSwapchain_DX12);
+	auto* internalSwapchain = SRArena_PushStructZero(dev->arena_general, SRSwapchain_DX12);
 	swapchain->info = *info;
 	swapchain->internalState = internalSwapchain;
 
@@ -443,13 +438,13 @@ void SRGFXDX12_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info,
 		.Scaling = DXGI_SCALING_NONE,
 		.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
 		.AlphaMode = DXGI_ALPHA_MODE_IGNORE,
-		.Flags = dev->m_IsTearingSupported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0U
+		.Flags = dev->is_tearing_supported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0U
 	};
 
-	HWND windowHandle = (HWND)dev->m_Window->get_internal_handle();
+	HWND windowHandle = (HWND)dev->window->get_internal_handle();
 	IDXGISwapChain1* dxgiSwapchain1;
-	SR_DX12_CHECK(dev->m_DXGIFactory->CreateSwapChainForHwnd(
-		dev->m_CommandQueues[SRQueue_Universal],
+	SR_DX12_CHECK(dev->dxgi_factory->CreateSwapChainForHwnd(
+		dev->cmd_queues[SRQueue_Universal],
 		windowHandle,
 		&swapchainDesc,
 		nullptr,
@@ -457,7 +452,7 @@ void SRGFXDX12_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info,
 		&dxgiSwapchain1
 	), "Swapchain creation");
 	SR_DX12_CHECK(dxgiSwapchain1->QueryInterface(IID_PPV_ARGS(&internalSwapchain->swapchain)), "Convert IDXGISwapchain1 to IDXGISwapchain3");
-	SR_DX12_CHECK(dev->m_DXGIFactory->MakeWindowAssociation(windowHandle, DXGI_MWA_NO_ALT_ENTER), "Disable Alt+Enter");
+	SR_DX12_CHECK(dev->dxgi_factory->MakeWindowAssociation(windowHandle, DXGI_MWA_NO_ALT_ENTER), "Disable Alt+Enter");
 	dxgiSwapchain1->Release();
 
 	internalSwapchain->imageCount = info->numBuffers;
@@ -465,11 +460,11 @@ void SRGFXDX12_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info,
 	for (u32 i = 0; i < internalSwapchain->imageCount; ++i) {
 		SR_DX12_CHECK(internalSwapchain->swapchain->GetBuffer(i, IID_PPV_ARGS(&internalSwapchain->images[i])), "Get backbuffer");
 
-		SRDescriptorIndex rtvIndex = SRDescriptorHeap_DX12_GetNextIndex(dev->m_RTVDescriptorHeap);
-		dev->m_Device->CreateRenderTargetView(
+		SRDescriptorIndex rtvIndex = SRDescriptorHeap_DX12_GetNextIndex(dev->descriptor_heap_rtv);
+		dev->device->CreateRenderTargetView(
 			internalSwapchain->images[i],
 			nullptr,
-			SRDescriptorHeap_DX12_GetCPUHandle(dev->m_RTVDescriptorHeap, rtvIndex)
+			SRDescriptorHeap_DX12_GetCPUHandle(dev->descriptor_heap_rtv, rtvIndex)
 		);
 		internalSwapchain->rtvDescriptors[i] = rtvIndex;
 	}
@@ -544,7 +539,7 @@ void SRGFXDX12_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, S
 		&rootSignatureErrorBlob
 	), "Serialize versioned root signature");
 
-	SR_DX12_CHECK(dev->m_Device->CreateRootSignature(
+	SR_DX12_CHECK(dev->device->CreateRootSignature(
 		0U,
 		rootSignatureBlob->GetBufferPointer(),
 		rootSignatureBlob->GetBufferSize(),
@@ -676,7 +671,7 @@ void SRGFXDX12_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, S
 		.pPipelineStateSubobjectStream = &psoStream
 	};
 
-	SR_DX12_CHECK(dev->m_Device->CreatePipelineState(
+	SR_DX12_CHECK(dev->device->CreatePipelineState(
 		&psoStreamDesc,
 		IID_PPV_ARGS(&internalPipeline->pipeline)
 	), "Create pipeline state");
@@ -725,7 +720,7 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuf
 		allocDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
 		break;
 	}
-	SR_DX12_CHECK(dev->m_Allocator->CreateResource3(
+	SR_DX12_CHECK(dev->d3d12ma_allocator->CreateResource3(
 		&allocDesc,
 		&resourceDesc,
 		D3D12_BARRIER_LAYOUT_UNDEFINED,
@@ -748,23 +743,23 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuf
 		auto* internalStagingBuffer = to_dx12_internal(stagingBuffer);
 
 		//dev->m_PendingUploadResources.push_back(internalStagingBuffer->allocation);
-		D3D12MA::Allocation** upload = SRArena_PushStruct(dev->m_UploadArena, D3D12MA::Allocation*);
+		D3D12MA::Allocation** upload = SRArena_PushStruct(dev->arena_upload, D3D12MA::Allocation*);
 		*upload = internalStagingBuffer->allocation;
 
 		// Copy staging buffer into target buffer
-		if (!dev->m_IsUploadCmdListRecording) {
-			SR_DX12_CHECK(dev->m_UploadCmdAllocator->Reset(), "Reset command allocator");
-			SR_DX12_CHECK(dev->m_UploadCmdList->Reset(
-				dev->m_UploadCmdAllocator,
+		if (!dev->is_upload_cmd_list_recording) {
+			SR_DX12_CHECK(dev->upload_cmd_allocator->Reset(), "Reset command allocator");
+			SR_DX12_CHECK(dev->upload_cmd_list->Reset(
+				dev->upload_cmd_allocator,
 				nullptr
 			), "Begin upload command list recording");
 
-			dev->m_IsUploadCmdListRecording = true;
+			dev->is_upload_cmd_list_recording = true;
 		}
 
 		ID3D12Resource* srcResource = internalStagingBuffer->allocation->GetResource();
 		ID3D12Resource* dstResource = internalBuffer->allocation->GetResource();
-		dev->m_UploadCmdList->CopyResource(dstResource, srcResource);
+		dev->upload_cmd_list->CopyResource(dstResource, srcResource);
 	}
 	else if (info->usage == SRUsage::Upload) {
 		internalBuffer->allocation->GetResource()->Map(0, nullptr, &buffer->mappedData);
@@ -794,10 +789,10 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuf
 			};
 
 			internalBuffer->srvDescriptor = SRDX12Helpers::init_srv_descriptor(
-				dev->m_Device,
+				dev->device,
 				internalBuffer->allocation->GetResource(),
 				srvDesc,
-				dev->m_ResourceDescriptorHeap
+				dev->descriptor_heap_cbv_srv_uav
 			);
 		}
 	}
@@ -841,7 +836,7 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 	D3D12MA::ALLOCATION_DESC allocDesc = {
 		.HeapType = D3D12_HEAP_TYPE_DEFAULT,
 	};
-	SR_DX12_CHECK(dev->m_Allocator->CreateResource3(
+	SR_DX12_CHECK(dev->d3d12ma_allocator->CreateResource3(
 		&allocDesc,
 		&resourceDesc,
 		D3D12_BARRIER_LAYOUT_UNDEFINED,
@@ -865,10 +860,10 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 		};
 
 		internalTexture->rtvDescriptor = SRDX12Helpers::init_rtv_descriptor(
-			dev->m_Device,
+			dev->device,
 			internalTexture->allocation->GetResource(),
 			rtvDesc,
-			dev->m_RTVDescriptorHeap
+			dev->descriptor_heap_rtv
 		);
 	}
 
@@ -887,16 +882,16 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 		};
 
 		internalTexture->dsvDescriptor = SRDX12Helpers::init_dsv_descriptor(
-			dev->m_Device,
+			dev->device,
 			internalTexture->allocation->GetResource(),
 			dsvDesc,
-			dev->m_DSVDescriptorHeap
+			dev->descriptor_heap_dsv
 		);
 		internalTexture->dsvReadOnlyDescriptor = SRDX12Helpers::init_dsv_descriptor(
-			dev->m_Device,
+			dev->device,
 			internalTexture->allocation->GetResource(),
 			dsvReadOnlyDesc,
-			dev->m_DSVDescriptorHeap
+			dev->descriptor_heap_dsv
 		);
 	}
 
@@ -922,10 +917,10 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 		};
 
 		internalTexture->srvDescriptor = SRDX12Helpers::init_srv_descriptor(
-			dev->m_Device,
+			dev->device,
 			internalTexture->allocation->GetResource(),
 			srvDesc,
-			dev->m_ResourceDescriptorHeap
+			dev->descriptor_heap_cbv_srv_uav
 		);
 	}
 }
@@ -977,11 +972,11 @@ void SRGFXDX12_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRS
 	break;
 	}
 
-	SRDescriptorIndex index = SRDescriptorHeap_DX12_GetNextIndex(dev->m_SamplerDescriptorHeap);
+	SRDescriptorIndex index = SRDescriptorHeap_DX12_GetNextIndex(dev->descriptor_heap_sampler);
 	internalSampler->samplerDescriptor = index;
-	dev->m_Device->CreateSampler(
+	dev->device->CreateSampler(
 		&samplerDesc,
-		SRDescriptorHeap_DX12_GetCPUHandle(dev->m_SamplerDescriptorHeap, index)
+		SRDescriptorHeap_DX12_GetCPUHandle(dev->descriptor_heap_sampler, index)
 	);
 }
 
@@ -1136,29 +1131,29 @@ void SRGFXDX12_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBa
 void SRGFXDX12_BeginFrame(SRGFXDevice* device, const SRSwapchain* swapchain) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 
-	if (dev->m_FrameCounter >= SR_GFX_FRAMES_IN_FLIGHT) {
-		u64 needed = dev->m_FrameDoneValues[SRQueue_Universal][dev->m_FrameIndex];
-		u64 current = dev->m_FrameFences[SRQueue_Universal]->GetCompletedValue();
+	if (dev->frame_counter >= SR_GFX_FRAMES_IN_FLIGHT) {
+		u64 needed = dev->frame_done_values[SRQueue_Universal][dev->frame_index];
+		u64 current = dev->frame_fences[SRQueue_Universal]->GetCompletedValue();
 
 		if (current < needed) {
-			SR_DX12_CHECK(dev->m_FrameFences[SRQueue_Universal]->SetEventOnCompletion(needed, nullptr), "Wait for fence");
+			SR_DX12_CHECK(dev->frame_fences[SRQueue_Universal]->SetEventOnCompletion(needed, nullptr), "Wait for fence");
 		}
 	}
 
 	auto* internalSwapchain = to_dx12_internal(*swapchain);
-	dev->m_ImageIndex = internalSwapchain->swapchain->GetCurrentBackBufferIndex();
+	dev->image_index = internalSwapchain->swapchain->GetCurrentBackBufferIndex();
 }
 
 SRCmdList SRGFXDX12_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internalCmdList = &dev->m_PerFrameCmdLists[queue][dev->m_FrameIndex];
+	auto* internalCmdList = &dev->cmd_lists[queue][dev->frame_index];
 
 	if (internalCmdList->graphicsCmdList == nullptr) {
 		// NOTE: We require ID3D12GraphicsCommandList7 to be available
-		SR_DX12_CHECK(dev->m_Device->CreateCommandList(
+		SR_DX12_CHECK(dev->device->CreateCommandList(
 			0,
 			to_dx12_cmd_list_type(queue),
-			dev->m_CommandAllocators[queue][dev->m_FrameIndex],
+			dev->cmd_allocators[queue][dev->frame_index],
 			nullptr,
 			IID_PPV_ARGS(&internalCmdList->graphicsCmdList)
 		), "Command list creation");
@@ -1167,15 +1162,15 @@ SRCmdList SRGFXDX12_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 		internalCmdList->graphicsCmdList->Close();
 	}
 
-	SR_DX12_CHECK(dev->m_CommandAllocators[queue][dev->m_FrameIndex]->Reset(), "Reset command allocator");
+	SR_DX12_CHECK(dev->cmd_allocators[queue][dev->frame_index]->Reset(), "Reset command allocator");
 	SR_DX12_CHECK(internalCmdList->graphicsCmdList->Reset(
-		dev->m_CommandAllocators[queue][dev->m_FrameIndex],
+		dev->cmd_allocators[queue][dev->frame_index],
 		nullptr
 	), "Begin command list recording");
 
 	ID3D12DescriptorHeap* const descriptorHeaps[] = {
-		dev->m_ResourceDescriptorHeap->heapObject,
-		dev->m_SamplerDescriptorHeap->heapObject
+		dev->descriptor_heap_cbv_srv_uav->heapObject,
+		dev->descriptor_heap_sampler->heapObject
 	};
 	internalCmdList->graphicsCmdList->SetDescriptorHeaps(std::size(descriptorHeaps), descriptorHeaps);
 
@@ -1199,8 +1194,8 @@ void SRGFXDX12_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* 
 
 	D3D12_RENDER_PASS_RENDER_TARGET_DESC passRTVDesc = {
 		.cpuDescriptor = SRDescriptorHeap_DX12_GetCPUHandle(
-			dev->m_RTVDescriptorHeap,
-			internalSwapchain->rtvDescriptors[dev->m_ImageIndex]
+			dev->descriptor_heap_rtv,
+			internalSwapchain->rtvDescriptors[dev->image_index]
 		),
 		.BeginningAccess = {
 			.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR,
@@ -1213,7 +1208,7 @@ void SRGFXDX12_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* 
 
 	// TODO: Transition layout
 	SRImageTransitionInfo_DX12 transitionInfo = {
-		.image = internalSwapchain->images[dev->m_ImageIndex],
+		.image = internalSwapchain->images[dev->image_index],
 		.oldLayout = D3D12_BARRIER_LAYOUT_PRESENT,
 		.newLayout = D3D12_BARRIER_LAYOUT_RENDER_TARGET,
 		.srcAccessMask = D3D12_BARRIER_ACCESS_NO_ACCESS,
@@ -1247,7 +1242,7 @@ void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, 
 
 		D3D12_RENDER_PASS_RENDER_TARGET_DESC rtvDesc = {
 			.cpuDescriptor = SRDescriptorHeap_DX12_GetCPUHandle(
-				dev->m_RTVDescriptorHeap,
+				dev->descriptor_heap_rtv,
 				internalTexture->rtvDescriptor
 			)
 		};
@@ -1275,7 +1270,7 @@ void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, 
 
 		if (depthAttachment.loadOp == SRLoadOp::Clear) {
 			passDSVDesc.cpuDescriptor = SRDescriptorHeap_DX12_GetCPUHandle(
-				dev->m_DSVDescriptorHeap,
+				dev->descriptor_heap_dsv,
 				internalTexture->dsvDescriptor
 			);
 			passDSVDesc.DepthBeginningAccess.Clear.ClearValue = {
@@ -1288,7 +1283,7 @@ void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, 
 		}
 		else if (depthAttachment.loadOp == SRLoadOp::Load) {
 			passDSVDesc.cpuDescriptor = SRDescriptorHeap_DX12_GetCPUHandle(
-				dev->m_DSVDescriptorHeap,
+				dev->descriptor_heap_dsv,
 				internalTexture->dsvReadOnlyDescriptor
 			);
 			isReadOnlyDepth = true;
@@ -1318,7 +1313,7 @@ void SRGFXDX12_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* sw
 	internalCmdList->graphicsCmdList->EndRenderPass();
 
 	SRImageTransitionInfo_DX12 transitionInfo = {
-		.image = internalSwapchain->images[dev->m_ImageIndex],
+		.image = internalSwapchain->images[dev->image_index],
 		.oldLayout = D3D12_BARRIER_LAYOUT_RENDER_TARGET,
 		.newLayout = D3D12_BARRIER_LAYOUT_PRESENT,
 		.srcAccessMask = D3D12_BARRIER_ACCESS_RENDER_TARGET,
@@ -1339,28 +1334,29 @@ void SRGFXDX12_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapch
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 	auto* internalSwapchain = to_dx12_internal(*swapchain);
 
-	dev->m_PerFrameCmdLists[SRQueue_Universal][dev->m_FrameIndex].graphicsCmdList->Close();
+	dev->cmd_lists[SRQueue_Universal][dev->frame_index].graphicsCmdList->Close();
 	ID3D12CommandList* cmd_lists[] = {
-		dev->m_PerFrameCmdLists[SRQueue_Universal][dev->m_FrameIndex].graphicsCmdList
+		dev->cmd_lists[SRQueue_Universal][dev->frame_index].graphicsCmdList
 	};
 
-	dev->m_CommandQueues[SRQueue_Universal]->ExecuteCommandLists(
+	dev->cmd_queues[SRQueue_Universal]->ExecuteCommandLists(
 		_countof(cmd_lists),
 		cmd_lists
 	);
 
-	SR_DX12_CHECK(dev->m_CommandQueues[SRQueue_Universal]->Signal(
-		dev->m_FrameFences[SRQueue_Universal],
-		dev->m_NextGPUSignalValue
+	u64 signal_value = dev->frame_counter + 1;
+	SR_DX12_CHECK(dev->cmd_queues[SRQueue_Universal]->Signal(
+		dev->frame_fences[SRQueue_Universal],
+		signal_value
 	), "Signal fence");
 
 	UINT syncInterval = swapchain->info.vSync ? 1 : 0;
-	UINT presentFlags = dev->m_IsTearingSupported && !swapchain->info.vSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
+	UINT presentFlags = dev->is_tearing_supported && !swapchain->info.vSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
 	internalSwapchain->swapchain->Present(syncInterval, presentFlags);
 
-	dev->m_FrameDoneValues[SRQueue_Universal][dev->m_FrameIndex] = dev->m_NextGPUSignalValue++;
-	dev->m_FrameIndex = (dev->m_FrameIndex + 1) % SR_GFX_FRAMES_IN_FLIGHT;
-	++dev->m_FrameCounter;
+	dev->frame_done_values[SRQueue_Universal][dev->frame_index] = signal_value;
+	dev->frame_index = (dev->frame_index + 1) % SR_GFX_FRAMES_IN_FLIGHT;
+	++dev->frame_counter;
 }
 
 void SRGFXDX12_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRCmdList* cmdList) {
@@ -1407,14 +1403,14 @@ void SRGFXDX12_WaitForGPU(SRGFXDevice* device) {
 
 	// TODO: Right now we only use universal queue, remember that when we add
 	// dedicated compute/copy queue we also need to Signal those here.
-	u64 target = ++dev->m_NextGPUSignalValue;
-	SR_DX12_CHECK(dev->m_CommandQueues[SRQueue_Universal]->Signal(
-		dev->m_FrameFences[SRQueue_Universal],
+	u64 target = ++dev->frame_counter;
+	SR_DX12_CHECK(dev->cmd_queues[SRQueue_Universal]->Signal(
+		dev->frame_fences[SRQueue_Universal],
 		target
 	), "Signal fence");
 
-	if (dev->m_FrameFences[SRQueue_Universal]->GetCompletedValue() < target) {
-		SR_DX12_CHECK(dev->m_FrameFences[SRQueue_Universal]->SetEventOnCompletion(
+	if (dev->frame_fences[SRQueue_Universal]->GetCompletedValue() < target) {
+		SR_DX12_CHECK(dev->frame_fences[SRQueue_Universal]->SetEventOnCompletion(
 			target,
 			nullptr
 		), "Wait for fence");
@@ -1424,23 +1420,23 @@ void SRGFXDX12_WaitForGPU(SRGFXDevice* device) {
 void SRGFXDX12_FlushInitialUploads(SRGFXDevice* device) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 
-	SR_DX12_CHECK(dev->m_UploadCmdList->Close(), "Close command list");
+	SR_DX12_CHECK(dev->upload_cmd_list->Close(), "Close command list");
 
-	ID3D12CommandList* cmdLists[1] = { dev->m_UploadCmdList };
-	dev->m_CommandQueues[SRQueue_Copy]->ExecuteCommandLists(
+	ID3D12CommandList* cmdLists[1] = { dev->upload_cmd_list };
+	dev->cmd_queues[SRQueue_Copy]->ExecuteCommandLists(
 		1,
 		cmdLists
 	);
 
 	// TEMPORARY
 	ID3D12Fence* tempFence;
-	SR_DX12_CHECK(dev->m_Device->CreateFence(
+	SR_DX12_CHECK(dev->device->CreateFence(
 		0,
 		D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&tempFence)
 	), "Create temporary fence");
 
-	SR_DX12_CHECK(dev->m_CommandQueues[SRQueue_Copy]->Signal(tempFence, 1), "Signal fence");
+	SR_DX12_CHECK(dev->cmd_queues[SRQueue_Copy]->Signal(tempFence, 1), "Signal fence");
 
 	if (tempFence->GetCompletedValue() < 1) {
 		SR_DX12_CHECK(tempFence->SetEventOnCompletion(1, nullptr), "Wait for fence");
@@ -1448,29 +1444,29 @@ void SRGFXDX12_FlushInitialUploads(SRGFXDevice* device) {
 	tempFence->Release();
 
 	// Release everything at this point
-	uintptr_t upload_bytes = (uintptr_t)(dev->m_UploadArena->allocated - dev->m_UploadArena->data);
+	uintptr_t upload_bytes = (uintptr_t)(dev->arena_upload->allocated - dev->arena_upload->data);
 	u64 upload_count = upload_bytes / sizeof(D3D12MA::Allocation*);
-	D3D12MA::Allocation** uploads = (D3D12MA::Allocation**)dev->m_UploadArena->data;
+	D3D12MA::Allocation** uploads = (D3D12MA::Allocation**)dev->arena_upload->data;
 
 	for (u64 i = 0; i < upload_count; ++i) {
 		D3D12MA::Allocation* upload = uploads[i];
 		upload->Release();
 	}
 
-	SRArena_Clear(dev->m_UploadArena);
-	dev->m_UploadCmdAllocator->Reset();
+	SRArena_Clear(dev->arena_upload);
+	dev->upload_cmd_allocator->Reset();
 }
 
 void SRGFXDX12_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 
 	ImGui_ImplDX12_InitInfo initInfo = {};
-	initInfo.Device = dev->m_Device;
-	initInfo.CommandQueue = dev->m_CommandQueues[SRQueue_Universal];
+	initInfo.Device = dev->device;
+	initInfo.CommandQueue = dev->cmd_queues[SRQueue_Universal];
 	initInfo.NumFramesInFlight = SR_GFX_FRAMES_IN_FLIGHT;
 	initInfo.RTVFormat = to_dx12_format(swapchainFormat);
-	initInfo.UserData = dev->m_ResourceDescriptorHeap;
-	initInfo.SrvDescriptorHeap = dev->m_ResourceDescriptorHeap->heapObject;
+	initInfo.UserData = dev->descriptor_heap_cbv_srv_uav;
+	initInfo.SrvDescriptorHeap = dev->descriptor_heap_cbv_srv_uav->heapObject;
 
 	initInfo.SrvDescriptorAllocFn = [](
 		ImGui_ImplDX12_InitInfo* initInfo,
