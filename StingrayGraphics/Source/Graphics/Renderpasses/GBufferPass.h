@@ -4,6 +4,12 @@
 #include "Graphics/RenderGraph.h"
 #include "Graphics/ShaderCompiler.h"
 
+struct GBufferPassData {
+	SRPipeline pipeline;
+	SRShader vertexShader;
+	SRShader pixelShader;
+};
+
 namespace SRGBufferPass {
 	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler);
 	void execute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);

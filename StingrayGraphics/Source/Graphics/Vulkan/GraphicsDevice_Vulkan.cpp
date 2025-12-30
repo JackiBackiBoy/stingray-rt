@@ -67,7 +67,7 @@ internal SRGFXDeviceVTable SRGFXDevice_Vulkan_VTable = {
 	.draw_indexed                = SRGFXVulkan_DrawIndexed,
 	.dispatch_mesh               = SRGFXVulkan_DispatchMesh,
 	.get_descriptor_index_srv    = SRGFXVulkan_GetDescriptorIndexSRV,
-	.get_shader_platform_info    = SRGFXVulkan_GetShaderPlatformInfo,
+	.get_shader_compile_target   = SRGFXVulkan_GetShaderCompileTarget,
 	.wait_for_gpu                = SRGFXVulkan_WaitForGPU,
 	.flush_initial_uploads       = SRGFXVulkan_FlushInitialUploads,
 	.setup_imgui_init_info       = SRGFXVulkan_SetupImGuiInitInfo
@@ -94,7 +94,7 @@ struct SRGFXDeviceVulkan {
 	VkDescriptorSetLayout m_ResourceDescriptorSetLayout = VK_NULL_HANDLE;
 	VkDescriptorSetLayout m_PushDescriptorSetLayout = VK_NULL_HANDLE;
 	SRDescriptorHeap_Vulkan m_CbvSrvUavDescriptorHeap = { VK_DESCRIPTOR_TYPE_MUTABLE_EXT, 32000 };
-	SRDescriptorHeap_Vulkan m_SamplerDescriptorHeap = { VK_DESCRIPTOR_TYPE_SAMPLER, MAX_SAMPLER_DESCRIPTORS };
+	SRDescriptorHeap_Vulkan m_SamplerDescriptorHeap = { VK_DESCRIPTOR_TYPE_SAMPLER, SR_MAX_SAMPLER_DESCRIPTORS };
 	SRPipeline_Vulkan* m_ActivePipeline = nullptr;
 	std::unique_ptr<SRDestructionHandler_Vulkan> m_DestructionHandler;
 
@@ -113,12 +113,8 @@ struct SRGFXDeviceVulkan {
 	bool m_IsUploadCmdBufferRecording = false;
 	// END OF TEMPORARY STUFF
 
-	static constexpr SRShaderPlatformInfo m_ShaderPlatformInfo = {
-		SRShaderCompileTarget::SPIRV,
-		"glsl_460"
-	};
 	static constexpr u32 MAX_UNIFORM_BUFFER_DESCRIPTORS = 64;
-	static constexpr u32 MAX_SAMPLER_DESCRIPTORS = 32;
+	static constexpr u32 SR_MAX_SAMPLER_DESCRIPTORS = 32;
 };
 
 internal VKAPI_ATTR VkBool32 VKAPI_CALL SRGFXDeviceVulkan_DebugCallback(
@@ -861,7 +857,7 @@ internal void SRGFXDeviceVulkan_CreateDestructionHandler(SRGFXDeviceVulkan* dev)
 }
 
 // ------------------------------ Public API ------------------------------
-void SRGFXVulkan_CreateDevice(const SRWindow* window, SRGFXDevice* device) {
+void SRGFXVulkan_CreateDevice(SRWindow* window, SRGFXDevice* device) {
 	SRGFXDeviceVulkan* devVulkan = new SRGFXDeviceVulkan();
 	devVulkan->m_Window = window;
 
@@ -921,7 +917,7 @@ u32 SRGFXVulkan_GetFrameIndex(SRGFXDevice* device) {
 
 void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info, SRSwapchain* swapchain) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto internalSwapchain = std::make_shared<SRSwapchain_Vulkan>();
+	auto* internalSwapchain = new SRSwapchain_Vulkan();
 	internalSwapchain->destructionHandler = dev->m_DestructionHandler.get();
 
 	swapchain->info = *info;
@@ -1036,7 +1032,7 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 
 void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, SRPipeline* pipeline) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto internalPipeline = std::make_shared<SRPipeline_Vulkan>();
+	auto* internalPipeline = new SRPipeline_Vulkan();
 	internalPipeline->destructionHandler = dev->m_DestructionHandler.get();
 
 	pipeline->info = *info;
@@ -1260,7 +1256,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 // TODO: Add support for ReBar devices
 void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuffer* buffer, const void* data) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto internalBuffer = std::make_shared<SRBuffer_Vulkan>();
+	auto* internalBuffer = new SRBuffer_Vulkan();
 	internalBuffer->destructionHandler = dev->m_DestructionHandler.get();
 
 	buffer->info = *info;
@@ -1359,7 +1355,7 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	assert(info->usage == SRUsage::Default);
 
-	auto internalTexture = std::make_shared<SRTexture_Vulkan>();
+	auto* internalTexture = new SRTexture_Vulkan();
 	internalTexture->destructionHandler = dev->m_DestructionHandler.get();
 
 	texture->type = SRResourceType::Texture;
@@ -1565,7 +1561,7 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 
 void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRSampler* sampler) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto internalSampler = std::make_shared<SRSampler_Vulkan>();
+	auto* internalSampler = new SRSampler_Vulkan();
 	internalSampler->destructionHandler = dev->m_DestructionHandler.get();
 
 	sampler->info = *info;
@@ -2261,16 +2257,15 @@ SRDescriptorIndex SRGFXVulkan_GetDescriptorIndexSRV(SRGFXDevice* device, const S
 	assert(resource->type == SRResourceType::Texture); // TODO: Support other SRV types
 
 	if (resource->type == SRResourceType::Texture) {
-		auto* internalTexture = (SRTexture_Vulkan*)resource->internalState.get();
+		auto* internalTexture = (SRTexture_Vulkan*)resource->internalState;
 		return internalTexture->srvDescriptor;
 	}
 
 	return INVALID_DESCRIPTOR_INDEX;
 }
 
-SRShaderPlatformInfo SRGFXVulkan_GetShaderPlatformInfo(SRGFXDevice* device) {
-	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	return dev->m_ShaderPlatformInfo;
+SRShaderCompileTarget SRGFXVulkan_GetShaderCompileTarget(SRGFXDevice* device) {
+	return SRShaderCompileTarget::SPIRV;
 }
 
 void SRGFXVulkan_WaitForGPU(SRGFXDevice* device) {

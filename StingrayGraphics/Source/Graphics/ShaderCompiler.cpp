@@ -12,18 +12,18 @@
 #define HR(hr) do { HRESULT _hr = (hr); assert(SUCCEEDED(_hr)); } while (0)
 
 struct SRShaderCompiler::Impl {
-	Impl(const SRShaderPlatformInfo& shaderPlatform);
+	Impl(SRShaderCompileTarget compile_target);
 	~Impl();
 
 	void compile_from_file(const char* path, const SRShaderCompileInfo& info, SRShader& shader);
 
-	SRShaderPlatformInfo m_ShaderPlatformInfo;
+	SRShaderCompileTarget m_compile_target;
 	IDxcUtils* m_DXCUtils;
 	IDxcCompiler3* m_DXCCompiler;
 	IDxcIncludeHandler* m_DXCIncludeHandler;
 };
 
-SRShaderCompiler::Impl::Impl(const SRShaderPlatformInfo& shaderPlatform) : m_ShaderPlatformInfo(shaderPlatform) {
+SRShaderCompiler::Impl::Impl(SRShaderCompileTarget compile_target) : m_compile_target(compile_target) {
 	HMODULE dxcDLL = LoadLibrary(L"dxcompiler.dll");
 	assert(dxcDLL);
 
@@ -84,7 +84,7 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 	args[argCount++] = DXC_ARG_WARNINGS_ARE_ERRORS;
 	args[argCount++] = DXC_ARG_ALL_RESOURCES_BOUND;
 
-	if (m_ShaderPlatformInfo.target == SRShaderCompileTarget::SPIRV) {
+	if (m_compile_target == SRShaderCompileTarget::SPIRV) {
 		args[argCount++] = L"-spirv";
 		args[argCount++] = L"-fspv-target-env=vulkan1.3";
 		args[argCount++] = L"-fvk-use-dx-layout";
@@ -144,8 +144,8 @@ void SRShaderCompiler::Impl::compile_from_file(const char* path, const SRShaderC
 	sourceBlob->Release();
 }
 
-SRShaderCompiler::SRShaderCompiler(const SRShaderPlatformInfo& shaderPlatformInfo) {
-	m_Impl = new Impl(shaderPlatformInfo);
+SRShaderCompiler::SRShaderCompiler(SRShaderCompileTarget compile_target) {
+	m_Impl = new Impl(compile_target);
 }
 
 SRShaderCompiler::~SRShaderCompiler() {

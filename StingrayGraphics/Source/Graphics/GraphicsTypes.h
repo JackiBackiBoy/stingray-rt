@@ -3,9 +3,10 @@
 #include "Core/Types.h"
 #include "Core/EnumBitmaskOperators.h"
 
-#include <memory>
 #include <string>
 #include <vector>
+
+#define SR_MAX_SWAPCHAIN_IMAGES 3
 
 typedef u32 SRDescriptorIndex;
 inline constexpr SRDescriptorIndex INVALID_DESCRIPTOR_INDEX = ~0U;
@@ -295,11 +296,8 @@ enum class SRShaderStage : u8 {
 };
 
 enum class SRShaderCompileTarget : u8 {
-	Unknown,
-	GLSL,
-	HLSL,
 	SPIRV,
-	DXIL
+	DXIL,
 };
 
 enum class SRTextureAddressMode : u8 {
@@ -338,7 +336,7 @@ struct SRSubresourceRange {
 };
 
 struct SRResource {
-	std::shared_ptr<void> internalState = nullptr;
+	void* internalState = nullptr;
 	SRResourceType type = SRResourceType::Unknown;
 };
 
@@ -418,12 +416,6 @@ struct SRBarrier {
 	};
 };
 
-struct SRShaderPlatformInfo {
-	SRShaderCompileTarget target = SRShaderCompileTarget::Unknown;
-	const char* profileName = nullptr;
-	// TODO: Add features such a block scalar layout and such
-};
-
 struct SRShader {
 	std::vector<u8> byteCode;
 	const char* entryPoint;
@@ -492,7 +484,7 @@ struct SRPipelineInfo {
 
 struct SRPipeline {
 	SRPipelineInfo info = {};
-	std::shared_ptr<void> internalState;
+	void* internalState;
 };
 
 struct SRSwapchainInfo {
@@ -511,7 +503,7 @@ struct SRCmdList {
 
 struct SRSwapchain {
 	SRSwapchainInfo info = {};
-	std::shared_ptr<void> internalState;
+	void* internalState;
 };
 
 struct SRPassInfo {

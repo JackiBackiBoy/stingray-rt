@@ -3,11 +3,6 @@
 #include "Data/Model.h"
 
 namespace SRDepthPrepass {
-	struct DepthPrepassData {
-		SRPipeline pipeline;
-		SRShader vertexShader;
-	};
-
 	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<DepthPrepassData>();
 		shaderCompiler.compile_from_file(RES_DIR "Shaders/DepthPrepass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);

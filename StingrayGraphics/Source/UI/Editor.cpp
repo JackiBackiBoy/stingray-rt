@@ -16,7 +16,7 @@ namespace {
 
 	void end_render_dx12(const SRCmdList& cmdList) {
 		auto internalCmdList = to_dx12_internal(cmdList);
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), internalCmdList->graphicsCmdList.Get());
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), internalCmdList->graphicsCmdList);
 	}
 
 	void begin_render_vulkan() {

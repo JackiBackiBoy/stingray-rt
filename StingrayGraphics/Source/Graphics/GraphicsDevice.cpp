@@ -3,7 +3,7 @@
 #include "Graphics/DX12/GraphicsDevice_DX12.h"
 #include "Graphics/Vulkan/GraphicsDevice_Vulkan.h"
 
-void SRGFX_CreateDevice(const SRWindow* window, SRGFXDevice* device, SRGFXBackend backend) {
+void SRGFX_CreateDevice(SRWindow* window, SRGFXDevice* device, SRGFXBackend backend) {
 	switch (backend) {
 	case SRGFXBackend::DX12:
 		SRGFXDX12_CreateDevice(window, device);
@@ -36,6 +36,16 @@ void SRGFX_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRTextu
 }
 void SRGFX_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRSampler* sampler) {
 	device->vtbl->create_sampler(device, info, sampler);
+}
+
+void SRGFX_DestroySwapchain(SRGFXDevice* device, SRSwapchain* swapchain) {
+	device->vtbl->destroy_swapchain(device, swapchain);
+}
+void SRGFX_DestroyPipeline(SRGFXDevice* device, SRPipeline* pipeline) {
+	device->vtbl->destroy_pipeline(device, pipeline);
+}
+void SRGFX_DestroyResource(SRGFXDevice* device, SRResource* resource) {
+	device->vtbl->destroy_resource(device, resource);
 }
 
 // Binding
@@ -99,8 +109,8 @@ void SRGFX_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdLis
 SRDescriptorIndex SRGFX_GetDescriptorIndexSRV(SRGFXDevice* device, const SRResource* resource) {
 	return device->vtbl->get_descriptor_index_srv(device, resource);
 }
-SRShaderPlatformInfo SRGFX_GetShaderPlatformInfo(SRGFXDevice* device) {
-	return device->vtbl->get_shader_platform_info(device);
+SRShaderCompileTarget SRGFX_GetShaderCompileTarget(SRGFXDevice* device) {
+	return device->vtbl->get_shader_compile_target(device);
 }
 void SRGFX_WaitForGPU(SRGFXDevice* device) {
 	device->vtbl->wait_for_gpu(device);

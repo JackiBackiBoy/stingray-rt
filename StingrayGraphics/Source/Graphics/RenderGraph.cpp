@@ -121,6 +121,13 @@ const std::vector<SRRenderPassAttachmentInput>& SRRenderPass::get_input_attachme
 	return m_InputAttachments;
 }
 
+SRRenderGraph::~SRRenderGraph() {
+	// TEMPORARY SHIT
+	for (u64 i = 0; i < m_Attachments.size(); ++i) {
+		SRGFX_DestroyResource(m_GfxDevice, &m_Attachments[i]->texture);
+	}
+}
+
 // -------------------------------- Render Graph -------------------------------
 
 SRRenderPass& SRRenderGraph::add_render_pass(const std::string& name, SRPassType type) {
@@ -152,6 +159,8 @@ PrefabPass& SRRenderGraph::add_prefab_pass(const std::string& name) {
 }
 
 void SRRenderGraph::build(SRGFXDevice& gfxDevice) {
+	m_GfxDevice = &gfxDevice; // TEMPORARY
+
 	// NOTE: This render graph performs NO pass re-ordering of any kind and
 	// does not currently deal with aliasing or transient resources.
 	// This might change in the future, but for now the purpose of this

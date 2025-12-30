@@ -9,7 +9,7 @@ struct SRShaderCompileInfo {
 
 class SRShaderCompiler {
 public:
-	SRShaderCompiler(const SRShaderPlatformInfo& shaderPlatform);
+	SRShaderCompiler(SRShaderCompileTarget compile_target);
 	~SRShaderCompiler();
 
 	void compile_from_file(const char* path, const SRShaderCompileInfo& info, SRShader& shader);

@@ -2,7 +2,7 @@
 
 #include "Graphics/GraphicsDevice.h"
 
-void SRGFXVulkan_CreateDevice(const SRWindow* window, SRGFXDevice* device);
+void SRGFXVulkan_CreateDevice(SRWindow* window, SRGFXDevice* device);
 void SRGFXVulkan_DestroyDevice(SRGFXDevice* device);
 
 u32  SRGFXVulkan_GetFrameIndex(SRGFXDevice* device);
@@ -34,7 +34,7 @@ void SRGFXVulkan_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u3
 void SRGFXVulkan_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdList* cmdList);
 
 SRDescriptorIndex SRGFXVulkan_GetDescriptorIndexSRV(SRGFXDevice* device, const SRResource* resource);
-SRShaderPlatformInfo SRGFXVulkan_GetShaderPlatformInfo(SRGFXDevice* device);
+SRShaderCompileTarget SRGFXVulkan_GetShaderCompileTarget(SRGFXDevice* device);
 void SRGFXVulkan_WaitForGPU(SRGFXDevice* device);
 void SRGFXVulkan_FlushInitialUploads(SRGFXDevice* device);
 void SRGFXVulkan_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat);

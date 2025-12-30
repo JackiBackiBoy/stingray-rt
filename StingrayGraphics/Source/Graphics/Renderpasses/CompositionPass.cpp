@@ -3,16 +3,6 @@
 #include "Data/Model.h"
 
 namespace SRCompositionPass {
-	struct CompositionPassData {
-		SRPipeline pipeline;
-		SRShader vertexShader;
-		SRShader pixelShader;
-
-		struct PushConstants {
-			SRDescriptorIndex gBufferAlbedoIndex;
-		} pushConstants;
-	};
-
 	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<CompositionPassData>();
 		shaderCompiler.compile_from_file(RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);

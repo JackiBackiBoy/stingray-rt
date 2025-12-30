@@ -3,12 +3,6 @@
 #include "Data/Model.h"
 
 namespace SRGBufferPass {
-	struct GBufferPassData {
-		SRPipeline pipeline;
-		SRShader vertexShader;
-		SRShader pixelShader;
-	};
-
 	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<GBufferPassData>();
 		shaderCompiler.compile_from_file(RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);

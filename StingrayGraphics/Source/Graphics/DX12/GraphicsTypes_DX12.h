@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Data/ArenaAllocator.h"
 #include "Core/Logger.h"
 #include "Core/Types.h"
 #include "Graphics/GraphicsTypes.h"
@@ -7,13 +8,10 @@
 #include "d3d12.h"
 #include <D3D12MemAlloc.h>
 #include <dxgi1_6.h>
-#include <wrl/client.h>
 #include <Windows.h>
 
 #include <cassert>
 #include <stdexcept>
-
-using namespace Microsoft::WRL;
 
 #define SR_DX12_CHECK(expr, msg)                                                 \
 	do {                                                                       \
@@ -24,57 +22,34 @@ using namespace Microsoft::WRL;
 		}                                                                      \
 	} while (0)
 
-class SRDescriptorHeap_DX12 {
-public:
-	SRDescriptorHeap_DX12(D3D12_DESCRIPTOR_HEAP_TYPE type, u32 capacity);
-	~SRDescriptorHeap_DX12() = default;
-
-	void initialize(ID3D12Device* device);
-
-	SRDescriptorIndex get_next_index();
-	D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_handle(SRDescriptorIndex index);
-	D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_handle(SRDescriptorIndex index);
-	ID3D12DescriptorHeap* get_heap_object() const { return m_DescriptorHeap.Get(); }
-
-	void free_index(SRDescriptorIndex index);
-	inline u32 get_index_from_handle(D3D12_CPU_DESCRIPTOR_HANDLE handle) const {
-		return static_cast<u32>((handle.ptr - m_CPUDescriptorHandleStart.ptr) / m_DescriptorSize);
-	}
-
-	inline u32 get_index_from_handle(D3D12_GPU_DESCRIPTOR_HANDLE handle) const {
-		return static_cast<u32>((handle.ptr - m_GPUDescriptorHandleStart.ptr) / m_DescriptorSize);
-	}
-
-private:
-	inline void clear_state_bit(SRDescriptorIndex index) {
-		m_StateArray[index >> 6ull] &= ~(1ull << (index & 63ull));
-	}
-
-	inline void set_state_bit(SRDescriptorIndex index) {
-		m_StateArray[index >> 6ull] |= (1ull << (index & 63ull));
-	}
-
-	inline bool get_state_bit(SRDescriptorIndex index) const {
-		return (m_StateArray[index >> 6ull] & (1ull << (index & 63ull))) != 0ull;
-	}
-
-	D3D12_DESCRIPTOR_HEAP_TYPE m_Type;
-	u32 m_Capacity;
-	
-	u32 m_Size = 0;
-	u32 m_DescriptorSize = 0;
-	D3D12_CPU_DESCRIPTOR_HANDLE m_CPUDescriptorHandleStart = {};
-	D3D12_GPU_DESCRIPTOR_HANDLE m_GPUDescriptorHandleStart = {};
-	ComPtr<ID3D12DescriptorHeap> m_DescriptorHeap;
-	std::vector<SRDescriptorIndex> m_FreeList;
-	std::vector<u64> m_StateArray;
+struct SRDescriptorHeap_DX12 {
+	u32 count;
+	u32 capacity;
+	D3D12_DESCRIPTOR_HEAP_TYPE heapType;
+	u32 descriptorHandleSize;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptorHandleStart;
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandleStart;
+	ID3D12DescriptorHeap* heapObject;
 };
 
-struct SRResource_DX12 {
-	virtual ~SRResource_DX12() {
-		allocation->Release();
-	};
+SRDescriptorHeap_DX12*      SRDescriptorHeap_DX12_Create(SRArena* arena, ID3D12Device* d3d12Device, D3D12_DESCRIPTOR_HEAP_TYPE type, u32 capacity);
+SRDescriptorIndex           SRDescriptorHeap_DX12_GetNextIndex(SRDescriptorHeap_DX12* heap);
+D3D12_CPU_DESCRIPTOR_HANDLE SRDescriptorHeap_DX12_GetCPUHandle(SRDescriptorHeap_DX12* heap, SRDescriptorIndex index);
+D3D12_GPU_DESCRIPTOR_HANDLE SRDescriptorHeap_DX12_GetGPUHandle(SRDescriptorHeap_DX12* heap, SRDescriptorIndex index);
+SRDescriptorIndex           SRDescriptorHeap_DX12_GetIndexFromCPUHandle(SRDescriptorHeap_DX12* heap, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle);
+SRDescriptorIndex           SRDescriptorHeap_DX12_GetIndexFromGPUHandle(SRDescriptorHeap_DX12* heap, D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle);
+void                        SRDescriptorHeap_DX12_Destroy(SRDescriptorHeap_DX12* heap);
 
+struct SRDestructionHandler_DX12 {
+	SRArray* objects;
+};
+
+SRDestructionHandler_DX12* SRDestructionHandler_DX12_Create(SRArena* arena);
+void SRDestructionhandler_DX12_Update(SRDestructionHandler_DX12* handler, u64 frameCount, u64 frameExpiration);
+void SRDestructionHandler_DX12_Enqueue(SRDestructionHandler_DX12* handler, IUnknown* obj);
+void SRDestructionHandler_DX12_Destroy(SRDestructionHandler_DX12* handler);
+
+struct SRResource_DX12 {
 	D3D12MA::Allocation* allocation = nullptr;
 };
 
@@ -94,27 +69,28 @@ struct SRSampler_DX12 {
 };
 
 struct SRCmdList_DX12 {
-	ComPtr<ID3D12GraphicsCommandList7> graphicsCmdList;
+	ID3D12GraphicsCommandList7* graphicsCmdList;
 };
 
 struct SRPipeline_DX12 {
-	ComPtr<ID3D12PipelineState> pipeline;
-	ComPtr<ID3D12RootSignature> rootSignature;
+	ID3D12PipelineState* pipeline;
+	ID3D12RootSignature* rootSignature;
 };
 
 struct SRSwapchain_DX12 {
-	ComPtr<IDXGISwapChain3> swapchain;
-	std::vector<ComPtr<ID3D12Resource>> images;
-	std::vector<SRDescriptorIndex> rtvDescriptors;
+	IDXGISwapChain3* swapchain;
+	ID3D12Resource* images[SR_MAX_SWAPCHAIN_IMAGES];
+	SRDescriptorIndex rtvDescriptors[SR_MAX_SWAPCHAIN_IMAGES];
+	u32 imageCount;
 };
 
 // ---------------------------- Converter Functions ----------------------------
 inline SRBuffer_DX12* to_dx12_internal(const SRBuffer& buffer) {
-	return (SRBuffer_DX12*)buffer.internalState.get();
+	return (SRBuffer_DX12*)buffer.internalState;
 }
 
 inline SRTexture_DX12* to_dx12_internal(const SRTexture& texture) {
-	return (SRTexture_DX12*)texture.internalState.get();
+	return (SRTexture_DX12*)texture.internalState;
 }
 
 inline SRCmdList_DX12* to_dx12_internal(const SRCmdList& cmdList) {
@@ -122,11 +98,11 @@ inline SRCmdList_DX12* to_dx12_internal(const SRCmdList& cmdList) {
 }
 
 inline SRPipeline_DX12* to_dx12_internal(const SRPipeline& pipeline) {
-	return (SRPipeline_DX12*)pipeline.internalState.get();
+	return (SRPipeline_DX12*)pipeline.internalState;
 }
 
 inline SRSwapchain_DX12* to_dx12_internal(const SRSwapchain& swapchain) {
-	return (SRSwapchain_DX12*)swapchain.internalState.get();
+	return (SRSwapchain_DX12*)swapchain.internalState;
 }
 
 inline constexpr D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE to_dx12_load_op(SRLoadOp value) {

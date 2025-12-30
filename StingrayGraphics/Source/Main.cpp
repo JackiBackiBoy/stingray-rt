@@ -1,6 +1,7 @@
 #include "Core/Logger.h"
 #include "Core/Window.h"
 #include "Core/System/Time.h"
+#include "Data/ArenaAllocator.h"
 #include "Data/Camera.h"
 #include "Data/ComponentTypes.h"
 #include "Data/Model.h"
@@ -19,7 +20,6 @@
 #include <Windows.h>
 #include <glm/glm.hpp>
 #include <cassert>
-#include <memory>
 
 struct alignas(256) PerFrameData {
 	glm::mat4 view    = { 1.0f };
@@ -33,13 +33,17 @@ static auto& logger = SRLogger::get();
 static constexpr int WIDTH = 1920;
 static constexpr int HEIGHT = 1080;
 
-std::unique_ptr<SRWindow> g_Window = {};
-//std::unique_ptr<SRGraphicsDevice> g_GfxDevice = {};
-std::unique_ptr<SRRenderGraph> g_RenderGraph = {};
-std::unique_ptr<SRShaderCompiler> g_ShaderCompiler = {};
-std::unique_ptr<SREditor> g_Editor = {};
-std::unique_ptr<SRScene> g_Scene = {};
-std::unique_ptr<SRCamera> g_Camera = {};
+SRWindow* g_Window;
+SRRenderGraph* g_RenderGraph;
+SRShaderCompiler* g_ShaderCompiler;
+SREditor* g_Editor;
+SRScene* g_Scene;
+SRCamera* g_Camera;
+
+SRRenderPass* depthPrepass;
+SRRenderPass* compositionPass;
+SRRenderPass* gBufferPass;
+SRRenderPass* imguiPass;
 
 SRGFXBackend g_GfxBackend = SRGFXBackend::DX12;
 SRGFXDevice g_GfxDevice;
@@ -77,14 +81,14 @@ int APIENTRY wWinMain(
 	SRGFX_FlushInitialUploads(&g_GfxDevice); // TEMPORARY but important for now
 
 	SRFrameInfo frameInfo = {
-		.camera = g_Camera.get(),
-		.scene = g_Scene.get(),
+		.camera = g_Camera,
+		.scene = g_Scene,
 		.dt = 0.0f,
 		.width = WIDTH,
 		.height = HEIGHT
 	};
 
-	SRInput::initialize(g_Window.get());
+	SRInput::initialize(g_Window);
 	SRTime::initialize();
 
 	// Main loop
@@ -106,8 +110,33 @@ int APIENTRY wWinMain(
 			firstFrame = false;
 		}
 	}
-
 	SRGFX_WaitForGPU(&g_GfxDevice);
+
+	// TODO: Temporary destruction logic, we will get rid of this eventually
+	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
+		SRGFX_DestroyResource(&g_GfxDevice, &g_PerFrameBuffers[f]);
+	}
+
+	auto* depthPrepassData = depthPrepass->get_pass_data<DepthPrepassData>();
+	auto* gBufferPassData = gBufferPass->get_pass_data<GBufferPassData>();
+	auto* compositionPassData = compositionPass->get_pass_data<CompositionPassData>();
+	
+	SRGFX_DestroyPipeline(&g_GfxDevice, &depthPrepassData->pipeline);
+	SRGFX_DestroyPipeline(&g_GfxDevice, &gBufferPassData->pipeline);
+	SRGFX_DestroyPipeline(&g_GfxDevice, &compositionPassData->pipeline);
+	SRGFX_DestroyResource(&g_GfxDevice, &g_TestModel.vertexBuffer);
+	SRGFX_DestroyResource(&g_GfxDevice, &g_TestModel.indexBuffer);
+	SRGFX_DestroyResource(&g_GfxDevice, &g_TestModel.meshletBuffer);
+	SRGFX_DestroyResource(&g_GfxDevice, &g_TestModel.meshletVerticesBuffer);
+	SRGFX_DestroyResource(&g_GfxDevice, &g_TestModel.meshletTrianglesBuffer);
+	SRGFX_DestroySwapchain(&g_GfxDevice, &g_Swapchain);
+
+	delete g_Camera;
+	delete g_Scene;
+	delete g_Editor;
+	delete g_ShaderCompiler;
+	delete g_RenderGraph;
+	delete g_Window;
 	SRGFX_DestroyDevice(&g_GfxDevice);
 
 	return 0;
@@ -140,12 +169,12 @@ void init_console() {
 
 void init_window() {
 	const char* windowTitle = (g_GfxBackend == SRGFXBackend::Vulkan ? "Stingray (Vulkan)" : "Stingray (DX12)");
-	g_Window = std::make_unique<SRWindow>(windowTitle, WIDTH, HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
+	g_Window = new SRWindow(windowTitle, WIDTH, HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
 }
 
 void init_graphics() {
-	SRGFX_CreateDevice(g_Window.get(), &g_GfxDevice, g_GfxBackend);
-	g_ShaderCompiler = std::make_unique<SRShaderCompiler>(SRGFX_GetShaderPlatformInfo(&g_GfxDevice));
+	SRGFX_CreateDevice(g_Window, &g_GfxDevice, g_GfxBackend);
+	g_ShaderCompiler = new SRShaderCompiler(SRGFX_GetShaderCompileTarget(&g_GfxDevice));
 
 	SRSwapchainInfo swapchainInfo = {
 		.width = WIDTH,
@@ -154,8 +183,8 @@ void init_graphics() {
 		.format = SRFormat::RGBA8_UNORM,
 		.vSync = false
 	};
-	SRGFX_CreateSwapchain(&g_GfxDevice, g_Window.get(), &swapchainInfo, &g_Swapchain);
-	g_Editor = std::make_unique<SREditor>(*g_Window, g_GfxDevice, g_GfxBackend);
+	SRGFX_CreateSwapchain(&g_GfxDevice, g_Window, &swapchainInfo, &g_Swapchain);
+	g_Editor = new SREditor(*g_Window, g_GfxDevice, g_GfxBackend);
 
 	// Samplers
 	SRSamplerInfo linearSamplerInfo = {
@@ -183,13 +212,13 @@ void init_resources() {
 }
 
 void init_scene() {
-	g_Scene = std::make_unique<SRScene>(g_GfxDevice, 65536);
+	g_Scene = new SRScene(g_GfxDevice, 65536);
 
 	SREntityID entity = g_Scene->add_entity();
 	g_Scene->add_component<SRTransform>(entity, SRTransform{});
 	g_Scene->add_component<SRRenderable>(entity, SRRenderable{ &g_TestModel });
 
-	g_Camera = std::make_unique<SRCamera>(
+	g_Camera = new SRCamera(
 		glm::vec3(0.0f, 0.1f, -0.3f),
 		glm::angleAxis(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
 		60.0f,
@@ -200,30 +229,30 @@ void init_scene() {
 }
 
 void init_rendergraph() {
-	g_RenderGraph = std::make_unique<SRRenderGraph>();
+	g_RenderGraph = new SRRenderGraph();
 
-	auto& depthPrepass = g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::Graphics)
+	depthPrepass = &g_RenderGraph->add_render_pass("DepthPrepass", SRPassType::Graphics)
 		.add_depth_output("Depth", WIDTH, HEIGHT, SRFormat::D32_FLOAT)
 		.set_execute_callback(SRDepthPrepass::execute);
-	SRDepthPrepass::build(depthPrepass, g_GfxDevice, *g_ShaderCompiler);
+	SRDepthPrepass::build(*depthPrepass, g_GfxDevice, *g_ShaderCompiler);
 
-	auto& gBufferPass = g_RenderGraph->add_render_pass("GBufferPass", SRPassType::Graphics)
+	gBufferPass = &g_RenderGraph->add_render_pass("GBufferPass", SRPassType::Graphics)
 		.add_depth_input("Depth")
 		.add_color_output("GBufferAlbedo", WIDTH, HEIGHT, SRFormat::RGBA8_UNORM)
 		.set_execute_callback(SRGBufferPass::execute);
-	SRGBufferPass::build(gBufferPass, g_GfxDevice, *g_ShaderCompiler);
+	SRGBufferPass::build(*gBufferPass, g_GfxDevice, *g_ShaderCompiler);
 
-	auto& compositionPass = g_RenderGraph->add_render_pass("CompositionPass", SRPassType::Graphics)
+	compositionPass = &g_RenderGraph->add_render_pass("CompositionPass", SRPassType::Graphics)
 		.add_color_input("GBufferAlbedo", SRAccessFlag::Read)
 		.set_execute_callback(SRCompositionPass::execute);
-	SRCompositionPass::build(compositionPass, g_GfxDevice, *g_ShaderCompiler);
+	SRCompositionPass::build(*compositionPass, g_GfxDevice, *g_ShaderCompiler);
 
 	// TODO: Update render graph to respect mesh shading pipeline
 	//auto& meshletPass = g_RenderGraph->add_render_pass("MeshletPass", SRPassType::Graphics)
 	//	.set_execute_callback(SRMeshletGenerationpass::execute);
 	//SRMeshletGenerationpass::build(meshletPass, g_GfxDevice, *g_ShaderCompiler);
 
-	auto& imguiPass = g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::Graphics)
+	imguiPass = &g_RenderGraph->add_render_pass("ImGuiPass", SRPassType::Graphics)
 		.set_execute_callback([&](SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 			g_Editor->update(*g_RenderGraph);
 			g_Editor->render(cmdList);

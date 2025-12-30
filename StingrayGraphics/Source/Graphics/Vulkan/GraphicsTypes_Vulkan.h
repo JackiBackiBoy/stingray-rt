@@ -266,7 +266,7 @@ struct SRSwapchain_Vulkan {
 
 // ---------------------------- Converter Functions ----------------------------
 inline SRBuffer_Vulkan* to_vk_internal(const SRBuffer& buffer) {
-	return (SRBuffer_Vulkan*)buffer.internalState.get();
+	return (SRBuffer_Vulkan*)buffer.internalState;
 }
 
 inline SRCmdList_Vulkan* to_vk_internal(const SRCmdList& cmdList) {
@@ -274,15 +274,15 @@ inline SRCmdList_Vulkan* to_vk_internal(const SRCmdList& cmdList) {
 }
 
 inline SRPipeline_Vulkan* to_vk_internal(const SRPipeline& pipeline) {
-	return (SRPipeline_Vulkan*)pipeline.internalState.get();
+	return (SRPipeline_Vulkan*)pipeline.internalState;
 }
 
 inline SRSwapchain_Vulkan* to_vk_internal(const SRSwapchain& swapchain) {
-	return (SRSwapchain_Vulkan*)swapchain.internalState.get();
+	return (SRSwapchain_Vulkan*)swapchain.internalState;
 }
 
 inline SRTexture_Vulkan* to_vk_internal(const SRTexture& texture) {
-	return (SRTexture_Vulkan*)texture.internalState.get();
+	return (SRTexture_Vulkan*)texture.internalState;
 }
 
 inline constexpr VkAttachmentLoadOp to_vk_load_op(SRLoadOp value) {

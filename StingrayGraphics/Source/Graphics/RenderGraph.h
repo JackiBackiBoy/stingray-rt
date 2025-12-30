@@ -158,7 +158,7 @@ private:
 class SRRenderGraph {
 public:
 	SRRenderGraph() {}
-	~SRRenderGraph() {}
+	~SRRenderGraph();
 
 	SRRenderPass& add_render_pass(const std::string& name, SRPassType type);
 	PrefabPass& add_prefab_pass(const std::string& name);
@@ -179,6 +179,7 @@ public:
 		return passes;
 	}
 
+	SRGFXDevice* m_GfxDevice;
 private:
 	std::vector<std::unique_ptr<SRRenderPass>> m_RenderPasses;
 	std::vector<std::unique_ptr<SRRenderPassAttachment>> m_Attachments;
