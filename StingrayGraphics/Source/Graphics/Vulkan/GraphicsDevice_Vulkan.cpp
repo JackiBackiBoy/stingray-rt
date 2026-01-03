@@ -6,17 +6,17 @@
 #include "Graphics/Vulkan/GraphicsHelpers_Vulkan.h"
 #include "Graphics/Vulkan/GraphicsTypes_Vulkan.h"
 #include "Core/Logger.h"
-#include "Core/System/MonitorEnumerator.h"
+#include "Data/ArenaAllocator.h"
 
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
 
-#include <algorithm>
-#include <cassert>
-#include <memory>
-#include <vector>
-#include <stdexcept>
 #include <Windows.h>
+#include <vector>
+#include <stdlib.h>
+
+#define SR_MAX_CBV_SRV_UAV_DESCRIPTORS 65536
+#define SR_MAX_SAMPLER_DESCRIPTORS     2048
 
 namespace {
 	// TODO: Move elsewhere
@@ -49,6 +49,9 @@ internal SRGFXDeviceVTable SRGFXDevice_Vulkan_VTable = {
 	.create_buffer               = SRGFXVulkan_CreateBuffer,
 	.create_texture              = SRGFXVulkan_CreateTexture,
 	.create_sampler              = SRGFXVulkan_CreateSampler,
+	.destroy_swapchain           = SRGFXVulkan_DestroySwapchain,
+	.destroy_pipeline            = SRGFXVulkan_DestroyPipeline,
+	.destroy_resource            = SRGFXVulkan_DestroyResource,
 	.bind_pipeline               = SRGFXVulkan_BindPipeline,
 	.bind_viewport               = SRGFXVulkan_BindViewport,
 	.bind_vertex_buffer          = SRGFXVulkan_BindVertexBuffer,
@@ -74,47 +77,43 @@ internal SRGFXDeviceVTable SRGFXDevice_Vulkan_VTable = {
 };
 
 struct SRGFXDeviceVulkan {
-	const SRWindow* m_Window;
-	VkInstance m_Instance = VK_NULL_HANDLE;
-	VkDebugUtilsMessengerEXT m_DebugMessenger = VK_NULL_HANDLE;
-	VkSurfaceKHR m_Surface = VK_NULL_HANDLE;
-	VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
-	VkDevice m_Device = VK_NULL_HANDLE;
-	VmaAllocator m_Allocator = VMA_NULL;
-	VkCommandPool m_CommandPools[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT] = {};
-	VkQueue m_CommandQueues[SRQueue_COUNT] = {};
-	u32 m_QueueIndices[SRQueue_COUNT] = {};
-	VkSemaphore m_FrameFences[SRQueue_COUNT] = {};
-	VkSemaphore m_ImageAvailableSemaphores[SR_GFX_FRAMES_IN_FLIGHT] = {};
-	VkSemaphore m_RenderFinishedSemaphores[3] = {};
-	VkFence m_AcquireFence;
+	VkDebugUtilsMessengerEXT debug_messenger;
 
-	VkDescriptorPool m_DescriptorPool = VK_NULL_HANDLE;
-	VkDescriptorSet m_ResourceDescriptorSet = VK_NULL_HANDLE; // CBV/SRV/UAV descriptor set
-	VkDescriptorSetLayout m_ResourceDescriptorSetLayout = VK_NULL_HANDLE;
-	VkDescriptorSetLayout m_PushDescriptorSetLayout = VK_NULL_HANDLE;
-	SRDescriptorHeap_Vulkan m_CbvSrvUavDescriptorHeap = { VK_DESCRIPTOR_TYPE_MUTABLE_EXT, 32000 };
-	SRDescriptorHeap_Vulkan m_SamplerDescriptorHeap = { VK_DESCRIPTOR_TYPE_SAMPLER, SR_MAX_SAMPLER_DESCRIPTORS };
-	SRPipeline_Vulkan* m_ActivePipeline = nullptr;
-	std::unique_ptr<SRDestructionHandler_Vulkan> m_DestructionHandler;
+	VkInstance instance;
+	VkSurfaceKHR surface;
+	VkPhysicalDevice physical_device;
+	VkDevice device;
+	VkCommandPool cmd_pool_upload;
+	VkCommandBuffer cmd_buffer_upload;
+	VkCommandPool cmd_pools[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT];
+	VkQueue cmd_queues[SRQueue_COUNT];
+	u32 cmd_queue_indices[SRQueue_COUNT];
+	VkSemaphore frame_fences[SRQueue_COUNT];
+	VkSemaphore semaphores_image_available[SR_GFX_FRAMES_IN_FLIGHT];
+	VkSemaphore semaphores_render_finished[SR_MAX_SWAPCHAIN_IMAGES];
+	VkFence acquire_fence;
+	VkDescriptorPool descriptor_pool;
+	VkDescriptorSet descriptor_set_bindless;
+	VkDescriptorSetLayout descriptor_set_layout_bindless;
+	VkDescriptorSetLayout descriptor_set_layout_push;
+	VmaAllocator vma_allocator;
 
-	u64 m_NextGPUSignalValue = 1;
-	u64 m_FrameDoneValue[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT] = {};
-	std::vector<std::unique_ptr<SRCmdList_Vulkan>> m_PerFrameCmdLists[SR_GFX_FRAMES_IN_FLIGHT];
-	size_t m_PerFrameCmdListCounters[SR_GFX_FRAMES_IN_FLIGHT] = {};
-	u32 m_FrameIndex = 0;
-	u32 m_ImageIndex = 0;
-	u64 m_FrameCounter = 0;
+	SRDescriptorHeap_Vulkan* descriptor_heap_cbv_srv_uav;
+	SRDescriptorHeap_Vulkan* descriptor_heap_sampler;
+	SRPipeline_Vulkan* active_pipeline;
+	SRDestructionHandler_Vulkan* destruction_handler;
 
-	bool m_DebugUtilsAvailable = false;
-	// BEGINNING OF TEMPORARY STUFF
-	VkCommandPool m_UploadCmdPool = VK_NULL_HANDLE;
-	VkCommandBuffer m_UploadCmdBuffer = VK_NULL_HANDLE;
-	bool m_IsUploadCmdBufferRecording = false;
-	// END OF TEMPORARY STUFF
+	SRArena* arena_general;
+	SRArena* arena_upload;
+	SRWindow* window;
+	u64 frame_done_values[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT];
+	SRCmdList_Vulkan cmd_lists[SRQueue_COUNT][SR_GFX_FRAMES_IN_FLIGHT];
+	u32 frame_index;
+	u32 image_index;
+	u64 frame_counter;
 
-	static constexpr u32 MAX_UNIFORM_BUFFER_DESCRIPTORS = 64;
-	static constexpr u32 SR_MAX_SAMPLER_DESCRIPTORS = 32;
+	bool is_upload_cmd_buffer_recording;
+	bool is_debug_utils_available;
 };
 
 internal VKAPI_ATTR VkBool32 VKAPI_CALL SRGFXDeviceVulkan_DebugCallback(
@@ -222,7 +221,7 @@ internal void SRGFXDeviceVulkan_CreateInstance(SRGFXDeviceVulkan* dev) {
 	for (const auto& ext : instanceExts) {
 		if (strcmp(ext.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0) {
 			enabledExts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-			dev->m_DebugUtilsAvailable = true;
+			dev->is_debug_utils_available = true;
 			break;
 		}
 	}
@@ -230,7 +229,7 @@ internal void SRGFXDeviceVulkan_CreateInstance(SRGFXDeviceVulkan* dev) {
 	// Create instance-level debug messenger, only used during creation
 	VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo;
 
-	if (dev->m_DebugUtilsAvailable) {
+	if (dev->is_debug_utils_available) {
 		debugMessengerInfo = {
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 			.messageSeverity = (
@@ -256,19 +255,19 @@ internal void SRGFXDeviceVulkan_CreateInstance(SRGFXDeviceVulkan* dev) {
 	instanceInfo.ppEnabledExtensionNames = enabledExts.data();
 
 	// TODO: Investigate custom Vulkan allocator
-	SR_VK_CHECK(vkCreateInstance(&instanceInfo, nullptr, &dev->m_Instance), "Instance creation");
+	SR_VK_CHECK(vkCreateInstance(&instanceInfo, nullptr, &dev->instance), "Instance creation");
 
-	volkLoadInstanceOnly(dev->m_Instance);
+	volkLoadInstanceOnly(dev->instance);
 }
 
 internal void SRGFXDeviceVulkan_CreateDebugMessenger(SRGFXDeviceVulkan* dev) {
 #ifdef _DEBUG
-	if (!dev->m_DebugUtilsAvailable) {
+	if (!dev->is_debug_utils_available) {
 		return;
 	}
 
 	auto func = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-		vkGetInstanceProcAddr(dev->m_Instance, "vkCreateDebugUtilsMessengerEXT")
+		vkGetInstanceProcAddr(dev->instance, "vkCreateDebugUtilsMessengerEXT")
 		);
 	if (func == nullptr) {
 		SRLOG_ERROR_CAT(SRLOG_CAT_VULKAN, "vkGetInstanceProcAddr could not be obtained");
@@ -289,7 +288,7 @@ internal void SRGFXDeviceVulkan_CreateDebugMessenger(SRGFXDeviceVulkan* dev) {
 		),
 		.pfnUserCallback = SRGFXDeviceVulkan_DebugCallback
 	};
-	SR_VK_CHECK(func(dev->m_Instance, &createInfo, nullptr, &dev->m_DebugMessenger), "Debug messenger creation");
+	SR_VK_CHECK(func(dev->instance, &createInfo, nullptr, &dev->debug_messenger), "Debug messenger creation");
 #else
 	return;
 #endif
@@ -299,15 +298,15 @@ internal void SRGFXDeviceVulkan_CreateSurface(SRGFXDeviceVulkan* dev) {
 	VkWin32SurfaceCreateInfoKHR win32SurfaceInfo = {
 		.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 		.hinstance = (HINSTANCE)GetModuleHandle(nullptr),
-		.hwnd = (HWND)dev->m_Window->get_internal_handle()
+		.hwnd = (HWND)dev->window->get_internal_handle()
 	};
 
-	SR_VK_CHECK(vkCreateWin32SurfaceKHR(dev->m_Instance, &win32SurfaceInfo, nullptr, &dev->m_Surface), "Win32 surface creation");
+	SR_VK_CHECK(vkCreateWin32SurfaceKHR(dev->instance, &win32SurfaceInfo, nullptr, &dev->surface), "Win32 surface creation");
 }
 
 internal void SRGFXDeviceVulkan_CreateDevice(SRGFXDeviceVulkan* dev) {
 	u32 numDevices = 0;
-	SR_VK_CHECK(vkEnumeratePhysicalDevices(dev->m_Instance, &numDevices, nullptr), "Physical device enumeration");
+	SR_VK_CHECK(vkEnumeratePhysicalDevices(dev->instance, &numDevices, nullptr), "Physical device enumeration");
 
 	if (numDevices == 0) {
 		SRLOG_CRITICAL_CAT(SRLOG_CAT_VULKAN, "No GPU with Vulkan support was found");
@@ -315,7 +314,7 @@ internal void SRGFXDeviceVulkan_CreateDevice(SRGFXDeviceVulkan* dev) {
 	}
 
 	std::vector<VkPhysicalDevice> devices(numDevices);
-	SR_VK_CHECK(vkEnumeratePhysicalDevices(dev->m_Instance, &numDevices, devices.data()), "Physical device enumeration");
+	SR_VK_CHECK(vkEnumeratePhysicalDevices(dev->instance, &numDevices, devices.data()), "Physical device enumeration");
 
 	SRLOG_DEBUG_CAT(SRLOG_CAT_VULKAN, "Found %u potential device(s). Enumerating...", numDevices);
 	u32 pickedDeviceIdx = ~0;
@@ -545,7 +544,7 @@ internal void SRGFXDeviceVulkan_CreateDevice(SRGFXDeviceVulkan* dev) {
 			if (hasGraphicsBit && hasComputeBit) { // Universal queue
 				// Check present support
 				VkBool32 hasPresentSupport = VK_FALSE;
-				SR_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(device, i, dev->m_Surface, &hasPresentSupport), "Query presentation support");
+				SR_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(device, i, dev->surface, &hasPresentSupport), "Query presentation support");
 
 				if (hasPresentSupport == VK_TRUE && universalQueueFamilyIdx == ~0) {
 					universalQueueFamilyIdx = i;
@@ -578,9 +577,9 @@ internal void SRGFXDeviceVulkan_CreateDevice(SRGFXDeviceVulkan* dev) {
 			continue;
 		}
 
-		dev->m_QueueIndices[SRQueue_Universal] = universalQueueFamilyIdx;
-		dev->m_QueueIndices[SRQueue_Compute] = dedicatedComputeQueueFamilyIdx;
-		dev->m_QueueIndices[SRQueue_Copy] = dedicatedCopyQueueFamilyIdx;
+		dev->cmd_queue_indices[SRQueue_Universal] = universalQueueFamilyIdx;
+		dev->cmd_queue_indices[SRQueue_Compute] = dedicatedComputeQueueFamilyIdx;
+		dev->cmd_queue_indices[SRQueue_Copy] = dedicatedCopyQueueFamilyIdx;
 
 		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 		f32 queuePriority = 1.0f; // TODO: Might not always be the best?
@@ -621,7 +620,7 @@ internal void SRGFXDeviceVulkan_CreateDevice(SRGFXDeviceVulkan* dev) {
 			.ppEnabledExtensionNames = enabledExts.data(),
 		};
 
-		SR_VK_CHECK(vkCreateDevice(device, &deviceInfo, nullptr, &dev->m_Device), "Device creation");
+		SR_VK_CHECK(vkCreateDevice(device, &deviceInfo, nullptr, &dev->device), "Device creation");
 		pickedDeviceIdx = i;
 		break;
 	}
@@ -633,12 +632,12 @@ internal void SRGFXDeviceVulkan_CreateDevice(SRGFXDeviceVulkan* dev) {
 
 	SRLOG_DEBUG_CAT(SRLOG_CAT_VULKAN, "Picked [GPU%u] %s", pickedDeviceIdx, deviceName);
 
-	dev->m_PhysicalDevice = devices[pickedDeviceIdx];
+	dev->physical_device = devices[pickedDeviceIdx];
 
-	volkLoadDevice(dev->m_Device);
-	vkGetDeviceQueue(dev->m_Device, dev->m_QueueIndices[SRQueue_Universal], 0, &dev->m_CommandQueues[SRQueue_Universal]);
-	vkGetDeviceQueue(dev->m_Device, dev->m_QueueIndices[SRQueue_Compute], 0, &dev->m_CommandQueues[SRQueue_Compute]);
-	vkGetDeviceQueue(dev->m_Device, dev->m_QueueIndices[SRQueue_Copy], 0, &dev->m_CommandQueues[SRQueue_Copy]);
+	volkLoadDevice(dev->device);
+	vkGetDeviceQueue(dev->device, dev->cmd_queue_indices[SRQueue_Universal], 0, &dev->cmd_queues[SRQueue_Universal]);
+	vkGetDeviceQueue(dev->device, dev->cmd_queue_indices[SRQueue_Compute], 0, &dev->cmd_queues[SRQueue_Compute]);
+	vkGetDeviceQueue(dev->device, dev->cmd_queue_indices[SRQueue_Copy], 0, &dev->cmd_queues[SRQueue_Copy]);
 }
 
 internal void SRGFXDeviceVulkan_CreateMemoryAllocator(SRGFXDeviceVulkan* dev) {
@@ -672,19 +671,19 @@ internal void SRGFXDeviceVulkan_CreateMemoryAllocator(SRGFXDeviceVulkan* dev) {
 	};
 
 	VmaAllocatorCreateInfo allocatorInfo = {
-		.physicalDevice = dev->m_PhysicalDevice,
-		.device = dev->m_Device,
+		.physicalDevice = dev->physical_device,
+		.device = dev->device,
 		.preferredLargeHeapBlockSize = 0, // 256 MB default
 		.pAllocationCallbacks = nullptr,
 		.pDeviceMemoryCallbacks = nullptr,
 		.pHeapSizeLimit = nullptr,
 		.pVulkanFunctions = &volkFunctions,
-		.instance = dev->m_Instance,
+		.instance = dev->instance,
 		.vulkanApiVersion = VK_API_VERSION_1_4,
 		.pTypeExternalMemoryHandleTypes = nullptr
 	};
 
-	SR_VK_CHECK(vmaCreateAllocator(&allocatorInfo, &dev->m_Allocator), "Create Vulkan Memory Allocator");
+	SR_VK_CHECK(vmaCreateAllocator(&allocatorInfo, &dev->vma_allocator), "Create Vulkan Memory Allocator");
 }
 
 internal void SRGFXDeviceVulkan_CreateCommandPools(SRGFXDeviceVulkan* dev) {
@@ -694,26 +693,26 @@ internal void SRGFXDeviceVulkan_CreateCommandPools(SRGFXDeviceVulkan* dev) {
 	};
 
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
-		poolInfo.queueFamilyIndex = dev->m_QueueIndices[q];
+		poolInfo.queueFamilyIndex = dev->cmd_queue_indices[q];
 
 		for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-			SR_VK_CHECK(vkCreateCommandPool(dev->m_Device, &poolInfo, nullptr, &dev->m_CommandPools[q][f]), "Command pool creation");
+			SR_VK_CHECK(vkCreateCommandPool(dev->device, &poolInfo, nullptr, &dev->cmd_pools[q][f]), "Command pool creation");
 		}
 	}
 
 	// TEMPORARY
-	poolInfo.queueFamilyIndex = dev->m_QueueIndices[SRQueue_Copy];
-	SR_VK_CHECK(vkCreateCommandPool(dev->m_Device, &poolInfo, nullptr, &dev->m_UploadCmdPool), "Create upload command pool");
+	poolInfo.queueFamilyIndex = dev->cmd_queue_indices[SRQueue_Copy];
+	SR_VK_CHECK(vkCreateCommandPool(dev->device, &poolInfo, nullptr, &dev->cmd_pool_upload), "Create upload command pool");
 
 	// Create initial upload command buffer
 	VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = dev->m_UploadCmdPool,
+		.commandPool = dev->cmd_pool_upload,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1
 	};
 
-	SR_VK_CHECK(vkAllocateCommandBuffers(dev->m_Device, &allocInfo, &dev->m_UploadCmdBuffer), "Upload command buffer creation");
+	SR_VK_CHECK(vkAllocateCommandBuffers(dev->device, &allocInfo, &dev->cmd_buffer_upload), "Upload command buffer creation");
 }
 
 internal void SRGFXDeviceVulkan_CreateSyncObjects(SRGFXDeviceVulkan* dev) {
@@ -730,29 +729,32 @@ internal void SRGFXDeviceVulkan_CreateSyncObjects(SRGFXDeviceVulkan* dev) {
 	};
 
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
-		SR_VK_CHECK(vkCreateSemaphore(dev->m_Device, &semaphoreInfo, nullptr, &(dev->m_FrameFences[q])), "Timeline semaphore creation");
+		SR_VK_CHECK(vkCreateSemaphore(dev->device, &semaphoreInfo, nullptr, &(dev->frame_fences[q])), "Timeline semaphore creation");
 	}
 
 	// Image available and render finished semaphores
 	semaphoreInfo.pNext = nullptr;
 	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-		SR_VK_CHECK(vkCreateSemaphore(dev->m_Device, &semaphoreInfo, nullptr, &dev->m_ImageAvailableSemaphores[f]), "Image-available semaphore creation");
+		SR_VK_CHECK(vkCreateSemaphore(dev->device, &semaphoreInfo, nullptr, &dev->semaphores_image_available[f]), "Image-available semaphore creation");
 	}
 
 	for (u32 b = 0; b < 3; ++b) {
-		SR_VK_CHECK(vkCreateSemaphore(dev->m_Device, &semaphoreInfo, nullptr, &dev->m_RenderFinishedSemaphores[b]), "Render-finished semaphore creation");
+		SR_VK_CHECK(vkCreateSemaphore(dev->device, &semaphoreInfo, nullptr, &dev->semaphores_render_finished[b]), "Render-finished semaphore creation");
 	}
 
 	// Swapchain acquire fence
 	VkFenceCreateInfo fenceInfo = { .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-	SR_VK_CHECK(vkCreateFence(dev->m_Device, &fenceInfo, nullptr, &dev->m_AcquireFence), "Create swapchain acquire-fence");
+	SR_VK_CHECK(vkCreateFence(dev->device, &fenceInfo, nullptr, &dev->acquire_fence), "Create swapchain acquire-fence");
 }
 
 internal void SRGFXDeviceVulkan_CreateDescriptors(SRGFXDeviceVulkan* dev) {
+	dev->descriptor_heap_cbv_srv_uav = SRDescriptorHeap_Vulkan_Create(dev->arena_general, VK_DESCRIPTOR_TYPE_MUTABLE_EXT, SR_MAX_CBV_SRV_UAV_DESCRIPTORS);
+	dev->descriptor_heap_sampler   = SRDescriptorHeap_Vulkan_Create(dev->arena_general, VK_DESCRIPTOR_TYPE_SAMPLER, SR_MAX_SAMPLER_DESCRIPTORS);
+
 	// Bindless descriptors (set 0)
 	std::vector<SRDescriptorHeap_Vulkan*> descriptorHeaps = {
-		&dev->m_CbvSrvUavDescriptorHeap,
-		&dev->m_SamplerDescriptorHeap,
+		dev->descriptor_heap_cbv_srv_uav,
+		dev->descriptor_heap_sampler,
 	};
 	std::vector<VkDescriptorPoolSize> poolSizes;
 	std::vector<VkDescriptorBindingFlags> bindingFlags;
@@ -763,15 +765,15 @@ internal void SRGFXDeviceVulkan_CreateDescriptors(SRGFXDeviceVulkan* dev) {
 
 	for (size_t i = 0; i < descriptorHeaps.size(); ++i) {
 		SRDescriptorHeap_Vulkan* heap = descriptorHeaps[i];
-		VkDescriptorType descriptorType = heap->get_type();
-		u32 descriptorCount = heap->get_capacity();
+		VkDescriptorType descriptorType = heap->type;
+		u32 descriptorCount = heap->capacity;
 
 		VkDescriptorPoolSize poolSize = { descriptorType, descriptorCount };
 		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 		VkDescriptorSetLayoutBinding layoutBinding = {
 			.binding = static_cast<u32>(i),
-			.descriptorType = heap->get_type(),
-			.descriptorCount = heap->get_capacity(),
+			.descriptorType = heap->type,
+			.descriptorCount = heap->capacity,
 			.stageFlags = VK_SHADER_STAGE_ALL,
 			.pImmutableSamplers = nullptr
 		};
@@ -789,7 +791,7 @@ internal void SRGFXDeviceVulkan_CreateDescriptors(SRGFXDeviceVulkan* dev) {
 		.poolSizeCount = static_cast<u32>(poolSizes.size()),
 		.pPoolSizes = poolSizes.data()
 	};
-	SR_VK_CHECK(vkCreateDescriptorPool(dev->m_Device, &poolInfo, nullptr, &dev->m_DescriptorPool), "Create descriptor pool");
+	SR_VK_CHECK(vkCreateDescriptorPool(dev->device, &poolInfo, nullptr, &dev->descriptor_pool), "Create descriptor pool");
 
 	// Descriptor set layout
 
@@ -822,16 +824,16 @@ internal void SRGFXDeviceVulkan_CreateDescriptors(SRGFXDeviceVulkan* dev) {
 		.bindingCount = static_cast<u32>(layoutBindings.size()),
 		.pBindings = layoutBindings.data()
 	};
-	SR_VK_CHECK(vkCreateDescriptorSetLayout(dev->m_Device, &setLayoutInfo, nullptr, &dev->m_ResourceDescriptorSetLayout), "Create descriptor set layout");
+	SR_VK_CHECK(vkCreateDescriptorSetLayout(dev->device, &setLayoutInfo, nullptr, &dev->descriptor_set_layout_bindless), "Create descriptor set layout");
 
 	// Descriptor set
 	VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-		.descriptorPool = dev->m_DescriptorPool,
+		.descriptorPool = dev->descriptor_pool,
 		.descriptorSetCount = 1,
-		.pSetLayouts = &dev->m_ResourceDescriptorSetLayout
+		.pSetLayouts = &dev->descriptor_set_layout_bindless
 	};
-	SR_VK_CHECK(vkAllocateDescriptorSets(dev->m_Device, &descriptorSetAllocInfo, &dev->m_ResourceDescriptorSet), "Allocate descriptor sets");
+	SR_VK_CHECK(vkAllocateDescriptorSets(dev->device, &descriptorSetAllocInfo, &dev->descriptor_set_bindless), "Allocate descriptor sets");
 
 	// Push descriptor
 	VkDescriptorSetLayoutBinding uboBinding = {
@@ -849,81 +851,92 @@ internal void SRGFXDeviceVulkan_CreateDescriptors(SRGFXDeviceVulkan* dev) {
 		.bindingCount = 1,
 		.pBindings = &uboBinding
 	};
-	SR_VK_CHECK(vkCreateDescriptorSetLayout(dev->m_Device, &pushLayoutInfo, nullptr, &dev->m_PushDescriptorSetLayout), "Create push-descriptor set layout");
+	SR_VK_CHECK(vkCreateDescriptorSetLayout(dev->device, &pushLayoutInfo, nullptr, &dev->descriptor_set_layout_push), "Create push-descriptor set layout");
 }
 
 internal void SRGFXDeviceVulkan_CreateDestructionHandler(SRGFXDeviceVulkan* dev) {
-	dev->m_DestructionHandler = std::make_unique<SRDestructionHandler_Vulkan>(dev->m_Device, dev->m_Instance, dev->m_Allocator);
+	dev->destruction_handler = new SRDestructionHandler_Vulkan(dev->device, dev->instance, dev->vma_allocator);
 }
 
 // ------------------------------ Public API ------------------------------
 void SRGFXVulkan_CreateDevice(SRWindow* window, SRGFXDevice* device) {
-	SRGFXDeviceVulkan* devVulkan = new SRGFXDeviceVulkan();
-	devVulkan->m_Window = window;
+	SRGFXDeviceVulkan* dev_vulkan = (SRGFXDeviceVulkan*)malloc(sizeof(SRGFXDeviceVulkan));
+	assert(dev_vulkan);
+	ZeroMemory(dev_vulkan, sizeof(*dev_vulkan));
 
-	device->internalState = devVulkan;
+	device->internalState = dev_vulkan;
 	device->vtbl = &SRGFXDevice_Vulkan_VTable;
 
-	SRGFXDeviceVulkan_CreateInstance(devVulkan);
-	SRGFXDeviceVulkan_CreateDebugMessenger(devVulkan);
-	SRGFXDeviceVulkan_CreateSurface(devVulkan);
-	SRGFXDeviceVulkan_CreateDevice(devVulkan);
-	SRGFXDeviceVulkan_CreateMemoryAllocator(devVulkan);
-	SRGFXDeviceVulkan_CreateCommandPools(devVulkan);
-	SRGFXDeviceVulkan_CreateSyncObjects(devVulkan);
-	SRGFXDeviceVulkan_CreateDescriptors(devVulkan);
-	SRGFXDeviceVulkan_CreateDestructionHandler(devVulkan);
+	dev_vulkan->window = window;
+	dev_vulkan->arena_general = SRArena_Create();
+	dev_vulkan->arena_upload = SRArena_Create();
+
+	SRGFXDeviceVulkan_CreateInstance(dev_vulkan);
+	SRGFXDeviceVulkan_CreateDebugMessenger(dev_vulkan);
+	SRGFXDeviceVulkan_CreateSurface(dev_vulkan);
+	SRGFXDeviceVulkan_CreateDevice(dev_vulkan);
+	SRGFXDeviceVulkan_CreateMemoryAllocator(dev_vulkan);
+	SRGFXDeviceVulkan_CreateCommandPools(dev_vulkan);
+	SRGFXDeviceVulkan_CreateSyncObjects(dev_vulkan);
+	SRGFXDeviceVulkan_CreateDescriptors(dev_vulkan);
+	SRGFXDeviceVulkan_CreateDestructionHandler(dev_vulkan);
 }
 
 void SRGFXVulkan_DestroyDevice(SRGFXDevice* device) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 
 #ifdef _DEBUG
-	if (dev->m_DebugUtilsAvailable) {
-		dev->m_DestructionHandler->enqueue(dev->m_DebugMessenger);
+	if (dev->is_debug_utils_available) {
+		dev->destruction_handler->enqueue(dev->debug_messenger);
 	}
 #endif
 
-	dev->m_DestructionHandler->enqueue(dev->m_Surface);
+	dev->destruction_handler->enqueue(dev->surface);
 
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
 		for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-			dev->m_DestructionHandler->enqueue(dev->m_CommandPools[q][f]);
+			dev->destruction_handler->enqueue(dev->cmd_pools[q][f]);
 		}
 	}
-	dev->m_DestructionHandler->enqueue(dev->m_UploadCmdPool);
+	dev->destruction_handler->enqueue(dev->cmd_pool_upload);
 
 	for (u32 q = 0; q < SRQueue_COUNT; ++q) {
-		dev->m_DestructionHandler->enqueue(dev->m_FrameFences[q]);
+		dev->destruction_handler->enqueue(dev->frame_fences[q]);
 	}
 
 	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; f++) {
-		dev->m_DestructionHandler->enqueue(dev->m_ImageAvailableSemaphores[f]);
+		dev->destruction_handler->enqueue(dev->semaphores_image_available[f]);
 
 	}
-	for (u32 b = 0; b < 3; ++b) {
-		dev->m_DestructionHandler->enqueue(dev->m_RenderFinishedSemaphores[b]);
+	for (u32 b = 0; b < SR_MAX_SWAPCHAIN_IMAGES; ++b) {
+		dev->destruction_handler->enqueue(dev->semaphores_render_finished[b]);
 	}
-	dev->m_DestructionHandler->enqueue(dev->m_AcquireFence);
-	dev->m_DestructionHandler->enqueue(dev->m_DescriptorPool);
-	dev->m_DestructionHandler->enqueue(dev->m_PushDescriptorSetLayout);
-	dev->m_DestructionHandler->enqueue(dev->m_ResourceDescriptorSetLayout);
+	dev->destruction_handler->enqueue(dev->acquire_fence);
+	dev->destruction_handler->enqueue(dev->descriptor_pool);
+	dev->destruction_handler->enqueue(dev->descriptor_set_layout_push);
+	dev->destruction_handler->enqueue(dev->descriptor_set_layout_bindless);
+
+	delete dev->destruction_handler;
+
+	SRArena_Destroy(dev->arena_general);
+	SRArena_Destroy(dev->arena_upload);
+
+	free(dev);
 }
 
 u32 SRGFXVulkan_GetFrameIndex(SRGFXDevice* device) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	return dev->m_FrameIndex;
+	return dev->frame_index;
 }
 
 void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info, SRSwapchain* swapchain) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalSwapchain = new SRSwapchain_Vulkan();
-	internalSwapchain->destructionHandler = dev->m_DestructionHandler.get();
 
 	swapchain->info = *info;
 	swapchain->internalState = internalSwapchain;
 
-	SRSwapchainSupportInfo supportInfo = SRVulkanHelpers::query_swapchain_support(dev->m_PhysicalDevice, dev->m_Surface);
+	SRSwapchainSupportInfo supportInfo = SRVulkanHelpers::query_swapchain_support(dev->physical_device, dev->surface);
 	VkSurfaceFormatKHR surfaceFormat = SRVulkanHelpers::pick_surface_format(
 		to_vk_format(info->format),
 		info->useHDR,
@@ -953,7 +966,7 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 	else {
 		int width;
 		int height;
-		dev->m_Window->get_client_size(&width, &height);
+		dev->window->get_client_size(&width, &height);
 		extent = { static_cast<u32>(width), static_cast<u32>(height) };
 
 		extent.width = std::clamp(
@@ -974,7 +987,7 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 	VkSwapchainCreateInfoKHR createInfo = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.flags = 0, // TODO: Investigate swapchain flags
-		.surface = dev->m_Surface,
+		.surface = dev->surface,
 		.minImageCount = static_cast<u32>(info->numBuffers),
 		.imageFormat = surfaceFormat.format,
 		.imageColorSpace = surfaceFormat.colorSpace,
@@ -987,17 +1000,17 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 		.presentMode = SRVulkanHelpers::pick_present_mode(info->vSync, supportInfo.presentModes),
 		.clipped = VK_TRUE
 	};
-	SR_VK_CHECK(vkCreateSwapchainKHR(dev->m_Device, &createInfo, nullptr, &internalSwapchain->swapchain), "Swapchain creation");
+	SR_VK_CHECK(vkCreateSwapchainKHR(dev->device, &createInfo, nullptr, &internalSwapchain->swapchain), "Swapchain creation");
 
 	// Swapchain images
 	u32 numImages;
-	SR_VK_CHECK(vkGetSwapchainImagesKHR(dev->m_Device, internalSwapchain->swapchain, &numImages, nullptr), "Get swapchain images");
+	SR_VK_CHECK(vkGetSwapchainImagesKHR(dev->device, internalSwapchain->swapchain, &numImages, nullptr), "Get swapchain images");
 
 	std::vector<VkImage> images(numImages);
-	SR_VK_CHECK(vkGetSwapchainImagesKHR(dev->m_Device, internalSwapchain->swapchain, &numImages, images.data()), "Get swapchain images");
+	SR_VK_CHECK(vkGetSwapchainImagesKHR(dev->device, internalSwapchain->swapchain, &numImages, images.data()), "Get swapchain images");
 
 	// Swapchain image views
-	internalSwapchain->backbuffers.reserve(numImages);
+	internalSwapchain->backbuffer_count = numImages;
 	for (u32 i = 0; i < numImages; ++i) {
 		VkImageView imageView;
 		VkImageViewCreateInfo imageViewInfo = {
@@ -1020,20 +1033,19 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 			}
 		};
 
-		SR_VK_CHECK(vkCreateImageView(dev->m_Device, &imageViewInfo, nullptr, &imageView), "Swapchain image view creation");
+		SR_VK_CHECK(vkCreateImageView(dev->device, &imageViewInfo, nullptr, &imageView), "Swapchain image view creation");
 
-		internalSwapchain->backbuffers.push_back(SRSwapchain_Vulkan::Backbuffer{
+		internalSwapchain->backbuffers[i] = SRSwapchain_Vulkan::Backbuffer{
 			.vkImage = images[i],
 			.vkImageView = imageView,
 			.hasBeenUsed = false
-		});
+		};
 	}
 }
 
 void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, SRPipeline* pipeline) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalPipeline = new SRPipeline_Vulkan();
-	internalPipeline->destructionHandler = dev->m_DestructionHandler.get();
 
 	pipeline->info = *info;
 	pipeline->internalState = internalPipeline;
@@ -1043,7 +1055,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 
 	// TODO: Would be nice to have pipeline caching
 	if (info->vertexShader != nullptr) {
-		VkShaderModule shaderModule = SRVulkanHelpers::create_shader_module(dev->m_Device, info->vertexShader);
+		VkShaderModule shaderModule = SRVulkanHelpers::create_shader_module(dev->device, info->vertexShader);
 		assert(shaderModule);
 		shaderModules.push_back(shaderModule);
 		
@@ -1051,13 +1063,13 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
 			.module = shaderModule,
-			.pName = info->vertexShader->entryPoint,
+			.pName = info->vertexShader->entry_point,
 			.pSpecializationInfo = nullptr
 		};
 		shaderStages.push_back(shaderStageInfo);
 	}
 	if (info->pixelShader != nullptr) {
-		VkShaderModule shaderModule = SRVulkanHelpers::create_shader_module(dev->m_Device, info->pixelShader);
+		VkShaderModule shaderModule = SRVulkanHelpers::create_shader_module(dev->device, info->pixelShader);
 		assert(shaderModule);
 		shaderModules.push_back(shaderModule);
 
@@ -1065,7 +1077,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 			.module = shaderModule,
-			.pName = info->pixelShader->entryPoint,
+			.pName = info->pixelShader->entry_point,
 			.pSpecializationInfo = nullptr
 		};
 		shaderStages.push_back(shaderStageInfo);
@@ -1084,7 +1096,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 	};
 
 	// Attribute and binding descriptions
-	std::vector<VkVertexInputAttributeDescription> attributeDescriptions(info->inputLayout.elements.size());
+	std::vector<VkVertexInputAttributeDescription> attributeDescriptions(info->inputLayout.num_elements);
 	u32 offset = 0;
 
 	for (size_t i = 0; i < attributeDescriptions.size(); i++) {
@@ -1177,8 +1189,8 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 		.size = 128
 	};
 	VkDescriptorSetLayout setLayouts[] = {
-		dev->m_ResourceDescriptorSetLayout, // set 0
-		dev->m_PushDescriptorSetLayout // set 1
+		dev->descriptor_set_layout_bindless, // set 0
+		dev->descriptor_set_layout_push // set 1
 	};
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1188,7 +1200,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 		.pPushConstantRanges = &pushConstantRange
 	};
 	SR_VK_CHECK(vkCreatePipelineLayout(
-		dev->m_Device,
+		dev->device,
 		&pipelineLayoutInfo,
 		nullptr,
 		&internalPipeline->pipelineLayout
@@ -1240,7 +1252,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 		.basePipelineIndex = -1
 	};
 	SR_VK_CHECK(vkCreateGraphicsPipelines(
-		dev->m_Device,
+		dev->device,
 		nullptr,
 		1,
 		&pipelineInfo,
@@ -1249,7 +1261,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 	), "Create graphics pipeline");
 
 	for (const auto& shaderModule : shaderModules) {
-		dev->m_DestructionHandler->enqueue(shaderModule);
+		dev->destruction_handler->enqueue(shaderModule);
 	}
 }
 
@@ -1257,8 +1269,8 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuffer* buffer, const void* data) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalBuffer = new SRBuffer_Vulkan();
-	internalBuffer->destructionHandler = dev->m_DestructionHandler.get();
 
+	buffer->type = SRResourceType::Buffer;
 	buffer->info = *info;
 	buffer->internalState = internalBuffer;
 	buffer->mappedData = nullptr;
@@ -1295,7 +1307,7 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRB
 
 	VmaAllocationInfo allocInfo = {};
 	SR_VK_CHECK(vmaCreateBuffer(
-		dev->m_Allocator,
+		dev->vma_allocator,
 		&createInfo,
 		&allocCreateInfo,
 		&internalBuffer->buffer,
@@ -1312,18 +1324,21 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRB
 
 		SRBuffer stagingBuffer;
 		SRGFXVulkan_CreateBuffer(device, &stagingBufferInfo, &stagingBuffer, data);
-		auto* internalStagingBuffer = to_vk_internal(stagingBuffer);
+		auto* internal_staging_buffer = to_vk_internal(stagingBuffer);
+
+		SRResource* upload = SRArena_PushStruct(dev->arena_upload, SRResource);
+		*upload = stagingBuffer;
 
 		// Copy staging buffer into target buffer
-		if (!dev->m_IsUploadCmdBufferRecording) {
+		if (!dev->is_upload_cmd_buffer_recording) {
 			VkCommandBufferBeginInfo beginInfo = {
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 			};
 
-			SR_VK_CHECK(vkResetCommandPool(dev->m_Device, dev->m_UploadCmdPool, 0), "Reset command pool");
-			SR_VK_CHECK(vkBeginCommandBuffer(dev->m_UploadCmdBuffer, &beginInfo), "Begin command buffer");
-			dev->m_IsUploadCmdBufferRecording = true;
+			SR_VK_CHECK(vkResetCommandPool(dev->device, dev->cmd_pool_upload, 0), "Reset command pool");
+			SR_VK_CHECK(vkBeginCommandBuffer(dev->cmd_buffer_upload, &beginInfo), "Begin command buffer");
+			dev->is_upload_cmd_buffer_recording = true;
 		}
 
 		VkBufferCopy copyRegion = {
@@ -1332,8 +1347,8 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRB
 			.size = info->size
 		};
 		vkCmdCopyBuffer(
-			dev->m_UploadCmdBuffer,
-			internalStagingBuffer->buffer,
+			dev->cmd_buffer_upload,
+			internal_staging_buffer->buffer,
 			internalBuffer->buffer,
 			1,
 			&copyRegion
@@ -1356,7 +1371,6 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 	assert(info->usage == SRUsage::Default);
 
 	auto* internalTexture = new SRTexture_Vulkan();
-	internalTexture->destructionHandler = dev->m_DestructionHandler.get();
 
 	texture->type = SRResourceType::Texture;
 	texture->info = *info;
@@ -1404,7 +1418,7 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 
 	VmaAllocationInfo allocInfo = {};
 	SR_VK_CHECK(vmaCreateImage(
-		dev->m_Allocator,
+		dev->vma_allocator,
 		&imageInfo,
 		&allocCreateInfo,
 		&internalTexture->image,
@@ -1434,7 +1448,7 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 		}
 	};
 	SR_VK_CHECK(vkCreateImageView(
-		dev->m_Device,
+		dev->device,
 		&imageViewInfo,
 		nullptr,
 		&internalTexture->imageView
@@ -1452,15 +1466,15 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 		auto* internalStagingBuffer = to_vk_internal(stagingBuffer);
 
 		// Copy staging buffer into target buffer
-		if (!dev->m_IsUploadCmdBufferRecording) {
+		if (!dev->is_upload_cmd_buffer_recording) {
 			const VkCommandBufferBeginInfo beginInfo = {
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 			};
 
-			SR_VK_CHECK(vkResetCommandPool(dev->m_Device, dev->m_UploadCmdPool, 0), "Reset command pool");
-			SR_VK_CHECK(vkBeginCommandBuffer(dev->m_UploadCmdBuffer, &beginInfo), "Begin command buffer");
-			dev->m_IsUploadCmdBufferRecording = true;
+			SR_VK_CHECK(vkResetCommandPool(dev->device, dev->cmd_pool_upload, 0), "Reset command pool");
+			SR_VK_CHECK(vkBeginCommandBuffer(dev->cmd_buffer_upload, &beginInfo), "Begin command buffer");
+			dev->is_upload_cmd_buffer_recording = true;
 		}
 
 		std::vector<VkBufferImageCopy> copyRegions;
@@ -1521,10 +1535,10 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 			.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
 			.aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT
 		};
-		SRVulkanHelpers::transition_image_layout(transitionInfo, dev->m_UploadCmdBuffer);
+		SRVulkanHelpers::transition_image_layout(transitionInfo, dev->cmd_buffer_upload);
 
 		vkCmdCopyBufferToImage(
-			dev->m_UploadCmdBuffer,
+			dev->cmd_buffer_upload,
 			internalStagingBuffer->buffer,
 			internalTexture->image,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1543,11 +1557,11 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 		};
 
-		internalTexture->srvDescriptor = dev->m_CbvSrvUavDescriptorHeap.get_next_index();
+		internalTexture->srvDescriptor = SRDescriptorHeap_Vulkan_GetNextIndex(dev->descriptor_heap_cbv_srv_uav);
 
 		VkWriteDescriptorSet descriptorWrite = {
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = dev->m_ResourceDescriptorSet,
+			.dstSet = dev->descriptor_set_bindless,
 			.dstBinding = 0,
 			.dstArrayElement = internalTexture->srvDescriptor,
 			.descriptorCount = 1,
@@ -1555,14 +1569,13 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 			.pImageInfo = &descriptorImageInfo
 		};
 
-		vkUpdateDescriptorSets(dev->m_Device, 1, &descriptorWrite, 0, nullptr);
+		vkUpdateDescriptorSets(dev->device, 1, &descriptorWrite, 0, nullptr);
 	}
 }
 
 void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRSampler* sampler) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalSampler = new SRSampler_Vulkan();
-	internalSampler->destructionHandler = dev->m_DestructionHandler.get();
 
 	sampler->info = *info;
 	sampler->internalState = internalSampler;
@@ -1577,7 +1590,7 @@ void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, S
 		.maxAnisotropy = 16, // TODO: Enforce or check if always available
 		.compareOp = to_vk_comparison_func(info->comparisonFunc),
 		.minLod = info->minLOD,
-		.maxLod = info->maxLOD,
+		.maxLod = std::numeric_limits<float>::max(), // TODO: Please fix
 		.borderColor = to_vk_sampler_border_color(info->borderColor),
 		.unnormalizedCoordinates = VK_FALSE
 	};
@@ -1737,7 +1750,7 @@ void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, S
 		break;
 	}
 
-	SR_VK_CHECK(vkCreateSampler(dev->m_Device, &samplerCreateInfo, nullptr, &internalSampler->sampler), "Create sampler");
+	SR_VK_CHECK(vkCreateSampler(dev->device, &samplerCreateInfo, nullptr, &internalSampler->sampler), "Create sampler");
 
 	// Create sampler descriptor
 	// TODO: Move into GraphicsHelpers_Vulkan for cleanup purposes
@@ -1747,7 +1760,7 @@ void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, S
 
 	VkWriteDescriptorSet write = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstSet = dev->m_ResourceDescriptorSet,
+		.dstSet = dev->descriptor_set_bindless,
 		.dstBinding = 1,
 		.dstArrayElement = 0,
 		.descriptorCount = 1,
@@ -1756,12 +1769,70 @@ void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, S
 	};
 
 	vkUpdateDescriptorSets(
-		dev->m_Device,
+		dev->device,
 		1,
 		&write,
 		0,
 		nullptr
 	);
+}
+
+void SRGFXVulkan_DestroySwapchain(SRGFXDevice* device, SRSwapchain* swapchain) {
+	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
+	auto* internal_swapchain = to_vk_internal(*swapchain);
+
+	dev->destruction_handler->enqueue(internal_swapchain->swapchain);
+
+	for (size_t i = 0; i < internal_swapchain->backbuffer_count; i++) {
+		dev->destruction_handler->enqueue(internal_swapchain->backbuffers[i].vkImageView);
+	}
+
+	delete internal_swapchain;
+	swapchain->internalState = nullptr;
+}
+
+void SRGFXVulkan_DestroyPipeline(SRGFXDevice* device, SRPipeline* pipeline) {
+	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
+	auto* internal_pipeline = to_vk_internal(*pipeline);
+
+	dev->destruction_handler->enqueue(internal_pipeline->pipeline);
+	dev->destruction_handler->enqueue(internal_pipeline->pipelineLayout);
+
+	delete internal_pipeline;
+	pipeline->internalState = nullptr;
+}
+
+void SRGFXVulkan_DestroyResource(SRGFXDevice* device, SRResource* resource) {
+	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
+
+	// TODO: Remove sampler as resource type
+	switch (resource->type) {
+	case SRResourceType::Buffer:
+		{
+			auto* internal_buffer = (SRBuffer_Vulkan*)resource->internalState;
+			dev->destruction_handler->enqueue(internal_buffer->buffer);
+			dev->destruction_handler->enqueue(internal_buffer->allocation);
+			delete internal_buffer;
+		}
+		break;
+	case SRResourceType::Texture:
+		{
+			auto* internal_texture = (SRTexture_Vulkan*)resource->internalState;
+			dev->destruction_handler->enqueue(internal_texture->image, internal_texture->allocation);
+			dev->destruction_handler->enqueue(internal_texture->imageView);
+			delete internal_texture;
+		}
+		break;
+	case SRResourceType::Sampler:
+		{
+			auto* internal_sampler = (SRSampler_Vulkan*)resource->internalState;
+			dev->destruction_handler->enqueue(internal_sampler->sampler);
+			delete internal_sampler;
+		}
+		break;
+	}
+
+	resource->internalState = nullptr;
 }
 
 void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, const SRCmdList* cmdList) {
@@ -1770,7 +1841,7 @@ void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, c
 	auto internalCmdList = to_vk_internal(*cmdList);
 
 	vkCmdBindPipeline(internalCmdList->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internalPipeline->pipeline);
-	dev->m_ActivePipeline = internalPipeline;
+	dev->active_pipeline = internalPipeline;
 
 	vkCmdBindDescriptorSets(
 		internalCmdList->cmdBuffer,
@@ -1778,7 +1849,7 @@ void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, c
 		internalPipeline->pipelineLayout,
 		0,
 		1,
-		&dev->m_ResourceDescriptorSet,
+		&dev->descriptor_set_bindless,
 		0,
 		nullptr
 	);
@@ -1831,7 +1902,7 @@ void SRGFXVulkan_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buf
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::ConstantBuffer));
-	assert(dev->m_ActivePipeline != nullptr);
+	assert(dev->active_pipeline != nullptr);
 
 	auto* internalBuffer = to_vk_internal(*buffer);
 	auto* internalCmdList = to_vk_internal(*cmdList);
@@ -1853,7 +1924,7 @@ void SRGFXVulkan_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buf
 	vkCmdPushDescriptorSet(
 		internalCmdList->cmdBuffer,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		dev->m_ActivePipeline->pipelineLayout,
+		dev->active_pipeline->pipelineLayout,
 		1, // set 1
 		1,
 		&writeDescriptor
@@ -1865,13 +1936,13 @@ void SRGFXVulkan_PushConstants(SRGFXDevice* device, const void* data, u32 size, 
 
 	assert(data != nullptr);
 	assert(size <= 128);
-	assert(dev->m_ActivePipeline != nullptr);
+	assert(dev->active_pipeline != nullptr);
 
 	auto internalCmdList = to_vk_internal(*cmdList);
 
 	vkCmdPushConstants(
 		internalCmdList->cmdBuffer,
-		dev->m_ActivePipeline->pipelineLayout,
+		dev->active_pipeline->pipelineLayout,
 		VK_SHADER_STAGE_ALL,
 		0,
 		size,
@@ -1934,19 +2005,19 @@ void SRGFXVulkan_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 num
 void SRGFXVulkan_BeginFrame(SRGFXDevice* device, const SRSwapchain* swapchain) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 
-	if (dev->m_FrameCounter >= SR_GFX_FRAMES_IN_FLIGHT) {
-		u64 needed = dev->m_FrameDoneValue[SRQueue_Universal][dev->m_FrameIndex];
+	if (dev->frame_counter >= SR_GFX_FRAMES_IN_FLIGHT) {
+		u64 needed = dev->frame_done_values[SRQueue_Universal][dev->frame_index];
 
 		VkSemaphoreWaitInfo waitInfo = {
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
 			.semaphoreCount = 1,
-			.pSemaphores = &dev->m_FrameFences[SRQueue_Universal],
+			.pSemaphores = &dev->frame_fences[SRQueue_Universal],
 			.pValues = &needed
 		};
 
-		SR_VK_CHECK(vkWaitSemaphores(dev->m_Device, &waitInfo, UINT64_MAX), "Wait for semaphore");
+		SR_VK_CHECK(vkWaitSemaphores(dev->device, &waitInfo, UINT64_MAX), "Wait for semaphore");
 	}
-	dev->m_DestructionHandler->update(dev->m_FrameCounter, SR_GFX_FRAMES_IN_FLIGHT);
+	dev->destruction_handler->update(dev->frame_counter, SR_GFX_FRAMES_IN_FLIGHT);
 
 	auto* internalSwapchain = to_vk_internal(*swapchain);
 
@@ -1961,38 +2032,31 @@ void SRGFXVulkan_BeginFrame(SRGFXDevice* device, const SRSwapchain* swapchain) {
 	// An acquire-semaphore for GPU-GPU sync, and an acquire-FENCE for CPU-CPU sync.
 	// The fence will be signaled when the acquire is complete, meaning that we can safely continue
 	// on CPU-side. Skipping the fence can result in subtle frame-pacing bugs.
-	SR_VK_CHECK(vkResetFences(dev->m_Device, 1, &dev->m_AcquireFence), "Reset fence");
+	SR_VK_CHECK(vkResetFences(dev->device, 1, &dev->acquire_fence), "Reset fence");
 	SR_VK_CHECK(vkAcquireNextImageKHR(
-		dev->m_Device,
+		dev->device,
 		internalSwapchain->swapchain,
 		UINT64_MAX,
-		dev->m_ImageAvailableSemaphores[dev->m_FrameIndex],
-		dev->m_AcquireFence,
-		&dev->m_ImageIndex
+		dev->semaphores_image_available[dev->frame_index],
+		dev->acquire_fence,
+		&dev->image_index
 	), "Acquire next swapchain image");
-	SR_VK_CHECK(vkWaitForFences(dev->m_Device, 1, &dev->m_AcquireFence, VK_TRUE, UINT64_MAX), "Wait for fence");
+	SR_VK_CHECK(vkWaitForFences(dev->device, 1, &dev->acquire_fence, VK_TRUE, UINT64_MAX), "Wait for fence");
 }
 
 SRCmdList SRGFXVulkan_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
+	auto* internal_cmd_list = &dev->cmd_lists[queue][dev->frame_index];
 
-	size_t& cmdListCounter = dev->m_PerFrameCmdListCounters[dev->m_FrameIndex];
-	auto& cmdLists = dev->m_PerFrameCmdLists[dev->m_FrameIndex];
-
-	if (cmdListCounter >= cmdLists.size()) {
-		cmdLists.push_back(std::make_unique<SRCmdList_Vulkan>());
-	}
-
-	auto* internalCmdList = cmdLists[cmdListCounter].get();
-	if (internalCmdList->cmdBuffer == VK_NULL_HANDLE) {
+	if (internal_cmd_list->cmdBuffer == VK_NULL_HANDLE) {
 		VkCommandBufferAllocateInfo allocInfo = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-			.commandPool = dev->m_CommandPools[queue][dev->m_FrameIndex],
+			.commandPool = dev->cmd_pools[queue][dev->frame_index],
 			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 			.commandBufferCount = 1
 		};
 
-		SR_VK_CHECK(vkAllocateCommandBuffers(dev->m_Device, &allocInfo, &internalCmdList->cmdBuffer), "Command buffer creation");
+		SR_VK_CHECK(vkAllocateCommandBuffers(dev->device, &allocInfo, &internal_cmd_list->cmdBuffer), "Command buffer creation");
 	}
 
 	VkCommandBufferBeginInfo beginInfo = {
@@ -2003,11 +2067,10 @@ SRCmdList SRGFXVulkan_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 	// Reset the command pool JUST BEFORE we begin command buffer recording.
 	// This results in as little potential CPU waiting as possible.
 	// Should only be done ONCE per frame per queue family.
-	SR_VK_CHECK(vkResetCommandPool(dev->m_Device, dev->m_CommandPools[queue][dev->m_FrameIndex], 0), "Reset command pool");
-	SR_VK_CHECK(vkBeginCommandBuffer(internalCmdList->cmdBuffer, &beginInfo), "Begin command buffer recording");
-	++cmdListCounter;
+	SR_VK_CHECK(vkResetCommandPool(dev->device, dev->cmd_pools[queue][dev->frame_index], 0), "Reset command pool");
+	SR_VK_CHECK(vkBeginCommandBuffer(internal_cmd_list->cmdBuffer, &beginInfo), "Begin command buffer recording");
 
-	return SRCmdList{ internalCmdList };
+	return SRCmdList{ internal_cmd_list };
 }
 
 void SRGFXVulkan_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, const SRCmdList* cmdList) {
@@ -2015,7 +2078,7 @@ void SRGFXVulkan_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain
 	auto* internalSwapchain = to_vk_internal(*swapchain);
 	auto* internalCmdList = to_vk_internal(*cmdList);
 
-	SRSwapchain_Vulkan::Backbuffer* currBackbuffer = &internalSwapchain->backbuffers[dev->m_ImageIndex];
+	SRSwapchain_Vulkan::Backbuffer* currBackbuffer = &internalSwapchain->backbuffers[dev->image_index];
 	SRImageTransitionInfo transitionInfo = {
 		.image = currBackbuffer->vkImage,
 		.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
@@ -2145,7 +2208,7 @@ void SRGFXVulkan_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* 
 	vkCmdEndRendering(internalCmdList->cmdBuffer);
 
 	const SRImageTransitionInfo transitionInfo = {
-		.image = internalSwapchain->backbuffers[dev->m_ImageIndex].vkImage,
+		.image = internalSwapchain->backbuffers[dev->image_index].vkImage,
 		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
@@ -2166,42 +2229,33 @@ void SRGFXVulkan_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swap
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalSwapchain = to_vk_internal(*swapchain);
 
-	u32 numSubmittedCmdLists = (u32)dev->m_PerFrameCmdListCounters[dev->m_FrameIndex];
-	dev->m_PerFrameCmdListCounters[dev->m_FrameIndex] = 0;
-
 	// TODO: Tidy the command buffer submission for different queues to sync.
 	// For now we only care about the universal queue
-	std::vector<VkCommandBufferSubmitInfo> vkCmdBuffersToSubmit;
-	vkCmdBuffersToSubmit.reserve(numSubmittedCmdLists);
-	for (u32 i = 0; i < numSubmittedCmdLists; ++i) {
-		SRCmdList_Vulkan* cmdList = dev->m_PerFrameCmdLists[dev->m_FrameIndex][i].get();
-		SR_VK_CHECK(vkEndCommandBuffer(cmdList->cmdBuffer), "End command buffer recording");
+	SRCmdList_Vulkan* cmd_list = &dev->cmd_lists[SRQueue_Universal][dev->frame_index];
+	SR_VK_CHECK(vkEndCommandBuffer(cmd_list->cmdBuffer), "End command buffer recording");
 
-		VkCommandBufferSubmitInfo cmdBufferSubmitInfo = {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-			.commandBuffer = cmdList->cmdBuffer,
-			.deviceMask = 0
-		};
-
-		vkCmdBuffersToSubmit.push_back(cmdBufferSubmitInfo);
-	}
+	VkCommandBufferSubmitInfo cmd_buffer_submit_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+		.commandBuffer = cmd_list->cmdBuffer,
+		.deviceMask = 0
+	};
 
 	VkSemaphoreSubmitInfo waitSemaphoreInfo = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		.semaphore = dev->m_ImageAvailableSemaphores[dev->m_FrameIndex],
+		.semaphore = dev->semaphores_image_available[dev->frame_index],
 		.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 		.deviceIndex = 0
 	};
 	VkSemaphoreSubmitInfo fenceSignalSemaphoreInfo = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		.semaphore = dev->m_FrameFences[SRQueue_Universal],
-		.value = dev->m_NextGPUSignalValue,
+		.semaphore = dev->frame_fences[SRQueue_Universal],
+		.value = dev->frame_counter + 1,
 		.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 		.deviceIndex = 0
 	};
 	VkSemaphoreSubmitInfo renderFinishedSignalSemaphoreInfo = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		.semaphore = dev->m_RenderFinishedSemaphores[dev->m_ImageIndex],
+		.semaphore = dev->semaphores_render_finished[dev->image_index],
 		.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 		.deviceIndex = 0
 	};
@@ -2214,28 +2268,28 @@ void SRGFXVulkan_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swap
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
 		.waitSemaphoreInfoCount = 1,
 		.pWaitSemaphoreInfos = &waitSemaphoreInfo,
-		.commandBufferInfoCount = numSubmittedCmdLists,
-		.pCommandBufferInfos = vkCmdBuffersToSubmit.data(),
+		.commandBufferInfoCount = 1,
+		.pCommandBufferInfos = &cmd_buffer_submit_info,
 		.signalSemaphoreInfoCount = static_cast<u32>(signalSemaphores.size()),
 		.pSignalSemaphoreInfos = signalSemaphores.data()
 	};
-	SR_VK_CHECK(vkQueueSubmit2(dev->m_CommandQueues[SRQueue_Universal], 1, &submitInfo, nullptr), "Queue submission");
+	SR_VK_CHECK(vkQueueSubmit2(dev->cmd_queues[SRQueue_Universal], 1, &submitInfo, nullptr), "Queue submission");
 
 	VkPresentInfoKHR presentInfo = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &dev->m_RenderFinishedSemaphores[dev->m_ImageIndex],
+		.pWaitSemaphores = &dev->semaphores_render_finished[dev->image_index],
 		.swapchainCount = 1,
 		.pSwapchains = &internalSwapchain->swapchain,
-		.pImageIndices = &dev->m_ImageIndex
+		.pImageIndices = &dev->image_index
 	};
 
-	SR_VK_CHECK(vkQueuePresentKHR(dev->m_CommandQueues[SRQueue_Universal], &presentInfo), "Swapchain present");
+	SR_VK_CHECK(vkQueuePresentKHR(dev->cmd_queues[SRQueue_Universal], &presentInfo), "Swapchain present");
 
 	// Await frame value
-	dev->m_FrameDoneValue[SRQueue_Universal][dev->m_FrameIndex] = dev->m_NextGPUSignalValue++;
-	dev->m_FrameIndex = (dev->m_FrameIndex + 1) % SR_GFX_FRAMES_IN_FLIGHT;
-	++dev->m_FrameCounter;
+	dev->frame_done_values[SRQueue_Universal][dev->frame_index] = dev->frame_counter + 1;
+	dev->frame_index = (dev->frame_index + 1) % SR_GFX_FRAMES_IN_FLIGHT;
+	++dev->frame_counter;
 }
 
 void SRGFXVulkan_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRCmdList* cmdList) {
@@ -2270,22 +2324,42 @@ SRShaderCompileTarget SRGFXVulkan_GetShaderCompileTarget(SRGFXDevice* device) {
 
 void SRGFXVulkan_WaitForGPU(SRGFXDevice* device) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	vkDeviceWaitIdle(dev->m_Device);
+	vkDeviceWaitIdle(dev->device);
 }
 
 void SRGFXVulkan_FlushInitialUploads(SRGFXDevice* device) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	vkEndCommandBuffer(dev->m_UploadCmdBuffer);
+	vkEndCommandBuffer(dev->cmd_buffer_upload);
 
 	VkSubmitInfo submitInfo = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.commandBufferCount = 1,
-		.pCommandBuffers = &dev->m_UploadCmdBuffer
+		.pCommandBuffers = &dev->cmd_buffer_upload
 	};
 
-	vkQueueSubmit(dev->m_CommandQueues[SRQueue_Copy], 1, &submitInfo, nullptr);
-	vkQueueWaitIdle(dev->m_CommandQueues[SRQueue_Copy]);
-	dev->m_IsUploadCmdBufferRecording = false;
+	vkQueueSubmit(dev->cmd_queues[SRQueue_Copy], 1, &submitInfo, nullptr);
+	vkQueueWaitIdle(dev->cmd_queues[SRQueue_Copy]); // TODO: Use fence instead
+
+	uintptr_t upload_bytes = (uintptr_t)(dev->arena_upload->allocated - dev->arena_upload->data);
+	u64 upload_count = upload_bytes / sizeof(SRResource);
+	SRResource* uploads = (SRResource*)dev->arena_upload->data;
+
+	for (u64 i = 0; i < upload_count; ++i) {
+		SRResource* resource = &uploads[i];
+
+		if (resource->type == SRResourceType::Buffer) {
+			auto* internal_buffer = (SRBuffer_Vulkan*)resource->internalState;
+			dev->destruction_handler->enqueue(internal_buffer->buffer);
+			dev->destruction_handler->enqueue(internal_buffer->allocation);
+		}
+		else {
+			assert(false);
+		}
+		// TODO: Implement others
+	}
+
+	SRArena_Clear(dev->arena_upload);
+	dev->is_upload_cmd_buffer_recording = false;
 }
 
 void SRGFXVulkan_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat) {
@@ -2326,11 +2400,11 @@ void SRGFXVulkan_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainForma
 	VkFormat vkSwapchainFormat = to_vk_format(swapchainFormat);
 	ImGui_ImplVulkan_InitInfo initInfo = {
 		.ApiVersion = VK_API_VERSION_1_4,
-		.Instance = dev->m_Instance,
-		.PhysicalDevice = dev->m_PhysicalDevice,
-		.Device = dev->m_Device,
-		.QueueFamily = dev->m_QueueIndices[SRQueue_Universal],
-		.Queue = dev->m_CommandQueues[SRQueue_Universal],
+		.Instance = dev->instance,
+		.PhysicalDevice = dev->physical_device,
+		.Device = dev->device,
+		.QueueFamily = dev->cmd_queue_indices[SRQueue_Universal],
+		.Queue = dev->cmd_queues[SRQueue_Universal],
 		.DescriptorPoolSize = IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE,
 		.MinImageCount = 3, // TODO: Depends on the swapchain buffers we choose, make the function require a swapchain object to check
 		.ImageCount = 3,

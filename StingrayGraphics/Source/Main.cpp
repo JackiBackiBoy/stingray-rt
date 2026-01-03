@@ -33,6 +33,7 @@ static auto& logger = SRLogger::get();
 static constexpr int WIDTH = 1920;
 static constexpr int HEIGHT = 1080;
 
+SRArena* g_Arena;
 SRWindow* g_Window;
 SRRenderGraph* g_RenderGraph;
 SRShaderCompiler* g_ShaderCompiler;
@@ -45,7 +46,7 @@ SRRenderPass* compositionPass;
 SRRenderPass* gBufferPass;
 SRRenderPass* imguiPass;
 
-SRGFXBackend g_GfxBackend = SRGFXBackend::DX12;
+SRGFXBackend g_GfxBackend = SRGFXBackend::Vulkan;
 SRGFXDevice g_GfxDevice;
 
 SRModel g_TestModel = {};
@@ -72,6 +73,8 @@ int APIENTRY wWinMain(
 	#ifdef _DEBUG
 		init_console();
 	#endif
+
+	g_Arena = SRArena_Create();
 
 	init_window();
 	init_graphics();
@@ -112,8 +115,10 @@ int APIENTRY wWinMain(
 	}
 	SRGFX_WaitForGPU(&g_GfxDevice);
 
+	SRShaderCompiler_Destroy(g_ShaderCompiler);
+
 	// TODO: Temporary destruction logic, we will get rid of this eventually
-	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
+	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) { 
 		SRGFX_DestroyResource(&g_GfxDevice, &g_PerFrameBuffers[f]);
 	}
 
@@ -134,10 +139,10 @@ int APIENTRY wWinMain(
 	delete g_Camera;
 	delete g_Scene;
 	delete g_Editor;
-	delete g_ShaderCompiler;
 	delete g_RenderGraph;
 	delete g_Window;
 	SRGFX_DestroyDevice(&g_GfxDevice);
+	SRArena_Destroy(g_Arena);
 
 	return 0;
 }
@@ -174,7 +179,7 @@ void init_window() {
 
 void init_graphics() {
 	SRGFX_CreateDevice(g_Window, &g_GfxDevice, g_GfxBackend);
-	g_ShaderCompiler = new SRShaderCompiler(SRGFX_GetShaderCompileTarget(&g_GfxDevice));
+	g_ShaderCompiler = SRShaderCompiler_Create(g_Arena, g_GfxBackend);
 
 	SRSwapchainInfo swapchainInfo = {
 		.width = WIDTH,

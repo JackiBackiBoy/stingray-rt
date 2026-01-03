@@ -1,20 +1,14 @@
 #pragma once
 
+#include "Data/ArenaAllocator.h"
 #include "Graphics/GraphicsTypes.h"
 
+struct SRShaderCompiler;
 struct SRShaderCompileInfo {
-	SRShaderStage stage = {};
-	const char* entryPoint = "main";
+	SRShaderStage stage;
+	const char* entry_point;
 };
 
-class SRShaderCompiler {
-public:
-	SRShaderCompiler(SRShaderCompileTarget compile_target);
-	~SRShaderCompiler();
-
-	void compile_from_file(const char* path, const SRShaderCompileInfo& info, SRShader& shader);
-
-private:
-	struct Impl;
-	Impl* m_Impl;
-};
+SRShaderCompiler* SRShaderCompiler_Create(SRArena* arena, SRGFXBackend backend);
+void              SRShaderCompiler_Destroy(SRShaderCompiler* compiler);
+void              SRShaderCompiler_CompileFromFile(SRShaderCompiler* compiler, const char* path, SRShaderCompileInfo info, SRShader* shader);

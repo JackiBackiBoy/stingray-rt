@@ -2,10 +2,10 @@
 
 #include "Core/Logger.h"
 #include "Graphics/GraphicsTypes.h"
+#include "Data/ArenaAllocator.h"
 
-#include <cassert>
+#include <assert.h>
 #include <deque>
-#include <vector>
 #include <volk.h>
 #include <vk_mem_alloc.h>
 
@@ -18,36 +18,15 @@
 		}                                                                      \
 	} while (0)
 
-class SRDescriptorHeap_Vulkan {
-public:
-	SRDescriptorHeap_Vulkan(VkDescriptorType type, u32 capacity);
-	~SRDescriptorHeap_Vulkan() = default;
-
-	SRDescriptorIndex get_next_index();
-	void free_index(SRDescriptorIndex index);
-
-	VkDescriptorType get_type() const { return m_Type; }
-	u32 get_capacity() const { return m_Capacity; }
-
-private:
-	inline void clear_state_bit(SRDescriptorIndex index) {
-		m_StateArray[index >> 6ull] &= ~(1ull << (index & 63ull));
-	}
-
-	inline void set_state_bit(SRDescriptorIndex index) {
-		m_StateArray[index >> 6ull] |= (1ull << (index & 63ull));
-	}
-
-	inline bool get_state_bit(SRDescriptorIndex index) const {
-		return (m_StateArray[index >> 6ull] & (1ull << (index & 63ull))) != 0ull;
-	}
-
-	VkDescriptorType m_Type;
-	u32 m_Capacity;
-	u32 m_Size = 0;
-	std::vector<SRDescriptorIndex> m_FreeList;
-	std::vector<u64> m_StateArray;
+struct SRDescriptorHeap_Vulkan {
+	u32 count;
+	u32 capacity;
+	VkDescriptorType type;
 };
+
+SRDescriptorHeap_Vulkan* SRDescriptorHeap_Vulkan_Create(SRArena* arena, VkDescriptorType type, u32 capacity);
+SRDescriptorIndex        SRDescriptorHeap_Vulkan_GetNextIndex(SRDescriptorHeap_Vulkan* heap);
+void                     SRDescriptorHeap_Vulkan_Destroy(SRDescriptorHeap_Vulkan* heap);
 
 class SRDestructionHandler_Vulkan {
 public:
@@ -192,24 +171,12 @@ private:
 };
 
 struct SRBuffer_Vulkan {
-	~SRBuffer_Vulkan() {
-		destructionHandler->enqueue(buffer);
-		destructionHandler->enqueue(allocation);
-	}
-
-	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
 	VkBuffer buffer = VK_NULL_HANDLE;
 	VmaAllocation allocation = nullptr;
 	SRDescriptorIndex uboDescriptor = INVALID_DESCRIPTOR_INDEX;
 };
 
 struct SRTexture_Vulkan {
-	~SRTexture_Vulkan() {
-		destructionHandler->enqueue(image, allocation);
-		destructionHandler->enqueue(imageView);
-	}
-
-	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
 	VkImage image = VK_NULL_HANDLE;
 	VkImageView imageView = VK_NULL_HANDLE;
 	VmaAllocation allocation = nullptr;
@@ -217,11 +184,6 @@ struct SRTexture_Vulkan {
 };
 
 struct SRSampler_Vulkan {
-	~SRSampler_Vulkan() {
-		destructionHandler->enqueue(sampler);
-	}
-
-	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
 	VkSampler sampler = VK_NULL_HANDLE;
 	SRDescriptorIndex samplerDescriptor = INVALID_DESCRIPTOR_INDEX;
 };
@@ -231,28 +193,13 @@ struct SRCmdList_Vulkan {
 };
 
 struct SRPipeline_Vulkan {
-	~SRPipeline_Vulkan() {
-		destructionHandler->enqueue(pipeline);
-		destructionHandler->enqueue(pipelineLayout);
-	}
-
-	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
-	VkPipeline pipeline = VK_NULL_HANDLE;
-	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
 };
 
 struct SRSwapchain_Vulkan {
-	~SRSwapchain_Vulkan() {
-		destructionHandler->enqueue(swapchain);
-
-		for (size_t i = 0; i < backbuffers.size(); i++) {
-			destructionHandler->enqueue(backbuffers[i].vkImageView);
-		}
-	}
-
-	SRDestructionHandler_Vulkan* destructionHandler = nullptr;
-	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-	VkExtent2D extent = {};
+	VkSwapchainKHR swapchain;
+	VkExtent2D extent;
 
 	// TODO: Find a better approach than this. We need this because of Vulkan's
 	// weird spec when it comes to swapchain presentation transitions.
@@ -261,7 +208,8 @@ struct SRSwapchain_Vulkan {
 		VkImageView vkImageView;
 		bool hasBeenUsed;
 	};
-	std::vector<Backbuffer> backbuffers;
+	Backbuffer backbuffers[SR_MAX_SWAPCHAIN_IMAGES];
+	u64 backbuffer_count;
 };
 
 // ---------------------------- Converter Functions ----------------------------

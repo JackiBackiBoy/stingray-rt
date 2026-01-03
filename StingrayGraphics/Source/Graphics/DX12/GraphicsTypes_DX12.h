@@ -10,17 +10,9 @@
 #include <dxgi1_6.h>
 #include <Windows.h>
 
-#include <cassert>
-#include <stdexcept>
+#include <assert.h>
 
-#define SR_DX12_CHECK(expr, msg)                                                 \
-	do {                                                                       \
-		HRESULT hResultDX12 = (expr);                                                 \
-		if (FAILED(hResultDX12)) {                                               \
-			SRLOG_ERROR_CAT(SRLOG_CAT_DX12, "%s failed: %s (%d)", msg, "TODO: PARSE ERROR", hResultDX12); \
-			throw std::runtime_error("DX12 error: " msg);                    \
-		}                                                                      \
-	} while (0)
+#define HR(hr) do { HRESULT _hr = (hr); assert(SUCCEEDED(_hr)); } while (0)
 
 struct SRDescriptorHeap_DX12 {
 	u32 count;

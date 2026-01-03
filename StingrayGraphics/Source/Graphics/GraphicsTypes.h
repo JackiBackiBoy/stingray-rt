@@ -3,13 +3,15 @@
 #include "Core/Types.h"
 #include "Core/EnumBitmaskOperators.h"
 
-#include <string>
-#include <vector>
-
 #define SR_MAX_SWAPCHAIN_IMAGES 3
 
 typedef u32 SRDescriptorIndex;
 inline constexpr SRDescriptorIndex INVALID_DESCRIPTOR_INDEX = ~0U;
+
+enum struct SRGFXBackend {
+	DX12,
+	Vulkan
+};
 
 enum SRQueue : u8 {
 	SRQueue_Universal, // Graphics + Compute + Copy
@@ -380,7 +382,7 @@ struct SRSamplerInfo {
 	SRComparisonFunc comparisonFunc = SRComparisonFunc::Never;
 	SRBorderColor borderColor = SRBorderColor::TransparentBlack;
 	float minLOD = 0.0f;
-	float maxLOD = std::numeric_limits<float>::max();
+	float maxLOD;
 };
 
 struct SRSampler : public SRResource {
@@ -417,8 +419,9 @@ struct SRBarrier {
 };
 
 struct SRShader {
-	std::vector<u8> byteCode;
-	const char* entryPoint;
+	u8* data;
+	u64 size;
+	const char* entry_point;
 };
 
 struct SRBlendState {
@@ -446,12 +449,13 @@ struct SRDepthStencilState {
 
 struct SRInputLayout {
 	struct Element {
-		std::string name;
+		const char* name;
 		SRFormat format = SRFormat::Unknown;
 		SRInputClass inputClass = SRInputClass::PerVertex;
 	};
 
-	std::vector<Element> elements = {};
+	Element elements[4];
+	u64 num_elements;
 };
 
 struct SRRasterizerState {
@@ -459,9 +463,9 @@ struct SRRasterizerState {
 	SRCullMode cullMode = SRCullMode::None;
 	bool frontCW = true;
 	bool depthClipEnable = false;
-	int32_t depthBias = 0;
-	float depthBiasClamp = 0.0f;
-	float slopeScaledDepthBias = 0.0f;
+	i32 depthBias = 0;
+	f32 depthBiasClamp = 0.0f;
+	f32 slopeScaledDepthBias = 0.0f;
 	bool multisampleEnable = false;
 	bool antialisedLineEnable = false;
 };

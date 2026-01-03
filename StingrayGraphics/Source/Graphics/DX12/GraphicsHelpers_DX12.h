@@ -41,11 +41,11 @@ namespace SRDX12Helpers {
 		D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12 = {};
 		D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = {};
 
-		SR_DX12_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &featureLevels, sizeof(featureLevels)), "Check feature level");
-		SR_DX12_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options)), "Check feature options");
-		SR_DX12_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5)), "Check feature options5");
-		SR_DX12_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &options7, sizeof(options7)), "Check feature options7");
-		SR_DX12_CHECK(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)), "Check feature options12");
+		HR(device->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &featureLevels, sizeof(featureLevels)));
+		HR(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options)));
+		HR(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5)));
+		HR(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &options7, sizeof(options7)));
+		HR(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)));
 
 		// Find the highest supported shader model
 		D3D_SHADER_MODEL sm = D3D_HIGHEST_SHADER_MODEL;

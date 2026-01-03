@@ -5,8 +5,8 @@
 namespace SRCompositionPass {
 	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
 		auto& passData = self.allocate_pass_data<CompositionPassData>();
-		shaderCompiler.compile_from_file(RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, passData.vertexShader);
-		shaderCompiler.compile_from_file(RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, passData.pixelShader);
+		SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, &passData.vertexShader);
+		SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, &passData.pixelShader);
 
 		const SRPipelineInfo pipelineInfo = {
 			.vertexShader = &passData.vertexShader,

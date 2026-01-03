@@ -21,7 +21,7 @@ SRDescriptorHeap_DX12* SRDescriptorHeap_DX12_Create(SRArena* arena, ID3D12Device
 		.NodeMask = 0
 	};
 
-	SR_DX12_CHECK(d3d12Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&heap->heapObject)), "Create descriptor heap");
+	HR(d3d12Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&heap->heapObject)));
 	heap->cpuDescriptorHandleStart = heap->heapObject->GetCPUDescriptorHandleForHeapStart();
 	if (type != D3D12_DESCRIPTOR_HEAP_TYPE_RTV && type != D3D12_DESCRIPTOR_HEAP_TYPE_DSV) {
 		heap->gpuDescriptorHandleStart = heap->heapObject->GetGPUDescriptorHandleForHeapStart();

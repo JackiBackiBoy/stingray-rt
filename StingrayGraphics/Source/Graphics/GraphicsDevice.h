@@ -6,10 +6,6 @@
 
 #define SR_GFX_FRAMES_IN_FLIGHT 2
 
-enum struct SRGFXBackend {
-	DX12,
-	Vulkan
-};
 struct SRGFXDevice;
 
 typedef void(*SRGFX_DestroyDeviceFunc)(SRGFXDevice*);
@@ -90,7 +86,6 @@ void SRGFX_DestroyDevice(SRGFXDevice* device);
 
 u32  SRGFX_GetFrameIndex(SRGFXDevice* device);
 
-// Resource creation
 void SRGFX_CreateSwapchain(SRGFXDevice* device, const SRWindow* window, const SRSwapchainInfo* info, SRSwapchain* swapchain);
 void SRGFX_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, SRPipeline* pipeline);
 void SRGFX_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuffer* buffer, const void* data);
@@ -101,7 +96,6 @@ void SRGFX_DestroySwapchain(SRGFXDevice* device, SRSwapchain* swapchain);
 void SRGFX_DestroyPipeline(SRGFXDevice* device, SRPipeline* pipeline);
 void SRGFX_DestroyResource(SRGFXDevice* device, SRResource* resource);
 
-// Binding
 void SRGFX_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, const SRCmdList* cmdList);
 void SRGFX_BindViewport(SRGFXDevice* device, const SRViewport* viewport, const SRCmdList* cmdList);
 void SRGFX_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList);
@@ -110,7 +104,6 @@ void SRGFX_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, c
 void SRGFX_PushConstants(SRGFXDevice* device, const void* data, u32 size, const SRCmdList* cmdList);
 void SRGFX_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, const SRCmdList* cmdList);
 
-// Command lists / passes
 void SRGFX_BeginFrame(SRGFXDevice* device, const SRSwapchain* swapchain);
 SRCmdList SRGFX_BeginCommandList(SRGFXDevice* device, SRQueue queue);
 void SRGFX_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, const SRCmdList* cmdList);
@@ -119,12 +112,10 @@ void SRGFX_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapch
 void SRGFX_EndRenderPass(SRGFXDevice* device, const SRCmdList* cmdList);
 void SRGFX_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapchain);
 
-// Draw
 void SRGFX_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRCmdList* cmdList);
 void SRGFX_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList* cmdList);
 void SRGFX_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdList* cmdList);
 
-// Misc
 SRDescriptorIndex SRGFX_GetDescriptorIndexSRV(SRGFXDevice* device, const SRResource* resource);
 SRShaderCompileTarget SRGFX_GetShaderCompileTarget(SRGFXDevice* device);
 void SRGFX_WaitForGPU(SRGFXDevice* device);

@@ -13,6 +13,10 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRB
 void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRTexture* texture, const SRSubresourceData* data);
 void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRSampler* sampler);
 
+void SRGFXVulkan_DestroySwapchain(SRGFXDevice* device, SRSwapchain* swapchain);
+void SRGFXVulkan_DestroyPipeline(SRGFXDevice* device, SRPipeline* pipeline);
+void SRGFXVulkan_DestroyResource(SRGFXDevice* device, SRResource* resource);
+
 void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, const SRCmdList* cmdList);
 void SRGFXVulkan_BindViewport(SRGFXDevice* device, const SRViewport* viewport, const SRCmdList* cmdList);
 void SRGFXVulkan_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList);

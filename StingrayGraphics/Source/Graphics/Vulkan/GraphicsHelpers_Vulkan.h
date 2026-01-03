@@ -168,14 +168,14 @@ namespace SRVulkanHelpers {
 	}
 
 	inline VkShaderModule create_shader_module(VkDevice device, const SRShader* shader) {
-		if (!shader || shader->byteCode.empty()) {
+		if (!shader || !shader->data) {
 			return VK_NULL_HANDLE;
 		}
 
 		const VkShaderModuleCreateInfo shaderModuleInfo = {
 			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			.codeSize = shader->byteCode.size(),
-			.pCode = reinterpret_cast<const u32*>(shader->byteCode.data())
+			.codeSize = shader->size,
+			.pCode = (u32*)shader->data
 		};
 
 		VkShaderModule shaderModule;
