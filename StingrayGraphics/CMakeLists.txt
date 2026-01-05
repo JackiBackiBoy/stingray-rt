@@ -43,6 +43,8 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Core/EnumBitmaskOperators.h
 	${SOURCE_DIR}/Core/Logger.cpp
 	${SOURCE_DIR}/Core/Logger.h
+	${SOURCE_DIR}/Core/StringTypes.cpp
+	${SOURCE_DIR}/Core/StringTypes.h
 	${SOURCE_DIR}/Core/Types.h
 	${SOURCE_DIR}/Core/Window.cpp
 	${SOURCE_DIR}/Core/Window.h
@@ -122,6 +124,8 @@ source_group("Core" FILES
 	${SOURCE_DIR}/Core/EnumBitmaskOperators.h
 	${SOURCE_DIR}/Core/Logger.cpp
 	${SOURCE_DIR}/Core/Logger.h
+	${SOURCE_DIR}/Core/StringTypes.cpp
+	${SOURCE_DIR}/Core/StringTypes.h
 	${SOURCE_DIR}/Core/Types.h
 	${SOURCE_DIR}/Core/Window.cpp
 	${SOURCE_DIR}/Core/Window.h

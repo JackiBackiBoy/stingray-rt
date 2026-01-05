@@ -3,6 +3,7 @@
 
 // TODO: Get rid of stupid fastgltf library
 #undef internal
+#undef global
 #include "fastgltf/core.hpp"
 #include "fastgltf/tools.hpp"
 #include <meshoptimizer.h>

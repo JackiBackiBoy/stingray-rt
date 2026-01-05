@@ -46,18 +46,18 @@ struct SRResource_DX12 {
 };
 
 struct SRBuffer_DX12 : public SRResource_DX12 {
-	SRDescriptorIndex srvDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex srvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
 };
 
 struct SRTexture_DX12 : public SRResource_DX12 {
-	SRDescriptorIndex rtvDescriptor = INVALID_DESCRIPTOR_INDEX;
-	SRDescriptorIndex srvDescriptor = INVALID_DESCRIPTOR_INDEX;
-	SRDescriptorIndex dsvDescriptor = INVALID_DESCRIPTOR_INDEX;
-	SRDescriptorIndex dsvReadOnlyDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex rtvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex srvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex dsvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex dsvReadOnlyDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
 };
 
 struct SRSampler_DX12 {
-	SRDescriptorIndex samplerDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex samplerDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
 };
 
 struct SRCmdList_DX12 {

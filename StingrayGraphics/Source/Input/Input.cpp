@@ -8,7 +8,7 @@
 namespace {
 	static constexpr UINT RI_SCRATCH_BUFFER_CAPACITY = 64;
 
-	const SRWindow* g_Window = nullptr;
+	SRWindow* g_window = nullptr;
 	HWND g_LastActiveHwnd = nullptr;
 	std::vector<u8> g_RawInputScratchBuffer;
 	bool g_Initialized = false;
@@ -35,11 +35,11 @@ namespace {
 }
 
 namespace SRInput {
-	void initialize(const SRWindow* window) {
+	void initialize(SRWindow* window) {
 		assert(window && !g_Initialized);
-		g_Window = window;
+		g_window = window;
 
-		HWND hWnd = reinterpret_cast<HWND>(window->get_internal_handle());
+		HWND hWnd = (HWND)SRWindow_GetInternalHandle(window);
 		RAWINPUTDEVICE rids[2] = {};
 
 		// Mouse
@@ -68,7 +68,7 @@ namespace SRInput {
 	void update() {
 		HWND activeHwnd = GetForegroundWindow();
 
-		if (activeHwnd != g_LastActiveHwnd && activeHwnd != g_Window->get_internal_handle()) {
+		if (activeHwnd != g_LastActiveHwnd && activeHwnd != SRWindow_GetInternalHandle(g_window)) {
 			std::memset(g_FrameKeyboardState.down, 0, SR_KEY_CAP_WORDS * sizeof(SRKeyWord));
 			g_FrameMouseState.buttonStates = SRMouseButton_None;
 		}

@@ -173,19 +173,19 @@ private:
 struct SRBuffer_Vulkan {
 	VkBuffer buffer = VK_NULL_HANDLE;
 	VmaAllocation allocation = nullptr;
-	SRDescriptorIndex uboDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex uboDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
 };
 
 struct SRTexture_Vulkan {
 	VkImage image = VK_NULL_HANDLE;
 	VkImageView imageView = VK_NULL_HANDLE;
 	VmaAllocation allocation = nullptr;
-	SRDescriptorIndex srvDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex srvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
 };
 
 struct SRSampler_Vulkan {
 	VkSampler sampler = VK_NULL_HANDLE;
-	SRDescriptorIndex samplerDescriptor = INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex samplerDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
 };
 
 struct SRCmdList_Vulkan {

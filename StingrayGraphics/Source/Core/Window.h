@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Core/Types.h"
+
 typedef int SRWindowFlags;
 
 enum SRWindowFlags_ {
@@ -7,20 +9,12 @@ enum SRWindowFlags_ {
 	SRWindowFlags_Centered = 1 << 0,
 	SRWindowFlags_SizeIsClientArea = 1 << 1
 };
+struct SRWindow;
 
-class SRWindow {
-public:
-	SRWindow(const char* name, int width, int height, SRWindowFlags flags = SRWindowFlags_None);
-	~SRWindow();
-
-	bool poll_events();
-	void show();
-
-	void* get_internal_handle() const;
-	void get_client_size(int* width, int* height) const;
-	float get_client_aspect_ratio() const;
-
-private:
-	struct Impl;
-	Impl* m_Impl;
-};
+SRWindow* SRWindow_Create(const char* name, u32 width, u32 height, SRWindowFlags flags);
+void      SRWindow_Destroy(SRWindow* window);
+bool      SRWindow_PollEvents(SRWindow* window);
+void      SRWindow_Show(SRWindow* window);
+void*     SRWindow_GetInternalHandle(SRWindow* window);
+void      SRWindow_GetClientSize(SRWindow* window, u32* width, u32* height);
+f32       SRWindow_GetClientAspectRatio(SRWindow* window);

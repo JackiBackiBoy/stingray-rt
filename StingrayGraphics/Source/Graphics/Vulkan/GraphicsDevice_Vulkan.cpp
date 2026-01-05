@@ -78,7 +78,6 @@ internal SRGFXDeviceVTable SRGFXDevice_Vulkan_VTable = {
 
 struct SRGFXDeviceVulkan {
 	VkDebugUtilsMessengerEXT debug_messenger;
-
 	VkInstance instance;
 	VkSurfaceKHR surface;
 	VkPhysicalDevice physical_device;
@@ -298,7 +297,7 @@ internal void SRGFXDeviceVulkan_CreateSurface(SRGFXDeviceVulkan* dev) {
 	VkWin32SurfaceCreateInfoKHR win32SurfaceInfo = {
 		.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 		.hinstance = (HINSTANCE)GetModuleHandle(nullptr),
-		.hwnd = (HWND)dev->window->get_internal_handle()
+		.hwnd = (HWND)SRWindow_GetInternalHandle(dev->window)
 	};
 
 	SR_VK_CHECK(vkCreateWin32SurfaceKHR(dev->instance, &win32SurfaceInfo, nullptr, &dev->surface), "Win32 surface creation");
@@ -964,17 +963,13 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 		extent = supportInfo.capabilities.currentExtent;
 	}
 	else {
-		int width;
-		int height;
-		dev->window->get_client_size(&width, &height);
-		extent = { static_cast<u32>(width), static_cast<u32>(height) };
+		SRWindow_GetClientSize(dev->window, &extent.width, &extent.height);
 
 		extent.width = std::clamp(
 			extent.width,
 			supportInfo.capabilities.minImageExtent.width,
 			supportInfo.capabilities.maxImageExtent.width
 		);
-
 		extent.height = std::clamp(
 			extent.height,
 			supportInfo.capabilities.minImageExtent.height,
@@ -2315,7 +2310,7 @@ SRDescriptorIndex SRGFXVulkan_GetDescriptorIndexSRV(SRGFXDevice* device, const S
 		return internalTexture->srvDescriptor;
 	}
 
-	return INVALID_DESCRIPTOR_INDEX;
+	return SR_INVALID_DESCRIPTOR_INDEX;
 }
 
 SRShaderCompileTarget SRGFXVulkan_GetShaderCompileTarget(SRGFXDevice* device) {

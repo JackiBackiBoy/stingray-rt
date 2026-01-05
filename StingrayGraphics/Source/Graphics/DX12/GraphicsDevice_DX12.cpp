@@ -2,6 +2,7 @@
 #include "Graphics/DX12/GraphicsHelpers_DX12.h"
 #include "Graphics/DX12/GraphicsTypes_DX12.h"
 #include "Core/Logger.h"
+#include "Core/StringTypes.h"
 #include "Utilities/TextUtilities.h"
 #include "Data/ArenaAllocator.h"
 
@@ -150,19 +151,21 @@ internal void SRGFXDeviceDX12_CreateDXGIFactory(SRGFXDeviceDX12* dev) {
 
 internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 	u32 picked_device_idx = ~0U;
-	std::string device_name;
 
 	// NOTE: We prefer IDXGIFactory6 since it allows us to enumerate adapters
 	// based on GPU preference. If it's not available, we pick a device with
 	// EnumAdapters1 instead.
 	IDXGIFactory6* dxgi_factory_6 = nullptr;
-	bool isDXGIFactory6Available = SUCCEEDED(dev->dxgi_factory->QueryInterface(IID_PPV_ARGS(&dxgi_factory_6)));
+	bool is_dxgi_factory_6_avail = SUCCEEDED(dev->dxgi_factory->QueryInterface(IID_PPV_ARGS(&dxgi_factory_6)));
+
+	char device_name_str8_data[128 * sizeof(WCHAR)];
+	Str8 device_name_str8 = { (u8*)device_name_str8_data, 128 * sizeof(WCHAR) };
 
 	for (UINT i = 0;; ++i) {
 		IDXGIAdapter1* adapter = nullptr;
 		HRESULT hr;
 
-		if (isDXGIFactory6Available) {
+		if (is_dxgi_factory_6_avail) {
 			hr = dxgi_factory_6->EnumAdapterByGpuPreference(
 				i,
 				DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
@@ -179,10 +182,11 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 
 		DXGI_ADAPTER_DESC1 adapterDesc;
 		adapter->GetDesc1(&adapterDesc);
-		device_name = SRTextUtilities::to_string(adapterDesc.Description);
+		Str16 device_name_str16 = { (u16*)adapterDesc.Description, 128 * sizeof(WCHAR) };
+		Str16_ToStr8(&device_name_str16, &device_name_str8);
 
 		if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
-			SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Software/WARP adapter", i, device_name.c_str());
+			SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Software/WARP adapter", i, device_name_str8.data);
 			adapter->Release();
 			continue;
 		}
@@ -190,7 +194,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 		ID3D12Device* device = nullptr;
 		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device));
 		if (FAILED(hr)) {
-			SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Device creation failed", i, device_name.c_str());
+			SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Device creation failed", i, device_name_str8.data);
 			adapter->Release();
 			continue;
 		}
@@ -210,7 +214,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 		REQUIRE(capabilities.enhancedBarriersSupported, "Enhanced Barriers");
 
 		if (!missing.empty()) {
-			SRLOG_WARN_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Missing %zu requirement(s):", i, device_name.c_str(), missing.size());
+			SRLOG_WARN_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Missing %zu requirement(s):", i, device_name_str8.data, missing.size());
 
 			for (const auto& str : missing) {
 				SRLOG_WARN_CAT(SRLOG_CAT_DX12, "\t%s", str.c_str());
@@ -237,7 +241,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 		break;
 	}
 
-	if (isDXGIFactory6Available) {
+	if (is_dxgi_factory_6_avail) {
 		dxgi_factory_6->Release();
 	}
 
@@ -246,7 +250,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 		throw std::runtime_error("DX12 ERROR: No suitable GPU found");
 	}
 
-	SRLOG_INFO_CAT(SRLOG_CAT_DX12, "Picked [GPU%u] %s", picked_device_idx, device_name.c_str());
+	SRLOG_INFO_CAT(SRLOG_CAT_DX12, "Picked [GPU%u] %s", picked_device_idx, device_name_str8.data);
 }
 
 internal void SRGFXDeviceDX12_CreateMemoryAllocator(SRGFXDeviceDX12* dev) {
@@ -426,7 +430,7 @@ void SRGFXDX12_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info,
 		.Flags = dev->is_tearing_supported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0U
 	};
 
-	HWND windowHandle = (HWND)dev->window->get_internal_handle();
+	HWND windowHandle = (HWND)SRWindow_GetInternalHandle(dev->window);
 	IDXGISwapChain1* dxgiSwapchain1;
 	HR(dev->dxgi_factory->CreateSwapChainForHwnd(
 		dev->cmd_queues[SRQueue_Universal],
@@ -1354,7 +1358,7 @@ SRDescriptorIndex SRGFXDX12_GetDescriptorIndexSRV(SRGFXDevice* device, const SRR
 	}
 
 	assert(false);
-	return INVALID_DESCRIPTOR_INDEX;
+	return SR_INVALID_DESCRIPTOR_INDEX;
 }
 
 SRShaderCompileTarget SRGFXDX12_GetShaderCompileTarget(SRGFXDevice* device) {

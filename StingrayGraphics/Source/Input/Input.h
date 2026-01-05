@@ -170,7 +170,7 @@ struct SRMouseState {
 };
 
 namespace SRInput {
-	void initialize(const SRWindow* window); // NOTE: Call ONCE at startup
+	void initialize(SRWindow* window); // NOTE: Call ONCE at startup
 	void update(); // NOTE: Call ONCE per frame
 
 	SRKeyboardState get_keyboard_state();

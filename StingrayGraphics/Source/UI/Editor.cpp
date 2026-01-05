@@ -52,7 +52,7 @@ SREditor::SREditor(SRWindow& window, SRGFXDevice& gfxDevice, SRGFXBackend api) :
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-	ImGui_ImplWin32_Init(window.get_internal_handle());
+	ImGui_ImplWin32_Init(SRWindow_GetInternalHandle(&window));
 	// TODO: Make format dynamic
 	SRGFX_SetupImGuiInitInfo(&gfxDevice, SRFormat::RGBA8_UNORM);
 }

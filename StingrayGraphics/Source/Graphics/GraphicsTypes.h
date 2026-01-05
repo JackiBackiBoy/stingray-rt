@@ -6,7 +6,7 @@
 #define SR_MAX_SWAPCHAIN_IMAGES 3
 
 typedef u32 SRDescriptorIndex;
-inline constexpr SRDescriptorIndex INVALID_DESCRIPTOR_INDEX = ~0U;
+inline constexpr SRDescriptorIndex SR_INVALID_DESCRIPTOR_INDEX = ~0U;
 
 enum struct SRGFXBackend {
 	DX12,
@@ -194,7 +194,7 @@ enum class SRFormat : u8 {
 	RG32_FLOAT,
 	RG32_UINT,
 	RG32_SINT,
-	D32_FLOAT_S8X24_UINT, // depth (32-bit) + stencil (8-bit) | SRV: R32_FLOAT (default or depth aspect), R8_UINT (stencil aspect)
+	D32_FLOAT_S8X24_UINT,
 
 	RGB10A2_UNORM,
 	RGB10A2_UINT,
@@ -211,11 +211,11 @@ enum class SRFormat : u8 {
 	RG16_UINT,
 	RG16_SNORM,
 	RG16_SINT,
-	D32_FLOAT,			// depth (32-bit) | SRV: R32_FLOAT
+	D32_FLOAT,
 	R32_FLOAT,
 	R32_UINT,
 	R32_SINT,
-	D24_UNORM_S8_UINT,	// depth (24-bit) + stencil (8-bit) | SRV: R24_INTERNAL (default or depth aspect), R8_UINT (stencil aspect)
+	D24_UNORM_S8_UINT,
 	RGB9E5_SHAREDEXP,
 
 	RG8_UNORM,
@@ -223,7 +223,7 @@ enum class SRFormat : u8 {
 	RG8_SNORM,
 	RG8_SINT,
 	R16_FLOAT,
-	D16_UNORM,			// depth (16-bit) | SRV: R16_UNORM
+	D16_UNORM,
 	R16_UNORM,
 	R16_UINT,
 	R16_SNORM,
@@ -234,7 +234,6 @@ enum class SRFormat : u8 {
 	R8_SNORM,
 	R8_SINT,
 
-	// Formats that are not usable in render pass must be below because formats in render pass must be encodable as 6 bits:
 	BC1_UNORM,			// Three color channels (5 bits:6 bits:5 bits), with 0 or 1 bit(s) of alpha
 	BC1_UNORM_SRGB,		// Three color channels (5 bits:6 bits:5 bits), with 0 or 1 bit(s) of alpha
 	BC2_UNORM,			// Three color channels (5 bits:6 bits:5 bits), with 4 bits of alpha
@@ -312,8 +311,8 @@ enum class SRTextureAddressMode : u8 {
 
 enum class SRUsage : u8 {
 	Default, // CPU no access, GPU read/write
-	Upload, // CPU write, GPU read
-	Copy // Copy from GPU to CPU
+	Upload,  // CPU write, GPU read
+	Copy     // Copy from GPU to CPU
 };
 
 enum class SRBarrierType : u8 {
