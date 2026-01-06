@@ -16,7 +16,11 @@ struct SRWindow {
 	HWND handle;
 	u32 client_width;
 	u32 client_height;
+
+	SRWindow_OnResizeCallback on_resize_callback;
 };
+
+global bool g_is_window_class_registered = false;
 
 // -------------------------- Impl Method Definitions --------------------------
 internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -49,25 +53,28 @@ internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 		return 0;
 	case WM_SIZE:
 		{
+			// TODO: Handle the edge case of window being minimized
 			window->client_width = LOWORD(lParam);
 			window->client_height = HIWORD(lParam);
+
+			if (window->on_resize_callback) {
+				window->on_resize_callback(window, window->client_width, window->client_height);
+			}
 		}
 		break;
-	default:
-		return DefWindowProc(hwnd, msg, wParam, lParam);
 	}
 
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, SRWindowFlags flags, SRWindow* window) {
-	SRWideTemp wide_name = SRWideTemp(name);
-	HINSTANCE instance = (HINSTANCE)GetModuleHandle(nullptr);
+internal void SRWindowWin32_RegisterClassOnce() {
+	if (g_is_window_class_registered) {
+		return;
+	}
 
-	// TODO: We might eventually want multiple windows, and as such it
-	// does not make sense to create a new window class for each window.
-	// Instead we should move this logic elsewhere.
+	HINSTANCE instance = (HINSTANCE)GetModuleHandle(nullptr);
 	HICON icon = LoadIcon(instance, MAKEINTRESOURCE(101));
+
 	WNDCLASSEX window_class = {
 		.cbSize = sizeof(WNDCLASSEX),
 		.style = CS_OWNDC,
@@ -80,6 +87,18 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 		.hIconSm = icon
 	};
 	RegisterClassEx(&window_class);
+
+	g_is_window_class_registered = true;
+}
+
+internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, SRWindowFlags flags, SRWindow* window) {
+	SRWideTemp wide_name = SRWideTemp(name);
+	HINSTANCE instance = (HINSTANCE)GetModuleHandle(nullptr);
+
+	// TODO: We might eventually want multiple windows, and as such it
+	// does not make sense to create a new window class for each window.
+	// Instead we should move this logic elsewhere.
+	
 
 	BOOL has_menu = FALSE;
 	int window_styles = WS_OVERLAPPEDWINDOW;
@@ -111,8 +130,8 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 	}
 
 	window->handle = CreateWindowEx(
-		0,
-		window_class.lpszClassName,
+		WS_EX_APPWINDOW,
+		L"SRWindowWin32Class",
 		wide_name,
 		window_styles,
 		window_pos_x,
@@ -135,15 +154,16 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 
 SRWindow* SRWindow_Create(const char* name, u32 width, u32 height, SRWindowFlags flags) {
 	SRWindow* window = (SRWindow*)malloc(sizeof(SRWindow));
+	assert(window);
 	ZeroMemory(window, sizeof(*window));
 	
+	SRWindowWin32_RegisterClassOnce();
 	SRWindowWin32_Initialize(name, width, height, flags, window);
 
 	return window;
 }
 
 void SRWindow_Destroy(SRWindow* window) {
-	UnregisterClass(L"SRWindowWin32Class", (HINSTANCE)GetModuleHandle(nullptr));
 	free(window);
 }
 
@@ -184,4 +204,8 @@ void SRWindow_GetClientSize(SRWindow* window, u32* width, u32* height) {
 
 f32 SRWindow_GetClientAspectRatio(SRWindow* window) {
 	return (f32)window->client_width / (f32)window->client_height;
+}
+
+void SRWindow_SetOnResizeCallback(SRWindow* window, SRWindow_OnResizeCallback callback) {
+	window->on_resize_callback = callback;
 }

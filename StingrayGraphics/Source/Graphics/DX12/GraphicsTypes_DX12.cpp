@@ -27,35 +27,58 @@ SRDescriptorHeap_DX12* SRDescriptorHeap_DX12_Create(SRArena* arena, ID3D12Device
 		heap->gpuDescriptorHandleStart = heap->heapObject->GetGPUDescriptorHandleForHeapStart();
 	}
 
+	SRVector_Create(&heap->free_list);
+
 	return heap;
 }
 
 SRDescriptorIndex SRDescriptorHeap_DX12_GetNextIndex(SRDescriptorHeap_DX12* heap) {
+	if (heap->free_list.size > 0) {
+		SRDescriptorIndex index = heap->free_list[heap->free_list.size - 1];
+		SRVector_PopBack(&heap->free_list);
+		return index;
+	}
+
+	// NOTE: SR_INVALID_DESCRIPTOR_INDEX is 0, which means that we will always need to skip index 0
+	// when retrieving the next index. We do this by always doing +1 to the retrieved index.
 	assert(heap->count < heap->capacity);
-	return heap->count++;
+	return ++heap->count;
+}
+
+void SRDescriptorHeap_DX12_FreeIndex(SRDescriptorHeap_DX12* heap, SRDescriptorIndex index) {
+	assert(index > 0 && index <= heap->count);
+	SRVector_PushBack(&heap->free_list, index);
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE SRDescriptorHeap_DX12_GetCPUHandle(SRDescriptorHeap_DX12* heap, SRDescriptorIndex index) {
-	assert(index < heap->count);
+	assert(index > 0 && index <= heap->count);
 	return { heap->cpuDescriptorHandleStart.ptr + (u64)index * heap->descriptorHandleSize };
 }
 
 D3D12_GPU_DESCRIPTOR_HANDLE SRDescriptorHeap_DX12_GetGPUHandle(SRDescriptorHeap_DX12* heap, SRDescriptorIndex index) {
-	assert(index < heap->count);
+	assert(index > 0 && index <= heap->count);
 	return { heap->gpuDescriptorHandleStart.ptr + u64(index) * heap->descriptorHandleSize };
 }
 
 SRDescriptorIndex SRDescriptorHeap_DX12_GetIndexFromCPUHandle(SRDescriptorHeap_DX12* heap, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle) {
 	assert(cpuHandle.ptr >= heap->cpuDescriptorHandleStart.ptr);
-	return  (SRDescriptorIndex)((cpuHandle.ptr - heap->cpuDescriptorHandleStart.ptr) / heap->descriptorHandleSize);
+	SRDescriptorIndex idx = (SRDescriptorIndex)((cpuHandle.ptr - heap->cpuDescriptorHandleStart.ptr) / heap->descriptorHandleSize);
+	assert(idx != 0);
+
+	return idx;
 }
 
 SRDescriptorIndex SRDescriptorHeap_DX12_GetIndexFromGPUHandle(SRDescriptorHeap_DX12* heap, D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle) {
 	assert(gpuHandle.ptr >= heap->gpuDescriptorHandleStart.ptr);
-	return (SRDescriptorIndex)((gpuHandle.ptr - heap->gpuDescriptorHandleStart.ptr) / heap->descriptorHandleSize);
+	SRDescriptorIndex idx = (SRDescriptorIndex)((gpuHandle.ptr - heap->gpuDescriptorHandleStart.ptr) / heap->descriptorHandleSize);
+	assert(idx != 0);
+
+	return idx;
 }
 
 void SRDescriptorHeap_DX12_Destroy(SRDescriptorHeap_DX12* heap) {
+	SRVector_Destroy(&heap->free_list);
+
 	heap->heapObject->Release();
 	heap->heapObject = nullptr;
 }

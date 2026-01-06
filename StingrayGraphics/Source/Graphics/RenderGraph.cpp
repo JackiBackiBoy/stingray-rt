@@ -400,8 +400,6 @@ void SRRenderGraph::execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain
 }
 
 void SRRenderGraph::notify_swapchain_resize(SRGFXDevice& gfxDevice, int newWidth, int newHeight) {
-	(void)gfxDevice;
-
 	for (auto& attachment : m_Attachments) {
 		// TODO: Right now we assume that "swapchain relative" means that an
 		// attachment will have the EXACT dimensions as the swapchain. But
@@ -411,29 +409,16 @@ void SRRenderGraph::notify_swapchain_resize(SRGFXDevice& gfxDevice, int newWidth
 			newTextureInfo.width = newWidth;
 			newTextureInfo.height = newHeight;
 
-			//gfxDevice.CreateTexture(newTextureInfo, attachment->texture, nullptr);
+			SRGFX_DestroyResource(&gfxDevice, &attachment->texture);
+			SRGFX_CreateTexture(&gfxDevice, &newTextureInfo, &attachment->texture, nullptr);
 
 			// Reset subresource states to the default state, depending on
 			// the resource type.
-			//for (SRResourceState& resourceState : attachment->subresourceStates) {
-			//	switch (attachment->type) {
-			//	case SRRenderPassAttachment::Type::RenderTarget:
-			//	{
-			//		resourceState = SRResourceState::RenderTarget;
-			//	}
-			//	break;
-			//	case SRRenderPassAttachment::Type::DepthStencil:
-			//	{
-			//		resourceState = SRResourceState::DepthWrite;
-			//	}
-			//	break;
-			//	case SRRenderPassAttachment::Type::ReadWriteTexture:
-			//	{
-			//		resourceState = SRResourceState::UnorderedAccess;
-			//	}
-			//	break;
-			//	}
-			//}
+			for (SRRenderPassAttachmentSubresource& subresource : attachment->subresourceStates) {
+				subresource.state = SRResourceState::Undefined;
+				subresource.lastBarrierAccess = SRAccessMask::None;
+				subresource.lastBarrierStage = SRPipelineStage::None;
+			}
 		}
 	}
 }

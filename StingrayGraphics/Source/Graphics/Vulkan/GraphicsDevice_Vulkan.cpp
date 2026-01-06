@@ -134,7 +134,7 @@ internal void SRGFXDeviceVulkan_CreateInstance(SRGFXDeviceVulkan* dev) {
 	SR_VK_CHECK(volkInitialize(), "Volk initialization");
 	SRLOG_INFO_CAT(SRLOG_CAT_VULKAN, "Volk successfully initialized");
 
-	const VkApplicationInfo appInfo = {
+	VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pApplicationName = "Stingray",
 		.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
@@ -868,7 +868,7 @@ void SRGFXVulkan_CreateDevice(SRWindow* window, SRGFXDevice* device) {
 
 	dev_vulkan->window = window;
 	dev_vulkan->arena_general = SRArena_Create(Gigabytes(1));
-	dev_vulkan->arena_upload = SRArena_Create(Gigabytes(8));
+	dev_vulkan->arena_upload = SRArena_Create(Gigabytes(1));
 
 	SRGFXDeviceVulkan_CreateInstance(dev_vulkan);
 	SRGFXDeviceVulkan_CreateDebugMessenger(dev_vulkan);
@@ -883,6 +883,10 @@ void SRGFXVulkan_CreateDevice(SRWindow* window, SRGFXDevice* device) {
 
 void SRGFXVulkan_DestroyDevice(SRGFXDevice* device) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
+	SRDescriptorHeap_Vulkan_Destroy(dev->descriptor_heap_cbv_srv_uav);
+	SRDescriptorHeap_Vulkan_Destroy(dev->descriptor_heap_sampler);
+	SRArena_Destroy(dev->arena_general);
+	SRArena_Destroy(dev->arena_upload);
 
 #ifdef _DEBUG
 	if (dev->is_debug_utils_available) {
@@ -917,9 +921,6 @@ void SRGFXVulkan_DestroyDevice(SRGFXDevice* device) {
 
 	delete dev->destruction_handler;
 
-	SRArena_Destroy(dev->arena_general);
-	SRArena_Destroy(dev->arena_upload);
-
 	free(dev);
 }
 
@@ -930,7 +931,15 @@ u32 SRGFXVulkan_GetFrameIndex(SRGFXDevice* device) {
 
 void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info, SRSwapchain* swapchain) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto* internalSwapchain = new SRSwapchain_Vulkan();
+
+	SRSwapchain_Vulkan* internalSwapchain;
+
+	if (swapchain->internalState != nullptr) {
+		internalSwapchain = to_vk_internal(*swapchain);
+	}
+	else {
+		internalSwapchain = SRArena_PushStructZero(dev->arena_general, SRSwapchain_Vulkan);
+	}
 
 	swapchain->info = *info;
 	swapchain->internalState = internalSwapchain;
@@ -978,7 +987,7 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 	}
 	internalSwapchain->extent = extent;
 
-	// TODO: Swapchain recreation (check if internal state is nullptr)
+	VkSwapchainKHR old_swapchain = internalSwapchain->swapchain;
 	VkSwapchainCreateInfoKHR createInfo = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.flags = 0, // TODO: Investigate swapchain flags
@@ -993,9 +1002,28 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 		.preTransform = supportInfo.capabilities.currentTransform,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		.presentMode = SRVulkanHelpers::pick_present_mode(info->vSync, supportInfo.presentModes),
-		.clipped = VK_TRUE
+		.clipped = VK_TRUE,
+		.oldSwapchain = old_swapchain
 	};
+
+	// HACK: It turns out that swapchain recreation is an underspecified portion of the
+	// Vulkan spec at the moment, and the only way to "correctly" do it is to wait idle
+	// before creating a new one. Another note is that acquisition of the swapchain
+	// image actually is a call that does nothing because of some vendor stuff,
+	// so it's not enough to rely on the swapchain being invalidated.
+	if (old_swapchain != VK_NULL_HANDLE) {
+		SR_VK_CHECK(vkDeviceWaitIdle(dev->device), "Wait idle");
+	}
+
 	SR_VK_CHECK(vkCreateSwapchainKHR(dev->device, &createInfo, nullptr, &internalSwapchain->swapchain), "Swapchain creation");
+
+	if (old_swapchain != VK_NULL_HANDLE) {
+		vkDestroySwapchainKHR(dev->device, old_swapchain, nullptr);
+
+		for (u64 i = 0; i < internalSwapchain->backbuffer_count; ++i) {
+			vkDestroyImageView(dev->device, internalSwapchain->backbuffers[i].vkImageView, nullptr);
+		}
+	}
 
 	// Swapchain images
 	u32 numImages;
@@ -1040,7 +1068,7 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 
 void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, SRPipeline* pipeline) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto* internalPipeline = new SRPipeline_Vulkan();
+	auto* internalPipeline = SRArena_PushStructZero(dev->arena_general, SRPipeline_Vulkan);
 
 	pipeline->info = *info;
 	pipeline->internalState = internalPipeline;
@@ -1263,7 +1291,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 // TODO: Add support for ReBar devices
 void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuffer* buffer, const void* data) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto* internalBuffer = new SRBuffer_Vulkan();
+	auto* internalBuffer = SRArena_PushStructZero(dev->arena_general, SRBuffer_Vulkan);
 
 	buffer->type = SRResourceType::Buffer;
 	buffer->info = *info;
@@ -1365,7 +1393,14 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	assert(info->usage == SRUsage::Default);
 
-	auto* internalTexture = new SRTexture_Vulkan();
+	SRTexture_Vulkan* internalTexture;
+
+	if (texture->internalState != nullptr) {
+		internalTexture = to_vk_internal(*texture);
+	}
+	else {
+		internalTexture = SRArena_PushStructZero(dev->arena_general, SRTexture_Vulkan);
+	}
 
 	texture->type = SRResourceType::Texture;
 	texture->info = *info;
@@ -1570,8 +1605,9 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 
 void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRSampler* sampler) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto* internalSampler = new SRSampler_Vulkan();
+	auto* internalSampler = SRArena_PushStructZero(dev->arena_general, SRSampler_Vulkan);
 
+	sampler->type = SRResourceType::Sampler;
 	sampler->info = *info;
 	sampler->internalState = internalSampler;
 
@@ -1782,7 +1818,6 @@ void SRGFXVulkan_DestroySwapchain(SRGFXDevice* device, SRSwapchain* swapchain) {
 		dev->destruction_handler->enqueue(internal_swapchain->backbuffers[i].vkImageView);
 	}
 
-	delete internal_swapchain;
 	swapchain->internalState = nullptr;
 }
 
@@ -1793,7 +1828,6 @@ void SRGFXVulkan_DestroyPipeline(SRGFXDevice* device, SRPipeline* pipeline) {
 	dev->destruction_handler->enqueue(internal_pipeline->pipeline);
 	dev->destruction_handler->enqueue(internal_pipeline->pipelineLayout);
 
-	delete internal_pipeline;
 	pipeline->internalState = nullptr;
 }
 
@@ -1807,7 +1841,8 @@ void SRGFXVulkan_DestroyResource(SRGFXDevice* device, SRResource* resource) {
 			auto* internal_buffer = (SRBuffer_Vulkan*)resource->internalState;
 			dev->destruction_handler->enqueue(internal_buffer->buffer);
 			dev->destruction_handler->enqueue(internal_buffer->allocation);
-			delete internal_buffer;
+
+			ZeroMemory(internal_buffer, sizeof(*internal_buffer));
 		}
 		break;
 	case SRResourceType::Texture:
@@ -1815,25 +1850,33 @@ void SRGFXVulkan_DestroyResource(SRGFXDevice* device, SRResource* resource) {
 			auto* internal_texture = (SRTexture_Vulkan*)resource->internalState;
 			dev->destruction_handler->enqueue(internal_texture->image, internal_texture->allocation);
 			dev->destruction_handler->enqueue(internal_texture->imageView);
-			delete internal_texture;
+
+			if (internal_texture->srvDescriptor != SR_INVALID_DESCRIPTOR_INDEX) {
+				SRDescriptorHeap_Vulkan_FreeIndex(dev->descriptor_heap_cbv_srv_uav, internal_texture->srvDescriptor);
+			}
+
+			ZeroMemory(internal_texture, sizeof(*internal_texture));
 		}
 		break;
 	case SRResourceType::Sampler:
 		{
 			auto* internal_sampler = (SRSampler_Vulkan*)resource->internalState;
 			dev->destruction_handler->enqueue(internal_sampler->sampler);
-			delete internal_sampler;
+
+			if (internal_sampler->samplerDescriptor != SR_INVALID_DESCRIPTOR_INDEX) {
+				SRDescriptorHeap_Vulkan_FreeIndex(dev->descriptor_heap_sampler, internal_sampler->samplerDescriptor);
+			}
+
+			ZeroMemory(internal_sampler, sizeof(*internal_sampler));
 		}
 		break;
 	}
-
-	resource->internalState = nullptr;
 }
 
 void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, const SRCmdList* cmdList) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	auto internalPipeline = to_vk_internal(*pipeline);
-	auto internalCmdList = to_vk_internal(*cmdList);
+	auto* internalPipeline = to_vk_internal(*pipeline);
+	auto* internalCmdList = to_vk_internal(*cmdList);
 
 	vkCmdBindPipeline(internalCmdList->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internalPipeline->pipeline);
 	dev->active_pipeline = internalPipeline;

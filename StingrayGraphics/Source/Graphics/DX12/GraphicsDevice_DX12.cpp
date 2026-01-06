@@ -409,8 +409,47 @@ u32 SRGFXDX12_GetFrameIndex(SRGFXDevice* device) {
 
 void SRGFXDX12_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info, SRSwapchain* swapchain) {
 	assert(info->numBuffers <= SR_MAX_SWAPCHAIN_IMAGES);
-
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
+
+	// Swapchain recreation
+	if (swapchain->internalState != nullptr) {
+		auto* internal_swapchain = to_dx12_internal(*swapchain);
+		SRGFX_WaitForGPU(device);
+
+		for (u64 i = 0; i < internal_swapchain->imageCount; ++i) {
+			internal_swapchain->images[i]->Release();
+		}
+
+		HR(internal_swapchain->swapchain->ResizeBuffers(
+			info->numBuffers,
+			info->width,
+			info->height,
+			to_dx12_format(info->format),
+			dev->is_tearing_supported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0
+		));
+		internal_swapchain->imageCount = info->numBuffers;
+
+		D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {
+			.Format = to_dx12_format(info->format),
+			.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D
+		};
+
+		// TODO: Right now we assume that we don't resize the swapchain in terms of backbuffers
+		// And this will break in the case that we would go from double-buffer to triple-buffer
+		// for example.
+		for (UINT i = 0; i < info->numBuffers; ++i) {
+			HR(internal_swapchain->swapchain->GetBuffer(i, IID_PPV_ARGS(&internal_swapchain->images[i])));
+
+			dev->device->CreateRenderTargetView(
+				internal_swapchain->images[i],
+				&rtv_desc,
+				SRDescriptorHeap_DX12_GetCPUHandle(dev->descriptor_heap_rtv, internal_swapchain->rtvDescriptors[i])
+			);
+		}
+
+		return;
+	}
+
 	auto* internalSwapchain = SRArena_PushStructZero(dev->arena_general, SRSwapchain_DX12);
 	swapchain->info = *info;
 	swapchain->internalState = internalSwapchain;
@@ -461,7 +500,7 @@ void SRGFXDX12_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info,
 
 void SRGFXDX12_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, SRPipeline* pipeline) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internalPipeline = SRArena_PushStruct(dev->arena_general, SRPipeline_DX12);
+	auto* internalPipeline = SRArena_PushStructZero(dev->arena_general, SRPipeline_DX12);
 	pipeline->info = *info;
 	pipeline->internalState = internalPipeline;
 
@@ -659,7 +698,7 @@ void SRGFXDX12_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, S
 
 void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuffer* buffer, const void* data) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internal_buffer = SRArena_PushStruct(dev->arena_general, SRBuffer_DX12);
+	auto* internal_buffer = SRArena_PushStructZero(dev->arena_general, SRBuffer_DX12);
 
 	buffer->type = SRResourceType::Buffer;
 	buffer->info = *info;
@@ -723,7 +762,7 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuf
 		auto* internalStagingBuffer = to_dx12_internal(stagingBuffer);
 
 		//dev->m_PendingUploadResources.push_back(internalStagingBuffer->allocation);
-		D3D12MA::Allocation** upload = SRArena_PushStruct(dev->arena_upload, D3D12MA::Allocation*);
+		D3D12MA::Allocation** upload = SRArena_PushStructZero(dev->arena_upload, D3D12MA::Allocation*);
 		*upload = internalStagingBuffer->allocation;
 
 		// Copy staging buffer into target buffer
@@ -751,9 +790,10 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuf
 
 	// Descriptors
 	// TODO: UAV
+	// SRV
 	if (has_flag(info->bindFlags, SRBindFlag::ShaderResource)) {
 		if (has_flag(info->miscFlags, SRMiscFlag::StructuredBuffer)) {
-			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
 				.Format = DXGI_FORMAT_UNKNOWN,
 				.ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
 				.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
@@ -765,11 +805,13 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuf
 				}
 			};
 
-			internal_buffer->srvDescriptor = SRDX12Helpers::init_srv_descriptor(
-				dev->device,
+			SRDescriptorIndex srv_index = SRDescriptorHeap_DX12_GetNextIndex(dev->descriptor_heap_cbv_srv_uav);
+			internal_buffer->srvDescriptor = srv_index;
+
+			dev->device->CreateShaderResourceView(
 				internal_buffer->allocation->GetResource(),
-				srvDesc,
-				dev->descriptor_heap_cbv_srv_uav
+				&srv_desc,
+				SRDescriptorHeap_DX12_GetCPUHandle(dev->descriptor_heap_cbv_srv_uav, srv_index)
 			);
 		}
 	}
@@ -778,9 +820,17 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuf
 
 void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRTexture* texture, const SRSubresourceData* data) {
 	assert(info->usage == SRUsage::Default);
-
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internal_texture = SRArena_PushStruct(dev->arena_general, SRTexture_DX12);
+
+	SRTexture_DX12* internal_texture;
+
+	if (texture->internalState) {
+		internal_texture = to_dx12_internal(*texture);
+		assert(internal_texture->allocation == nullptr);
+	}
+	else {
+		internal_texture = SRArena_PushStructZero(dev->arena_general, SRTexture_DX12);
+	}
 
 	texture->info = *info;
 	texture->internalState = internal_texture;
@@ -831,44 +881,49 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 
 	// RTV Descriptor
 	if (has_flag(info->bindFlags, SRBindFlag::RenderTarget)) {
-		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {
+		D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {
 			.Format = resource_desc.Format,
 			.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D
 		};
 
-		internal_texture->rtvDescriptor = SRDX12Helpers::init_rtv_descriptor(
-			dev->device,
+		SRDescriptorIndex rtv_index = SRDescriptorHeap_DX12_GetNextIndex(dev->descriptor_heap_rtv);
+		internal_texture->rtvDescriptor = rtv_index;
+
+		dev->device->CreateRenderTargetView(
 			internal_texture->allocation->GetResource(),
-			rtvDesc,
-			dev->descriptor_heap_rtv
+			&rtv_desc,
+			SRDescriptorHeap_DX12_GetCPUHandle(dev->descriptor_heap_rtv, rtv_index)
 		);
 	}
 
 	// DSV Descriptors
 	if (has_flag(info->bindFlags, SRBindFlag::DepthStencil)) {
-		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
 			.Format = resource_desc.Format,
 			.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
 			.Flags = D3D12_DSV_FLAG_NONE
 		};
 
-		D3D12_DEPTH_STENCIL_VIEW_DESC dsvReadOnlyDesc = {
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_read_only_desc = {
 			.Format = resource_desc.Format,
 			.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
 			.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH
 		};
 
-		internal_texture->dsvDescriptor = SRDX12Helpers::init_dsv_descriptor(
-			dev->device,
+		SRDescriptorIndex dsv_index = SRDescriptorHeap_DX12_GetNextIndex(dev->descriptor_heap_dsv);
+		SRDescriptorIndex dsv_read_only_index = SRDescriptorHeap_DX12_GetNextIndex(dev->descriptor_heap_dsv);
+		internal_texture->dsvDescriptor = dsv_index;
+		internal_texture->dsvReadOnlyDescriptor = dsv_read_only_index;
+
+		dev->device->CreateDepthStencilView(
 			internal_texture->allocation->GetResource(),
-			dsvDesc,
-			dev->descriptor_heap_dsv
+			&dsv_desc,
+			SRDescriptorHeap_DX12_GetCPUHandle(dev->descriptor_heap_dsv, dsv_index)
 		);
-		internal_texture->dsvReadOnlyDescriptor = SRDX12Helpers::init_dsv_descriptor(
-			dev->device,
+		dev->device->CreateDepthStencilView(
 			internal_texture->allocation->GetResource(),
-			dsvReadOnlyDesc,
-			dev->descriptor_heap_dsv
+			&dsv_read_only_desc,
+			SRDescriptorHeap_DX12_GetCPUHandle(dev->descriptor_heap_dsv, dsv_read_only_index)
 		);
 	}
 
@@ -883,7 +938,7 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 			srvFormat = DXGI_FORMAT_R16_UNORM;
 		}
 
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
 			.Format = srvFormat,
 			.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
 			.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
@@ -893,18 +948,20 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 			}
 		};
 
-		internal_texture->srvDescriptor = SRDX12Helpers::init_srv_descriptor(
-			dev->device,
+		SRDescriptorIndex srv_index = SRDescriptorHeap_DX12_GetNextIndex(dev->descriptor_heap_cbv_srv_uav);
+		internal_texture->srvDescriptor = srv_index;
+
+		dev->device->CreateShaderResourceView(
 			internal_texture->allocation->GetResource(),
-			srvDesc,
-			dev->descriptor_heap_cbv_srv_uav
+			&srv_desc,
+			SRDescriptorHeap_DX12_GetCPUHandle(dev->descriptor_heap_cbv_srv_uav, srv_index)
 		);
 	}
 }
 
 void SRGFXDX12_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRSampler* sampler) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internal_sampler = SRArena_PushStruct(dev->arena_general, SRSampler_DX12);
+	auto* internal_sampler = SRArena_PushStructZero(dev->arena_general, SRSampler_DX12);
 
 	sampler->info = *info;
 	sampler->type = SRResourceType::Sampler;
@@ -977,14 +1034,46 @@ void SRGFXDX12_DestroyPipeline(SRGFXDevice* device, SRPipeline* pipeline) {
 }
 
 void SRGFXDX12_DestroyResource(SRGFXDevice* device, SRResource* resource) {
-	auto* internalResource = (SRResource_DX12*)resource->internalState;
+	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 
 	// TODO: Remove sampler as resource type
+	if (resource->type == SRResourceType::Buffer) {
+		auto* internal_buffer = (SRBuffer_DX12*)resource->internalState;
 
-	// TODO: Employ deferred destruction? This is very temporary and brittle
-	internalResource->allocation->Release();
-	internalResource->allocation = nullptr;
-	resource->internalState = nullptr;
+		if (internal_buffer->srvDescriptor != SR_INVALID_DESCRIPTOR_INDEX) {
+			SRDescriptorHeap_DX12_FreeIndex(dev->descriptor_heap_cbv_srv_uav, internal_buffer->srvDescriptor);
+		}
+		internal_buffer->allocation->Release();
+	}
+	else if (resource->type == SRResourceType::Texture) {
+		auto* internal_texture = (SRTexture_DX12*)resource->internalState;
+
+		if (internal_texture->rtvDescriptor != SR_INVALID_DESCRIPTOR_INDEX) {
+			SRDescriptorHeap_DX12_FreeIndex(dev->descriptor_heap_rtv, internal_texture->rtvDescriptor);
+		}
+		if (internal_texture->srvDescriptor != SR_INVALID_DESCRIPTOR_INDEX) {
+			SRDescriptorHeap_DX12_FreeIndex(dev->descriptor_heap_cbv_srv_uav, internal_texture->srvDescriptor);
+		}
+		if (internal_texture->dsvDescriptor != SR_INVALID_DESCRIPTOR_INDEX) {
+			SRDescriptorHeap_DX12_FreeIndex(dev->descriptor_heap_dsv, internal_texture->dsvDescriptor);
+		}
+		if (internal_texture->dsvReadOnlyDescriptor != SR_INVALID_DESCRIPTOR_INDEX) {
+			SRDescriptorHeap_DX12_FreeIndex(dev->descriptor_heap_dsv, internal_texture->dsvReadOnlyDescriptor);
+		}
+
+		internal_texture->allocation->Release();
+		ZeroMemory(internal_texture, sizeof(*internal_texture));
+	}
+	else if (resource->type == SRResourceType::Sampler) {
+		auto* internal_sampler = (SRSampler_DX12*)resource->internalState;
+
+		if (internal_sampler->samplerDescriptor != SR_INVALID_DESCRIPTOR_INDEX) {
+			SRDescriptorHeap_DX12_FreeIndex(dev->descriptor_heap_sampler, internal_sampler->samplerDescriptor);
+		}
+	}
+	else {
+		assert(false);
+	}
 }
 
 void SRGFXDX12_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, const SRCmdList* cmdList) {

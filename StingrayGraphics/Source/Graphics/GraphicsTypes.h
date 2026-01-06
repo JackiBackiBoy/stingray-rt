@@ -6,7 +6,7 @@
 #define SR_MAX_SWAPCHAIN_IMAGES 3
 
 typedef u32 SRDescriptorIndex;
-inline constexpr SRDescriptorIndex SR_INVALID_DESCRIPTOR_INDEX = ~0U;
+inline constexpr SRDescriptorIndex SR_INVALID_DESCRIPTOR_INDEX = 0;
 
 enum struct SRGFXBackend {
 	DX12,

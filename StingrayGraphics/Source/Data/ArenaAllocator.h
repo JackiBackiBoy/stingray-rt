@@ -2,6 +2,7 @@
 
 #include "Core/Types.h"
 #include <assert.h>
+#include <stdlib.h>
 
 #define SR_ARENA_DEFAULT_ALIGNMENT 8 
 
@@ -44,3 +45,52 @@ void SRArray_Clear(SRArray* array);
 		assert((array)->count < (array)->capacity);\
 		((type*)(array)->data)[(array)->count++] = (value);\
 	} while(0)
+
+template<typename T>
+struct SRVector {
+	T* data;
+	u64 capacity;
+	u64 size;
+
+	T& operator [](u64 i) {
+		assert(i < size);
+		return data[i];
+	}
+};
+
+template<typename T>
+void SRVector_Create(SRVector<T>* vec) {
+	vec->capacity = 16;
+	vec->data = (T*)malloc(vec->capacity * sizeof(T));
+	vec->size = 0;
+}
+
+template<typename T>
+void SRVector_PushBack(SRVector<T>* vec, T obj) {
+	if (vec->size >= vec->capacity) {
+		vec->capacity = vec->capacity * 2;
+
+		T* new_data = (T*)realloc(vec->data, vec->capacity * sizeof(T));
+		assert(new_data);
+
+		vec->data = new_data;
+	}
+
+	vec->data[vec->size++] = obj;
+}
+
+template<typename T>
+void SRVector_PopBack(SRVector<T>* vec) {
+	assert(vec->size > 0);
+
+	// TODO: Look into calling realloc for reducing capacity, right now we never reduce capacity
+	vec->size--;
+}
+
+template<typename T>
+void SRVector_Destroy(SRVector<T>* vec) {
+	free(vec->data);
+	vec->data = nullptr;
+	vec->capacity = 0;
+	vec->size = 0;
+}

@@ -93,39 +93,39 @@ namespace SRDX12Helpers {
 		graphicsCmdList->Barrier(1, &barrierGroup);
 	}
 
-	inline SRDescriptorIndex init_rtv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_RENDER_TARGET_VIEW_DESC& desc, SRDescriptorHeap_DX12* descriptorHeap) {
-		SRDescriptorIndex descriptor = SRDescriptorHeap_DX12_GetNextIndex(descriptorHeap);
+	//inline SRDescriptorIndex init_rtv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_RENDER_TARGET_VIEW_DESC& desc, SRDescriptorHeap_DX12* descriptorHeap) {
+	//	SRDescriptorIndex descriptor = SRDescriptorHeap_DX12_GetNextIndex(descriptorHeap);
 
-		device->CreateRenderTargetView(
-			res,
-			&desc,
-			SRDescriptorHeap_DX12_GetCPUHandle(descriptorHeap, descriptor)
-		);
+	//	device->CreateRenderTargetView(
+	//		res,
+	//		&desc,
+	//		SRDescriptorHeap_DX12_GetCPUHandle(descriptorHeap, descriptor)
+	//	);
 
-		return descriptor;
-	}
+	//	return descriptor;
+	//}
 
-	inline SRDescriptorIndex init_dsv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc, SRDescriptorHeap_DX12* descriptorHeap) {
-		SRDescriptorIndex descriptor = SRDescriptorHeap_DX12_GetNextIndex(descriptorHeap);
+	//inline SRDescriptorIndex init_dsv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_DEPTH_STENCIL_VIEW_DESC& desc, SRDescriptorHeap_DX12* descriptorHeap) {
+	//	SRDescriptorIndex descriptor = SRDescriptorHeap_DX12_GetNextIndex(descriptorHeap);
 
-		device->CreateDepthStencilView(
-			res,
-			&desc,
-			SRDescriptorHeap_DX12_GetCPUHandle(descriptorHeap, descriptor)
-		);
+	//	device->CreateDepthStencilView(
+	//		res,
+	//		&desc,
+	//		SRDescriptorHeap_DX12_GetCPUHandle(descriptorHeap, descriptor)
+	//	);
 
-		return descriptor;
-	}
+	//	return descriptor;
+	//}
 
-	inline SRDescriptorIndex init_srv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc, SRDescriptorHeap_DX12* descriptorHeap) {
-		SRDescriptorIndex descriptor = SRDescriptorHeap_DX12_GetNextIndex(descriptorHeap);
+	//inline SRDescriptorIndex init_srv_descriptor(ID3D12Device* device, ID3D12Resource* res, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc, SRDescriptorHeap_DX12* descriptorHeap) {
+	//	SRDescriptorIndex descriptor = SRDescriptorHeap_DX12_GetNextIndex(descriptorHeap);
 
-		device->CreateShaderResourceView(
-			res,
-			&desc,
-			SRDescriptorHeap_DX12_GetCPUHandle(descriptorHeap, descriptor)
-		);
+	//	device->CreateShaderResourceView(
+	//		res,
+	//		&desc,
+	//		SRDescriptorHeap_DX12_GetCPUHandle(descriptorHeap, descriptor)
+	//	);
 
-		return descriptor;
-	}
+	//	return descriptor;
+	//}
 }

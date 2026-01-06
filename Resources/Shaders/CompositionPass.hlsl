@@ -25,7 +25,7 @@ VSOutput vertexMain(uint VertexID : SV_VertexID) {
 }
 
 PSOutput pixelMain(VSOutput input) {
-	SamplerState sampler = SamplerDescriptorHeap[0]; // TODO: Remove hardcoded
+	SamplerState sampler = SamplerDescriptorHeap[1]; // TODO: Remove hardcoded
 	Texture2D<float4> albedoTex = ResourceDescriptorHeap[g_Push.albedoTexIndex];
 	float4 albedo = albedoTex.Sample(sampler, input.uv).rgba;
 

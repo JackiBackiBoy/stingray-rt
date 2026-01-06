@@ -34,11 +34,10 @@ struct alignas(256) PerFrameData {
 
 // NOTE: Trick for making sure that the logger exists longer than all other objects
 global auto& logger = SRLogger::get();
-global constexpr int WIDTH = DEFAULT_WIDTH;
-global constexpr int HEIGHT = DEFAULT_HEIGHT;
 
 global SRArena* g_arena;
 global SRWindow* g_window;
+global SRWindow* g_test_window;
 global SRRenderGraph* g_render_graph;
 global SRShaderCompiler* g_shader_compiler;
 global SREditor* g_editor;
@@ -48,13 +47,22 @@ global SRRenderPass* g_depth_prepass;
 global SRRenderPass* g_composition_pass;
 global SRRenderPass* g_gbuffer_pass;
 global SRRenderPass* g_imgui_pass;
-global SRGFXBackend g_gfx_backend = SRGFXBackend::DX12;
+global SRGFXBackend g_gfx_backend = SRGFXBackend::Vulkan;
 global SRGFXDevice g_gfx_device;
 global SRModel g_test_model;
 global SRBuffer g_per_frame_buffers[SR_GFX_FRAMES_IN_FLIGHT];
 global PerFrameData g_per_frame_data;
 global SRSwapchain g_swapchain;
 global SRSampler g_sampler_linear;
+
+internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height) {
+	SRSwapchainInfo new_swapchain_info = g_swapchain.info;
+	new_swapchain_info.width = new_width;
+	new_swapchain_info.height = new_height;
+
+	SRGFX_CreateSwapchain(&g_gfx_device, g_window, &new_swapchain_info, &g_swapchain);
+	g_render_graph->notify_swapchain_resize(g_gfx_device, new_width, new_height);
+}
 
 internal void init_console();
 internal void init_window();
@@ -75,21 +83,27 @@ int APIENTRY wWinMain(
 		init_console();
 	#endif
 
-	g_arena = SRArena_Create(Gigabytes(8));
+	g_arena = SRArena_Create(Gigabytes(1));
 
 	init_window();
+	//g_test_window = SRWindow_Create("Stingray Text Rendering Test", 512, 512, SRWindowFlags_SizeIsClientArea);
+	//SRWindow_Show(g_test_window);
 	init_graphics();
 	init_resources();
 	init_scene();
 	init_rendergraph();
 	SRGFX_FlushInitialUploads(&g_gfx_device); // TEMPORARY but important for now
 
+	u32 window_width;
+	u32 window_height;
+	SRWindow_GetClientSize(g_window, &window_width, &window_height);
+
 	SRFrameInfo frame_info = {
 		.camera = &g_camera,
 		.scene = g_scene,
 		.dt = 0.0f,
-		.width = WIDTH,
-		.height = HEIGHT
+		.width = (int)window_width,
+		.height = (int)window_height
 	};
 
 	SRInput::initialize(g_window);
@@ -98,13 +112,16 @@ int APIENTRY wWinMain(
 	// Main loop
 	bool is_first_frame = true;
 	while (SRWindow_PollEvents(g_window)) {
-		SRTime::begin_frame();
+		u32 window_width;
+		u32 window_height;
+		SRWindow_GetClientSize(g_window, &window_width, &window_height);
 
+		SRTime::begin_frame();
 		SRGFX_BeginFrame(&g_gfx_device, &g_swapchain);
 		frame_info.perFrameBuffer = &g_per_frame_buffers[SRGFX_GetFrameIndex(&g_gfx_device)];
 		frame_info.dt = (f32)SRTime::get_delta_sec();
-		frame_info.width = WIDTH;
-		frame_info.height = HEIGHT;
+		frame_info.width = window_width;
+		frame_info.height = window_height;
 
 		update(&frame_info);
 		render(&frame_info);
@@ -135,12 +152,14 @@ int APIENTRY wWinMain(
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.meshletBuffer);
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.meshletVerticesBuffer);
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.meshletTrianglesBuffer);
+	SRGFX_DestroyResource(&g_gfx_device, &g_sampler_linear);
 	SRGFX_DestroySwapchain(&g_gfx_device, &g_swapchain);
 
 	delete g_scene;
 	delete g_editor;
 	delete g_render_graph;
 	SRWindow_Destroy(g_window);
+	//SRWindow_Destroy(g_test_window);
 	SRGFX_DestroyDevice(&g_gfx_device);
 	SRArena_Destroy(g_arena);
 
@@ -174,19 +193,25 @@ void init_console() {
 
 void init_window() {
 	const char* title = (g_gfx_backend == SRGFXBackend::Vulkan ? "Stingray (Vulkan)" : "Stingray (DX12)");
-	g_window = SRWindow_Create(title, WIDTH, HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
+	g_window = SRWindow_Create(title, DEFAULT_WIDTH, DEFAULT_HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
+
+	SRWindow_SetOnResizeCallback(g_window, Window_OnResize);
 }
 
 void init_graphics() {
 	SRGFX_CreateDevice(g_window, &g_gfx_device, g_gfx_backend);
 	g_shader_compiler = SRShaderCompiler_Create(g_arena, g_gfx_backend);
 
+	u32 window_width;
+	u32 window_height;
+	SRWindow_GetClientSize(g_window, &window_width, &window_height);
+
 	SRSwapchainInfo swapchainInfo = {
-		.width = WIDTH,
-		.height = HEIGHT,
+		.width = window_width,
+		.height = window_height,
 		.numBuffers = 3,
 		.format = SRFormat::RGBA8_UNORM,
-		.vSync = false
+		.vSync = true
 	};
 	SRGFX_CreateSwapchain(&g_gfx_device, g_window, &swapchainInfo, &g_swapchain);
 	g_editor = new SREditor(*g_window, g_gfx_device, g_gfx_backend);
@@ -234,14 +259,18 @@ void init_scene() {
 void init_rendergraph() {
 	g_render_graph = new SRRenderGraph();
 
+	u32 window_width;
+	u32 window_height;
+	SRWindow_GetClientSize(g_window, &window_width, &window_height);
+
 	g_depth_prepass = &g_render_graph->add_render_pass("DepthPrepass", SRPassType::Graphics)
-		.add_depth_output("Depth", WIDTH, HEIGHT, SRFormat::D32_FLOAT)
+		.add_depth_output("Depth", window_width, window_height, SRFormat::D32_FLOAT)
 		.set_execute_callback(SRDepthPrepass::execute);
 	SRDepthPrepass::build(*g_depth_prepass, g_gfx_device, *g_shader_compiler);
 
 	g_gbuffer_pass = &g_render_graph->add_render_pass("GBufferPass", SRPassType::Graphics)
 		.add_depth_input("Depth")
-		.add_color_output("GBufferAlbedo", WIDTH, HEIGHT, SRFormat::RGBA8_UNORM)
+		.add_color_output("GBufferAlbedo", window_width, window_height, SRFormat::RGBA8_UNORM)
 		.set_execute_callback(SRGBufferPass::execute);
 	SRGBufferPass::build(*g_gbuffer_pass, g_gfx_device, *g_shader_compiler);
 

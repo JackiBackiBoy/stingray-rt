@@ -22,10 +22,12 @@ struct SRDescriptorHeap_Vulkan {
 	u32 count;
 	u32 capacity;
 	VkDescriptorType type;
+	SRVector<SRDescriptorIndex> free_list;
 };
 
 SRDescriptorHeap_Vulkan* SRDescriptorHeap_Vulkan_Create(SRArena* arena, VkDescriptorType type, u32 capacity);
 SRDescriptorIndex        SRDescriptorHeap_Vulkan_GetNextIndex(SRDescriptorHeap_Vulkan* heap);
+void                     SRDescriptorHeap_Vulkan_FreeIndex(SRDescriptorHeap_Vulkan* heap, SRDescriptorIndex index);
 void                     SRDescriptorHeap_Vulkan_Destroy(SRDescriptorHeap_Vulkan* heap);
 
 class SRDestructionHandler_Vulkan {
@@ -171,25 +173,24 @@ private:
 };
 
 struct SRBuffer_Vulkan {
-	VkBuffer buffer = VK_NULL_HANDLE;
-	VmaAllocation allocation = nullptr;
-	SRDescriptorIndex uboDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	VkBuffer buffer;
+	VmaAllocation allocation;
 };
 
 struct SRTexture_Vulkan {
-	VkImage image = VK_NULL_HANDLE;
-	VkImageView imageView = VK_NULL_HANDLE;
-	VmaAllocation allocation = nullptr;
-	SRDescriptorIndex srvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	VkImage image;
+	VkImageView imageView;
+	VmaAllocation allocation;
+	SRDescriptorIndex srvDescriptor;
 };
 
 struct SRSampler_Vulkan {
-	VkSampler sampler = VK_NULL_HANDLE;
-	SRDescriptorIndex samplerDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	VkSampler sampler;
+	SRDescriptorIndex samplerDescriptor;
 };
 
 struct SRCmdList_Vulkan {
-	VkCommandBuffer cmdBuffer = VK_NULL_HANDLE;
+	VkCommandBuffer cmdBuffer;
 };
 
 struct SRPipeline_Vulkan {

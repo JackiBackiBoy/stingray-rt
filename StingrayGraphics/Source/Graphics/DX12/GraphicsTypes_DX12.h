@@ -17,15 +17,17 @@
 struct SRDescriptorHeap_DX12 {
 	u32 count;
 	u32 capacity;
-	D3D12_DESCRIPTOR_HEAP_TYPE heapType;
 	u32 descriptorHandleSize;
+	D3D12_DESCRIPTOR_HEAP_TYPE heapType;
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptorHandleStart;
 	D3D12_GPU_DESCRIPTOR_HANDLE gpuDescriptorHandleStart;
 	ID3D12DescriptorHeap* heapObject;
+	SRVector<SRDescriptorIndex> free_list;
 };
 
 SRDescriptorHeap_DX12*      SRDescriptorHeap_DX12_Create(SRArena* arena, ID3D12Device* d3d12Device, D3D12_DESCRIPTOR_HEAP_TYPE type, u32 capacity);
 SRDescriptorIndex           SRDescriptorHeap_DX12_GetNextIndex(SRDescriptorHeap_DX12* heap);
+void                        SRDescriptorHeap_DX12_FreeIndex(SRDescriptorHeap_DX12* heap, SRDescriptorIndex index);
 D3D12_CPU_DESCRIPTOR_HANDLE SRDescriptorHeap_DX12_GetCPUHandle(SRDescriptorHeap_DX12* heap, SRDescriptorIndex index);
 D3D12_GPU_DESCRIPTOR_HANDLE SRDescriptorHeap_DX12_GetGPUHandle(SRDescriptorHeap_DX12* heap, SRDescriptorIndex index);
 SRDescriptorIndex           SRDescriptorHeap_DX12_GetIndexFromCPUHandle(SRDescriptorHeap_DX12* heap, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle);
@@ -46,18 +48,18 @@ struct SRResource_DX12 {
 };
 
 struct SRBuffer_DX12 : public SRResource_DX12 {
-	SRDescriptorIndex srvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex srvDescriptor;
 };
 
 struct SRTexture_DX12 : public SRResource_DX12 {
-	SRDescriptorIndex rtvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
-	SRDescriptorIndex srvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
-	SRDescriptorIndex dsvDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
-	SRDescriptorIndex dsvReadOnlyDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex rtvDescriptor;
+	SRDescriptorIndex srvDescriptor;
+	SRDescriptorIndex dsvDescriptor;
+	SRDescriptorIndex dsvReadOnlyDescriptor;
 };
 
 struct SRSampler_DX12 {
-	SRDescriptorIndex samplerDescriptor = SR_INVALID_DESCRIPTOR_INDEX;
+	SRDescriptorIndex samplerDescriptor;
 };
 
 struct SRCmdList_DX12 {
