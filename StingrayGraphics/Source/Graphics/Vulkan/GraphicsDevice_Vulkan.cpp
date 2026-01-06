@@ -867,8 +867,8 @@ void SRGFXVulkan_CreateDevice(SRWindow* window, SRGFXDevice* device) {
 	device->vtbl = &SRGFXDevice_Vulkan_VTable;
 
 	dev_vulkan->window = window;
-	dev_vulkan->arena_general = SRArena_Create();
-	dev_vulkan->arena_upload = SRArena_Create();
+	dev_vulkan->arena_general = SRArena_Create(Gigabytes(1));
+	dev_vulkan->arena_upload = SRArena_Create(Gigabytes(8));
 
 	SRGFXDeviceVulkan_CreateInstance(dev_vulkan);
 	SRGFXDeviceVulkan_CreateDebugMessenger(dev_vulkan);

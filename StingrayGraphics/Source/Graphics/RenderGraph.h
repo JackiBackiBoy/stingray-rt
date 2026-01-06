@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Data/ArenaAllocator.h"
 #include "Core/Types.h"
 #include "Core/EnumBitmaskOperators.h"
 #include "Graphics/GraphicsDevice.h"
@@ -11,19 +12,19 @@
 #include <unordered_map>
 #include <vector>
 
-enum class SRPassType : u8 {
+enum struct SRPassType : u8 {
 	Graphics,
 	Compute
 };
 
-enum SRAccessFlag : u8 {
+enum struct SRAccessFlag : u8 {
 	None  = 0,
 	Read  = 1 << 0,
 	Write = 1 << 1
 };
 SR_ENABLE_BITMASK_OPERATORS(SRAccessFlag);
 
-enum class SRSizeClass : u8 {
+enum struct SRSizeClass : u8 {
 	None,
 	SwapchainRelative
 };
@@ -189,3 +190,37 @@ private:
 	std::vector<std::unique_ptr<PrefabPass>> m_PrefabPasses;
 	std::unordered_map<std::string, size_t> m_PrefabPassIndexLUT;
 };
+
+// NEW
+//#define SR_MAX_PASS_INPUTS  16
+//#define SR_MAX_PASS_OUTPUTS 16
+//
+//struct SRFrameGraphInput {
+//	u32 id;
+//	SRAccessFlag access;
+//};
+//
+//struct SRFrameGraphOutput {
+//	u32 id;
+//	u32 width;
+//	u32 height;
+//	SRFormat format;
+//};
+//
+//struct SRFrameGraphPass {
+//	const char* name;
+//	u64 inputs_count;
+//	SRFrameGraphInput inputs[SR_MAX_PASS_INPUTS];
+//	u64 outputs_count;
+//	SRFrameGraphOutput outputs[SR_MAX_PASS_OUTPUTS];
+//};
+//
+//struct SRFrameGraph {
+//	SRFrameGraphPass* passes;
+//	SRArena* arena;
+//};
+//
+//SRFrameGraph*     SRFrameGraph_Create(SRArena* arena);
+//void              SRFrameGraph_Destroy(SRFrameGraph* graph);
+//SRFrameGraphPass* SRFrameGraph_CreatePass(SRFrameGraph* graph, const char* name);
+//void              SRFrameGraph_Build(SRFrameGraph* graph);

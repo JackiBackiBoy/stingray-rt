@@ -341,8 +341,8 @@ void SRGFXDX12_CreateDevice(SRWindow* window, SRGFXDevice* device) {
 	device->vtbl = &SRGFXDevice_DX12_VTable;
 
 	dev_dx12->window = window;
-	dev_dx12->arena_general = SRArena_Create();
-	dev_dx12->arena_upload = SRArena_Create();
+	dev_dx12->arena_general = SRArena_Create(Gigabytes(1));
+	dev_dx12->arena_upload = SRArena_Create(Gigabytes(1));
 
 	SRGFXDeviceDX12_CreateDebugInterface(dev_dx12);
 	SRGFXDeviceDX12_CreateDXGIDebugInterface(dev_dx12);

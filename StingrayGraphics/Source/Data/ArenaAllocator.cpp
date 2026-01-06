@@ -5,13 +5,12 @@
 
 // TODO: If we ever want Linux support, we need to use mmap here
 
-SRArena* SRArena_Create() {
+SRArena* SRArena_Create(u64 capacity) {
 	SRArena* arena = (SRArena*)malloc(sizeof(SRArena));
 	assert(arena);
 	ZeroMemory(arena, sizeof(SRArena));
 
-	SIZE_T reserve_size = 1ull << 33; // ~8 GiB of virtual address space to be reserved
-	arena->data = (u8*)VirtualAlloc(nullptr, reserve_size, MEM_RESERVE, PAGE_NOACCESS);
+	arena->data = (u8*)VirtualAlloc(nullptr, capacity, MEM_RESERVE, PAGE_NOACCESS);
 	assert(arena->data);
 	arena->allocated = arena->data;
 	arena->committed = arena->data;

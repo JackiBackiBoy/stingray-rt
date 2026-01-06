@@ -75,7 +75,7 @@ int APIENTRY wWinMain(
 		init_console();
 	#endif
 
-	g_arena = SRArena_Create();
+	g_arena = SRArena_Create(Gigabytes(8));
 
 	init_window();
 	init_graphics();

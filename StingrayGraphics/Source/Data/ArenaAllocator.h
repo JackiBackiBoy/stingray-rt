@@ -11,7 +11,7 @@ struct SRArena {
 	u8* allocated;
 };
 
-SRArena* SRArena_Create();
+SRArena* SRArena_Create(u64 capacity);
 void SRArena_Destroy(SRArena* arena);
 
 void* SRArena_Push(SRArena* arena, u64 size, u64 align);

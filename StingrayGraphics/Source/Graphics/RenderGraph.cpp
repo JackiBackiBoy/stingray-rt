@@ -457,3 +457,25 @@ SRRenderPassAttachment* SRRenderGraph::get_attachment(const std::string& name) {
 
 	return pAttachment;
 }
+
+//SRFrameGraph* SRFrameGraph_Create(SRArena* arena) {
+//	SRFrameGraph* graph = SRArena_PushStructZero(arena, SRFrameGraph);
+//	graph->arena = arena;
+//
+//	return graph;
+//}
+//
+//void SRFrameGraph_Destroy(SRFrameGraph* graph) {
+//
+//}
+//
+//SRFrameGraphPass* SRFrameGraph_CreatePass(SRFrameGraph* graph, const char* name) {
+//	SRFrameGraphPass* pass = SRArena_PushStructZero(graph->arena, SRFrameGraphPass);
+//
+//
+//	return pass;
+//}
+//
+//void SRFrameGraph_Build(SRFrameGraph* graph) {
+//
+//}
