@@ -29,6 +29,7 @@ set(DXSDK_INCLUDE_DIR              ${DEPENDENCY_DIR}/DXAgilitySDK/build/native/i
 set(DX_SHADER_COMPILER_BIN_DIR     ${DEPENDENCY_DIR}/DXShaderCompiler/bin/x64/)
 set(DX_SHADER_COMPILER_INCLUDE_DIR ${DEPENDENCY_DIR}/DXShaderCompiler/inc/)
 set(FASTGLTF_INCLUDE_DIR           ${DEPENDENCY_DIR}/FastGLTF/include/)
+set(FREETYPE_INCLUDE_DIR           ${DEPENDENCY_DIR}/FreeType/include/)
 set(GLM_INCLUDE_DIR                ${DEPENDENCY_DIR}/GLM/)
 set(IMGUI_INCLUDE_DIR              ${DEPENDENCY_DIR}/ImGui/)
 set(MESH_OPTIMIZER_INCLUDE_DIR     ${DEPENDENCY_DIR}/MeshOptimizer/src/)
@@ -278,6 +279,7 @@ target_include_directories(StingrayGraphics PRIVATE
 	${DXSDK_INCLUDE_DIR}
 	${DX_SHADER_COMPILER_INCLUDE_DIR}
 	${FASTGLTF_INCLUDE_DIR}
+	${FREETYPE_INCLUDE_DIR}
 	${GLM_INCLUDE_DIR}
 	${IMGUI_INCLUDE_DIR}
 	${IMGUI_INCLUDE_DIR}backends/
@@ -290,11 +292,11 @@ target_link_libraries(StingrayGraphics
 	PUBLIC
 	D3D12
 	D3D12MemoryAllocator
-	Dwrite.lib
 	DXGI
 	DXGUID
 	Dwmapi
 	fastgltf
+	freetype
 	meshoptimizer
 	volk::volk
 )

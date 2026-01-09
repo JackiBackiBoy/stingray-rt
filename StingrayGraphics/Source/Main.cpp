@@ -7,6 +7,7 @@
 #include "Data/ComponentTypes.h"
 #include "Data/Model.h"
 #include "Data/Scene.h"
+#include "Data/Font.h"
 #include "Graphics/FrameInfo.h"
 #include "Graphics/GraphicsDevice.h"
 #include "Graphics/RenderGraph.h"
@@ -32,38 +33,68 @@ struct alignas(256) PerFrameData {
 	glm::mat4 inv_proj;
 };
 
-// NOTE: Trick for making sure that the logger exists longer than all other objects
-global auto& logger = SRLogger::get();
+struct UIPassData {
+	SRPipeline pipeline;
+	SRShader vertex_shader;
+	SRShader pixel_shader;
 
+	struct PushConstants {
+		SRDescriptorIndex atlas_tex_index;
+	} push;
+};
+
+global SRLogger& logger = SRLogger::get(); // NOTE: Trick to ensure that logger outlives everything
 global SRArena* g_arena;
 global SRWindow* g_window;
-global SRWindow* g_test_window;
 global SRRenderGraph* g_render_graph;
 global SRShaderCompiler* g_shader_compiler;
+global SRFontLoader* g_font_loader;
 global SREditor* g_editor;
 global SRScene* g_scene;
 global SRCamera g_camera;
 global SRRenderPass* g_depth_prepass;
 global SRRenderPass* g_composition_pass;
 global SRRenderPass* g_gbuffer_pass;
+global SRRenderPass* g_ui_pass;
 global SRRenderPass* g_imgui_pass;
-global SRGFXBackend g_gfx_backend = SRGFXBackend::Vulkan;
+global SRGFXBackend g_gfx_backend = SRGFXBackend::DX12;
 global SRGFXDevice g_gfx_device;
 global SRModel g_test_model;
 global SRBuffer g_per_frame_buffers[SR_GFX_FRAMES_IN_FLIGHT];
 global PerFrameData g_per_frame_data;
 global SRSwapchain g_swapchain;
 global SRSampler g_sampler_linear;
+global SRFont g_font;
 
-internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height) {
-	SRSwapchainInfo new_swapchain_info = g_swapchain.info;
-	new_swapchain_info.width = new_width;
-	new_swapchain_info.height = new_height;
+internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
+	auto& passData = self.allocate_pass_data<UIPassData>();
+	SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Vertex, "vertex_main" }, &passData.vertex_shader);
+	SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Pixel, "pixel_main" }, &passData.pixel_shader);
 
-	SRGFX_CreateSwapchain(&g_gfx_device, g_window, &new_swapchain_info, &g_swapchain);
-	g_render_graph->notify_swapchain_resize(g_gfx_device, new_width, new_height);
+	SRPipelineInfo pipelineInfo = {
+		.vertexShader = &passData.vertex_shader,
+		.pixelShader = &passData.pixel_shader,
+		.numRenderTargets = 1,
+		.renderTargetFormats = { SRFormat::RGBA8_UNORM }
+	};
+	SRGFX_CreatePipeline(&gfxDevice, &pipelineInfo, &passData.pipeline);
+}
+internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+	auto* pass_data = self.get_pass_data<UIPassData>();
+
+	SRViewport viewport = {
+		.width = static_cast<f32>(frameInfo.width),
+		.height = static_cast<f32>(frameInfo.height),
+	};
+	pass_data->push.atlas_tex_index = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &g_font.atlas_tex);
+
+	SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
+	SRGFX_BindPipeline(&gfxDevice, &pass_data->pipeline, &cmdList);
+	SRGFX_PushConstants(&gfxDevice, &pass_data->push, sizeof(pass_data->push), &cmdList);
+	SRGFX_Draw(&gfxDevice, 6, 0, &cmdList);
 }
 
+internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height);
 internal void init_console();
 internal void init_window();
 internal void init_graphics();
@@ -73,22 +104,16 @@ internal void init_rendergraph();
 internal void update(const SRFrameInfo* frameInfo);
 internal void render(const SRFrameInfo* frameInfo);
 
-int APIENTRY wWinMain(
-	HINSTANCE hInstance,
-	HINSTANCE hPrevInstance,
-	LPWSTR lpCmdLine,
-	int nCmdShow
-) {
+int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 	#ifdef _DEBUG
 		init_console();
 	#endif
 
-	g_arena = SRArena_Create(Gigabytes(1));
+	g_arena = SRArena_Create(Megabytes(512));
 
 	init_window();
-	//g_test_window = SRWindow_Create("Stingray Text Rendering Test", 512, 512, SRWindowFlags_SizeIsClientArea);
-	//SRWindow_Show(g_test_window);
 	init_graphics();
+	g_font_loader = SRFontLoader_Create(g_arena);
 	init_resources();
 	init_scene();
 	init_rendergraph();
@@ -102,8 +127,8 @@ int APIENTRY wWinMain(
 		.camera = &g_camera,
 		.scene = g_scene,
 		.dt = 0.0f,
-		.width = (int)window_width,
-		.height = (int)window_height
+		.width = window_width,
+		.height = window_height
 	};
 
 	SRInput::initialize(g_window);
@@ -133,6 +158,7 @@ int APIENTRY wWinMain(
 	}
 	SRGFX_WaitForGPU(&g_gfx_device);
 
+	SRFontLoader_Destroy(g_font_loader);
 	SRShaderCompiler_Destroy(g_shader_compiler);
 
 	// TODO: Temporary destruction logic, we will get rid of this eventually
@@ -142,10 +168,12 @@ int APIENTRY wWinMain(
 
 	auto* depthPrepassData = g_depth_prepass->get_pass_data<DepthPrepassData>();
 	auto* gBufferPassData = g_gbuffer_pass->get_pass_data<GBufferPassData>();
+	auto* ui_pass_data = g_ui_pass->get_pass_data<UIPassData>();
 	auto* compositionPassData = g_composition_pass->get_pass_data<CompositionPassData>();
-	
+
 	SRGFX_DestroyPipeline(&g_gfx_device, &depthPrepassData->pipeline);
 	SRGFX_DestroyPipeline(&g_gfx_device, &gBufferPassData->pipeline);
+	SRGFX_DestroyPipeline(&g_gfx_device, &ui_pass_data->pipeline);
 	SRGFX_DestroyPipeline(&g_gfx_device, &compositionPassData->pipeline);
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.vertexBuffer);
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.indexBuffer);
@@ -153,17 +181,44 @@ int APIENTRY wWinMain(
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.meshletVerticesBuffer);
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.meshletTrianglesBuffer);
 	SRGFX_DestroyResource(&g_gfx_device, &g_sampler_linear);
+	SRGFX_DestroyResource(&g_gfx_device, &g_font.atlas_tex);
 	SRGFX_DestroySwapchain(&g_gfx_device, &g_swapchain);
 
 	delete g_scene;
 	delete g_editor;
 	delete g_render_graph;
 	SRWindow_Destroy(g_window);
-	//SRWindow_Destroy(g_test_window);
 	SRGFX_DestroyDevice(&g_gfx_device);
 	SRArena_Destroy(g_arena);
 
 	return 0;
+}
+
+void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height) {
+	SRSwapchainInfo new_swapchain_info = g_swapchain.info;
+	new_swapchain_info.width = new_width;
+	new_swapchain_info.height = new_height;
+
+	SRGFX_CreateSwapchain(&g_gfx_device, window, &new_swapchain_info, &g_swapchain);
+	g_render_graph->notify_swapchain_resize(g_gfx_device, new_width, new_height);
+
+	SRFrameInfo frame_info = {
+		.camera = &g_camera,
+		.scene = g_scene,
+		.dt = (f32)SRTime::get_delta_sec(),
+		.width = new_width,
+		.height = new_height
+	};
+
+	SRTime::begin_frame();
+	SRGFX_BeginFrame(&g_gfx_device, &g_swapchain);
+	frame_info.perFrameBuffer = &g_per_frame_buffers[SRGFX_GetFrameIndex(&g_gfx_device)];
+	frame_info.dt = (f32)SRTime::get_delta_sec();
+	frame_info.width = new_width;
+	frame_info.height = new_height;
+
+	update(&frame_info);
+	render(&frame_info);
 }
 
 void init_console() {
@@ -239,6 +294,8 @@ void init_resources() {
 	}
 
 	SRModelLoader::load_gltf(RES_DIR "Models/StanfordBunny/StanfordBunny.gltf", g_test_model, g_gfx_device);
+
+	SRFontLoader_LoadFontFromSystem(g_font_loader, &g_gfx_device, "SegoeUI", 64, &g_font);
 }
 
 void init_scene() {
@@ -284,6 +341,9 @@ void init_rendergraph() {
 	//	.set_execute_callback(SRMeshletGenerationpass::execute);
 	//SRMeshletGenerationpass::build(meshletPass, g_gfx_device, *g_shader_compiler);
 
+	g_ui_pass = &g_render_graph->add_render_pass("UIPass", SRPassType::Graphics)
+		.set_execute_callback(UIPass_OnExecute);
+	UIPass_Initialize(*g_ui_pass, g_gfx_device, *g_shader_compiler);
 	g_imgui_pass = &g_render_graph->add_render_pass("ImGuiPass", SRPassType::Graphics)
 		.set_execute_callback([&](SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
 			g_editor->update(*g_render_graph);

@@ -38,19 +38,19 @@ SRRenderPass& SRRenderPass::add_depth_input(const std::string& name) {
 	return *this;
 }
 
-SRRenderPass& SRRenderPass::add_color_output(const std::string& name, int width, int height, SRFormat format, int mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
+SRRenderPass& SRRenderPass::add_color_output(const std::string& name, u32 width, u32 height, SRFormat format, u32 mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	// TODO: Base mip?
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
-	attachment->width = static_cast<u32>(width);
-	attachment->height = static_cast<u32>(height);
-	attachment->mipLevels = static_cast<u32>(mipLevels);
+	attachment->width = width;
+	attachment->height = height;
+	attachment->mipLevels = mipLevels;
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
 	attachment->type = SRRenderPassAttachment::Type::RenderTarget;
 	attachment->writtenInPasses.push_back(m_Index);
 
 	attachment->subresourceStates.resize(static_cast<size_t>(mipLevels));
-	for (int i = 0; i < mipLevels; ++i) {
+	for (u32 i = 0; i < mipLevels; ++i) {
 		SRRenderPassAttachmentSubresource& subresourceState = attachment->subresourceStates[i];
 		//subresourceState.state = SRResourceState::RenderTarget;
 		subresourceState.lastBarrierAccess = SRAccessMask::None;
@@ -60,10 +60,10 @@ SRRenderPass& SRRenderPass::add_color_output(const std::string& name, int width,
 	return *this;
 }
 
-SRRenderPass& SRRenderPass::add_depth_output(const std::string& name, int width, int height, SRFormat format, float clearValue /*= 0.0f*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
+SRRenderPass& SRRenderPass::add_depth_output(const std::string& name, u32 width, u32 height, SRFormat format, f32 clearValue /*= 0.0f*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
-	attachment->width = static_cast<u32>(width);
-	attachment->height = static_cast<u32>(height);
+	attachment->width = width;
+	attachment->height = height;
 	attachment->mipLevels = 1;
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
@@ -76,10 +76,10 @@ SRRenderPass& SRRenderPass::add_depth_output(const std::string& name, int width,
 	return *this;
 }
 
-SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, int width, int height, SRFormat format, int mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
+SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, u32 width, u32 height, SRFormat format, u32 mipLevels /*= 1*/, SRSizeClass sizeClass /*= SRSizeClass::SwapchainRelative*/) {
 	SRRenderPassAttachment* attachment = m_RenderGraph.get_attachment(name);
-	attachment->width = static_cast<u32>(width);
-	attachment->height = static_cast<u32>(height);
+	attachment->width = width;
+	attachment->height = height;
 	attachment->mipLevels = mipLevels;
 	attachment->format = format;
 	attachment->sizeClass = sizeClass;
@@ -87,7 +87,7 @@ SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, int w
 	attachment->writtenInPasses.push_back(m_Index);
 
 	attachment->subresourceStates.resize(static_cast<size_t>(mipLevels));
-	for (int i = 0; i < mipLevels; ++i) {
+	for (u32 i = 0; i < mipLevels; ++i) {
 		SRRenderPassAttachmentSubresource& subresourceState = attachment->subresourceStates[i];
 		//subresourceState.state = SRResourceState::UnorderedAccess;
 		subresourceState.lastBarrierAccess = SRAccessMask::None;
@@ -399,15 +399,15 @@ void SRRenderGraph::execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain
 	}
 }
 
-void SRRenderGraph::notify_swapchain_resize(SRGFXDevice& gfxDevice, int newWidth, int newHeight) {
+void SRRenderGraph::notify_swapchain_resize(SRGFXDevice& gfxDevice, u32 new_width, u32 new_height) {
 	for (auto& attachment : m_Attachments) {
 		// TODO: Right now we assume that "swapchain relative" means that an
 		// attachment will have the EXACT dimensions as the swapchain. But
 		// we might want it to only scale with the swapchain instead.
 		if (attachment->sizeClass == SRSizeClass::SwapchainRelative) {
 			SRTextureInfo newTextureInfo = attachment->texture.info;
-			newTextureInfo.width = newWidth;
-			newTextureInfo.height = newHeight;
+			newTextureInfo.width = new_width;
+			newTextureInfo.height = new_height;
 
 			SRGFX_DestroyResource(&gfxDevice, &attachment->texture);
 			SRGFX_CreateTexture(&gfxDevice, &newTextureInfo, &attachment->texture, nullptr);

@@ -12,6 +12,10 @@ struct SRArena {
 	u8* allocated;
 };
 
+struct SRArenaMarker {
+	u8* pos;
+};
+
 SRArena* SRArena_Create(u64 capacity);
 void SRArena_Destroy(SRArena* arena);
 
@@ -25,6 +29,12 @@ void* SRArena_PushZero(SRArena* arena, u64 size, u64 align);
 #define SRArena_PushArrayZero(arena, type, count) (type*)SRArena_PushZero((arena), (count) * sizeof(type), alignof(type))
 
 void SRArena_Pop(SRArena* arena, u64 size);
+#define SRArena_PopStruct(arena, type)       SRArena_Pop((arena), sizeof(type))
+#define SRArena_PopArray(arena, type, count) SRArena_Pop((arena), (count) * sizeof(type))
+
+SRArenaMarker SRArena_GetMarker(SRArena* arena);
+void SRArena_PopToMarker(SRArena* arena, SRArenaMarker marker);
+
 void SRArena_Clear(SRArena* arena);
 
 // TODO: Move to its own TU

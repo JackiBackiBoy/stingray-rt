@@ -65,6 +65,14 @@ void SRArena_Pop(SRArena* arena, u64 size) {
 	arena->allocated -= size;
 }
 
+SRArenaMarker SRArena_GetMarker(SRArena* arena) {
+	return SRArenaMarker{ arena->allocated };
+}
+
+void SRArena_PopToMarker(SRArena* arena, SRArenaMarker marker) {
+	arena->allocated = marker.pos;
+}
+
 void SRArena_Clear(SRArena* arena) {
 	arena->allocated = arena->data;
 }

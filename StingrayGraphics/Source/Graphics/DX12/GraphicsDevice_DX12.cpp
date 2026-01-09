@@ -413,7 +413,7 @@ void SRGFXDX12_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info,
 
 	// Swapchain recreation
 	if (swapchain->internalState != nullptr) {
-		auto* internal_swapchain = to_dx12_internal(*swapchain);
+		auto* internal_swapchain = to_dx12_internal(swapchain);
 		SRGFX_WaitForGPU(device);
 
 		for (u64 i = 0; i < internal_swapchain->imageCount; ++i) {
@@ -759,7 +759,7 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuf
 
 		SRBuffer stagingBuffer;
 		SRGFXDX12_CreateBuffer(device, &stagingBufferInfo, &stagingBuffer, data);
-		auto* internalStagingBuffer = to_dx12_internal(stagingBuffer);
+		auto* internalStagingBuffer = to_dx12_internal(&stagingBuffer);
 
 		//dev->m_PendingUploadResources.push_back(internalStagingBuffer->allocation);
 		D3D12MA::Allocation** upload = SRArena_PushStructZero(dev->arena_upload, D3D12MA::Allocation*);
@@ -825,7 +825,7 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 	SRTexture_DX12* internal_texture;
 
 	if (texture->internalState) {
-		internal_texture = to_dx12_internal(*texture);
+		internal_texture = to_dx12_internal(texture);
 		assert(internal_texture->allocation == nullptr);
 	}
 	else {
@@ -844,10 +844,14 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 		.DepthOrArraySize = static_cast<UINT16>(info->depth),
 		.MipLevels = static_cast<UINT16>(info->mipLevels),
 		.Format = to_dx12_format(info->format),
-		.SampleDesc = {.Count = info->sampleCount, .Quality = 0 },
+		.SampleDesc = { .Count = info->sampleCount, .Quality = 0 },
 		.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
 		.Flags = D3D12_RESOURCE_FLAG_NONE
 	};
+	D3D12_BARRIER_LAYOUT initial_layout = D3D12_BARRIER_LAYOUT_UNDEFINED;
+	if (data && data->data) {
+		initial_layout = D3D12_BARRIER_LAYOUT_COMMON;
+	}
 
 	// Bind flags
 	if (has_flag(info->bindFlags, SRBindFlag::DepthStencil)) {
@@ -866,17 +870,105 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 	HR(dev->d3d12ma_allocator->CreateResource3(
 		&alloc_desc,
 		&resource_desc,
-		D3D12_BARRIER_LAYOUT_UNDEFINED,
+		initial_layout,
 		nullptr,
 		0,
 		nullptr,
 		&internal_texture->allocation,
 		IID_NULL, nullptr
 	));
+	// ^NOTE: D3D12MA is broken when it comes to tight alignment, since it occasionally generates internal error
+	// for some resources. I.e. ignore all reported errors stemming from this function
 
 	// TODO: Implement subresource data copying
-	if (data && data->data) {
+	u32 subres_count = info->mipLevels;
+	if (data && data->data && subres_count > 0) {
+		SRArenaMarker m = SRArena_GetMarker(dev->arena_general);
+		auto* subres_footprints = SRArena_PushArrayZero(dev->arena_general, D3D12_PLACED_SUBRESOURCE_FOOTPRINT, subres_count);
+		u32* subres_num_rows = SRArena_PushArrayZero(dev->arena_general, u32, subres_count);
+		u64* subres_row_sizes_in_bytes = SRArena_PushArrayZero(dev->arena_general, u64, subres_count);
+		u64 subres_total_size = 0;
 
+		dev->device->GetCopyableFootprints1(
+			&resource_desc,
+			0,
+			subres_count,
+			0,
+			subres_footprints,
+			subres_num_rows,
+			subres_row_sizes_in_bytes,
+			&subres_total_size
+		);
+
+		// Staging buffer
+		SRBufferInfo staging_buffer_info = {
+			.size = subres_total_size,
+			.usage = SRUsage::Upload,
+		};
+
+		SRBuffer staging_buffer;
+		SRGFXDX12_CreateBuffer(device, &staging_buffer_info, &staging_buffer, data->data);
+		auto* internal_staging_buffer = to_dx12_internal(&staging_buffer);
+
+		D3D12MA::Allocation** upload = SRArena_PushStructZero(dev->arena_upload, D3D12MA::Allocation*);
+		*upload = internal_staging_buffer->allocation;
+
+		// Copy staging buffer into target buffer
+		if (!dev->is_upload_cmd_list_recording) {
+			HR(dev->upload_cmd_allocator->Reset());
+			HR(dev->upload_cmd_list->Reset(dev->upload_cmd_allocator, nullptr));
+
+			dev->is_upload_cmd_list_recording = true;
+		}
+
+		// TODO: Get this working for multiple subresources, right now only single-mip works
+		for (u32 i = 0; i < subres_count; ++i) {
+			auto* footprint = &subres_footprints[i];
+			u32 num_rows = subres_num_rows[i];
+			u64 row_size_in_bytes = subres_row_sizes_in_bytes[i];
+
+			D3D12_SUBRESOURCE_DATA src_data = {
+				.pData = data->data,
+				.RowPitch = (LONG_PTR)data->rowPitch,
+				.SlicePitch = (LONG_PTR)data->slicePitch
+			};
+			D3D12_MEMCPY_DEST dst_data = {
+				.pData = (void*)((u64)staging_buffer.mappedData + footprint->Offset),
+				.RowPitch = (SIZE_T)footprint->Footprint.RowPitch,
+				.SlicePitch = (SIZE_T)footprint->Footprint.RowPitch * (SIZE_T)num_rows
+			};
+
+			for (UINT z = 0; z < footprint->Footprint.Depth; ++z) {
+				auto* dst_slice = (u8*)dst_data.pData + dst_data.SlicePitch * z;
+				auto* src_slice = (u8*)src_data.pData + src_data.SlicePitch * (LONG_PTR)z;
+
+				for (UINT y = 0; y < num_rows; ++y) {
+					memcpy(dst_slice + dst_data.RowPitch * y, src_slice + src_data.RowPitch * (LONG_PTR)y, row_size_in_bytes);
+				}
+			}
+
+			D3D12_TEXTURE_COPY_LOCATION src = {
+				.pResource = internal_staging_buffer->allocation->GetResource(),
+				.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+				.PlacedFootprint = *footprint, // TODO: If we ever want a ring buffer, we will have to also change the offset
+			};
+			D3D12_TEXTURE_COPY_LOCATION dst = {
+				.pResource = internal_texture->allocation->GetResource(),
+				.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+				.SubresourceIndex = static_cast<UINT>(i)
+			};
+
+			dev->upload_cmd_list->CopyTextureRegion(
+				&dst,
+				0U,
+				0U,
+				0U,
+				&src,
+				nullptr
+			);
+		}
+
+		SRArena_PopToMarker(dev->arena_general, m);
 	}
 
 	// RTV Descriptor
@@ -1015,7 +1107,7 @@ void SRGFXDX12_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRS
 }
 
 void SRGFXDX12_DestroySwapchain(SRGFXDevice* device, SRSwapchain* swapchain) {
-	auto* internalSwapchain = to_dx12_internal(*swapchain);
+	auto* internalSwapchain = to_dx12_internal(swapchain);
 
 	internalSwapchain->swapchain->Release();
 	for (u64 i = 0; i < internalSwapchain->imageCount; ++i) {
@@ -1026,7 +1118,7 @@ void SRGFXDX12_DestroySwapchain(SRGFXDevice* device, SRSwapchain* swapchain) {
 }
 
 void SRGFXDX12_DestroyPipeline(SRGFXDevice* device, SRPipeline* pipeline) {
-	auto* internalPipeline = to_dx12_internal(*pipeline);
+	auto* internalPipeline = to_dx12_internal(pipeline);
 
 	internalPipeline->pipeline->Release();
 	internalPipeline->rootSignature->Release();
@@ -1077,7 +1169,7 @@ void SRGFXDX12_DestroyResource(SRGFXDevice* device, SRResource* resource) {
 }
 
 void SRGFXDX12_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, const SRCmdList* cmdList) {
-	auto* internalPipeline = to_dx12_internal(*pipeline);
+	auto* internalPipeline = to_dx12_internal(pipeline);
 	auto* internalCmdList = to_dx12_internal(*cmdList);
 
 	internalCmdList->graphicsCmdList->SetPipelineState(internalPipeline->pipeline);
@@ -1101,7 +1193,7 @@ void SRGFXDX12_BindViewport(SRGFXDevice* device, const SRViewport* viewport, con
 
 void SRGFXDX12_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::VertexBuffer));
-	auto* internalBuffer = to_dx12_internal(*buffer);
+	auto* internalBuffer = to_dx12_internal(buffer);
 	auto* internalCmdList = to_dx12_internal(*cmdList);
 
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {
@@ -1115,7 +1207,7 @@ void SRGFXDX12_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, con
 
 void SRGFXDX12_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::IndexBuffer));
-	auto* internalBuffer = to_dx12_internal(*buffer);
+	auto* internalBuffer = to_dx12_internal(buffer);
 	auto* internalCmdList = to_dx12_internal(*cmdList);
 
 	D3D12_INDEX_BUFFER_VIEW indexBufferView = {
@@ -1129,7 +1221,7 @@ void SRGFXDX12_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, cons
 
 void SRGFXDX12_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::ConstantBuffer));
-	auto* internalBuffer = to_dx12_internal(*buffer);
+	auto* internalBuffer = to_dx12_internal(buffer);
 	auto* internalCmdList = to_dx12_internal(*cmdList);
 
 	internalCmdList->graphicsCmdList->SetGraphicsRootConstantBufferView(
@@ -1142,12 +1234,7 @@ void SRGFXDX12_PushConstants(SRGFXDevice* device, const void* data, u32 size, co
 	auto* internalCmdList = to_dx12_internal(*cmdList);
 	assert(size <= 128);
 
-	internalCmdList->graphicsCmdList->SetGraphicsRoot32BitConstants(
-		0,
-		size >> 2,
-		data,
-		0
-	);
+	internalCmdList->graphicsCmdList->SetGraphicsRoot32BitConstants(0, size >> 2, data, 0);
 }
 
 void SRGFXDX12_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, const SRCmdList* cmdList) {
@@ -1162,7 +1249,7 @@ void SRGFXDX12_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBa
 
 	for (u32 i = 0; i < numBarriers; ++i) {
 		const SRBarrier* barrier = &barriers[i];
-		auto* internalTexture = to_dx12_internal(*barrier->image.texture);
+		auto* internalTexture = to_dx12_internal(barrier->image.texture);
 
 		D3D12_TEXTURE_BARRIER dx12Barrier = {
 			.SyncBefore = to_dx12_pipeline_stage(barrier->image.syncBefore),
@@ -1202,7 +1289,7 @@ void SRGFXDX12_BeginFrame(SRGFXDevice* device, const SRSwapchain* swapchain) {
 		}
 	}
 
-	auto* internalSwapchain = to_dx12_internal(*swapchain);
+	auto* internalSwapchain = to_dx12_internal(swapchain);
 	dev->image_index = internalSwapchain->swapchain->GetCurrentBackBufferIndex();
 }
 
@@ -1241,7 +1328,7 @@ SRCmdList SRGFXDX12_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 
 void SRGFXDX12_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, const SRCmdList* cmdList) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internalSwapchain = to_dx12_internal(*swapchain);
+	auto* internalSwapchain = to_dx12_internal(swapchain);
 	auto* internalCmdList = to_dx12_internal(*cmdList);
 
 	// NOTE: Stingray always assumes that the swapchain will never be cleared,
@@ -1299,7 +1386,7 @@ void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, 
 
 	for (u32 i = 0; i < passInfo->numColorAttachments; ++i) {
 		const SRPassInfo::Attachment* attachment = &passInfo->colorAttachments[i];
-		auto* internalTexture = to_dx12_internal(*attachment->texture);
+		auto* internalTexture = to_dx12_internal(attachment->texture);
 		assert(internalTexture);
 
 		D3D12_RENDER_PASS_RENDER_TARGET_DESC rtvDesc = {
@@ -1327,7 +1414,7 @@ void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, 
 	bool isReadOnlyDepth = false;
 	if (hasDepthAttachment) {
 		const SRPassInfo::Attachment& depthAttachment = passInfo->depthAttachment;
-		auto internalTexture = to_dx12_internal(*depthAttachment.texture);
+		auto internalTexture = to_dx12_internal(depthAttachment.texture);
 		assert(internalTexture);
 
 		if (depthAttachment.loadOp == SRLoadOp::Clear) {
@@ -1370,7 +1457,7 @@ void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, 
 
 void SRGFXDX12_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, const SRCmdList* cmdList) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internalSwapchain = to_dx12_internal(*swapchain);
+	auto* internalSwapchain = to_dx12_internal(swapchain);
 	auto* internalCmdList = to_dx12_internal(*cmdList);
 	internalCmdList->graphicsCmdList->EndRenderPass();
 
@@ -1394,7 +1481,7 @@ void SRGFXDX12_EndRenderPass(SRGFXDevice* device, const SRCmdList* cmdList) {
 
 void SRGFXDX12_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapchain) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internalSwapchain = to_dx12_internal(*swapchain);
+	auto* internalSwapchain = to_dx12_internal(swapchain);
 
 	dev->cmd_lists[SRQueue_Universal][dev->frame_index].graphicsCmdList->Close();
 	ID3D12CommandList* cmd_lists[] = {
@@ -1459,12 +1546,14 @@ void SRGFXDX12_WaitForGPU(SRGFXDevice* device) {
 
 	// TODO: Right now we only use universal queue, remember that when we add
 	// dedicated compute/copy queue we also need to Signal those here.
-	u64 target = ++dev->frame_counter;
-	HR(dev->cmd_queues[SRQueue_Universal]->Signal(dev->frame_fences[SRQueue_Universal], target));
+	ID3D12Fence* tempFence;
+	HR(dev->device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&tempFence)));
+	HR(dev->cmd_queues[SRQueue_Universal]->Signal(tempFence, 1));
 
-	if (dev->frame_fences[SRQueue_Universal]->GetCompletedValue() < target) {
-		HR(dev->frame_fences[SRQueue_Universal]->SetEventOnCompletion(target, nullptr));
+	if (tempFence->GetCompletedValue() < 1) {
+		HR(tempFence->SetEventOnCompletion(1, nullptr));
 	}
+	tempFence->Release();
 }
 
 void SRGFXDX12_FlushInitialUploads(SRGFXDevice* device) {
@@ -1529,7 +1618,7 @@ void SRGFXDX12_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat)
 
 		// NOTE: CPU and GPU handle are related, freeing CPU also frees GPU
 		SRDescriptorIndex index = SRDescriptorHeap_DX12_GetIndexFromCPUHandle(heap, cpu_handle);
-		//descriptorHeap->free_index(descriptorIndex);
+		SRDescriptorHeap_DX12_FreeIndex(heap, index);
 	};
 
 	ImGui_ImplDX12_Init(&init_info);

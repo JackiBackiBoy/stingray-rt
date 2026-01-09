@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-enum class SRLoggerLevel : u8 {
+enum struct SRLoggerLevel : u8 {
 	Trace,
 	Debug,
 	Info,

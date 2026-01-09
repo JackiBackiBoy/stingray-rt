@@ -44,7 +44,7 @@ void SRDestructionHandler_DX12_Enqueue(SRDestructionHandler_DX12* handler, IUnkn
 void SRDestructionHandler_DX12_Destroy(SRDestructionHandler_DX12* handler);
 
 struct SRResource_DX12 {
-	D3D12MA::Allocation* allocation = nullptr;
+	D3D12MA::Allocation* allocation;
 };
 
 struct SRBuffer_DX12 : public SRResource_DX12 {
@@ -79,24 +79,24 @@ struct SRSwapchain_DX12 {
 };
 
 // ---------------------------- Converter Functions ----------------------------
-inline SRBuffer_DX12* to_dx12_internal(const SRBuffer& buffer) {
-	return (SRBuffer_DX12*)buffer.internalState;
+inline SRBuffer_DX12* to_dx12_internal(const SRBuffer* buffer) {
+	return (SRBuffer_DX12*)buffer->internalState;
 }
 
-inline SRTexture_DX12* to_dx12_internal(const SRTexture& texture) {
-	return (SRTexture_DX12*)texture.internalState;
+inline SRTexture_DX12* to_dx12_internal(const SRTexture* texture) {
+	return (SRTexture_DX12*)texture->internalState;
 }
 
 inline SRCmdList_DX12* to_dx12_internal(const SRCmdList& cmdList) {
 	return (SRCmdList_DX12*)cmdList.internalState;
 }
 
-inline SRPipeline_DX12* to_dx12_internal(const SRPipeline& pipeline) {
-	return (SRPipeline_DX12*)pipeline.internalState;
+inline SRPipeline_DX12* to_dx12_internal(const SRPipeline* pipeline) {
+	return (SRPipeline_DX12*)pipeline->internalState;
 }
 
-inline SRSwapchain_DX12* to_dx12_internal(const SRSwapchain& swapchain) {
-	return (SRSwapchain_DX12*)swapchain.internalState;
+inline SRSwapchain_DX12* to_dx12_internal(const SRSwapchain* swapchain) {
+	return (SRSwapchain_DX12*)swapchain->internalState;
 }
 
 inline constexpr D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE to_dx12_load_op(SRLoadOp value) {

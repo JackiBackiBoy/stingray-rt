@@ -3,10 +3,10 @@
 #include "Core/Types.h"
 #include "Core/EnumBitmaskOperators.h"
 
-#define SR_MAX_SWAPCHAIN_IMAGES 3
+#define SR_MAX_SWAPCHAIN_IMAGES     3
+#define SR_INVALID_DESCRIPTOR_INDEX 0
 
 typedef u32 SRDescriptorIndex;
-inline constexpr SRDescriptorIndex SR_INVALID_DESCRIPTOR_INDEX = 0;
 
 enum struct SRGFXBackend {
 	DX12,
@@ -20,7 +20,7 @@ enum SRQueue : u8 {
 	SRQueue_COUNT
 };
 
-enum class SRPipelineStage : u16 {
+enum struct SRPipelineStage : u16 {
 	None          = 0,
 	AllCommands   = 1 << 0,
 	Draw          = 1 << 1,
@@ -34,7 +34,7 @@ enum class SRPipelineStage : u16 {
 	Copy          = 1 << 9,
 };
 
-enum class SRAccessMask : u16 {
+enum struct SRAccessMask : u16 {
 	None              = 0,
 	VertexBuffer      = 1 << 0,
 	ConstantBuffer    = 1 << 1,
@@ -48,7 +48,7 @@ enum class SRAccessMask : u16 {
 	CopySrc           = 1 << 9
 };
 
-enum class SRBindFlag : u8 {
+enum struct SRBindFlag : u8 {
 	None            = 0,
 	VertexBuffer    = 1 << 0,
 	IndexBuffer     = 1 << 1,
@@ -60,7 +60,7 @@ enum class SRBindFlag : u8 {
 	ShadingRate     = 1 << 7 // NOTE: Not supported right now
 };
 
-enum class SRMiscFlag : u8 {
+enum struct SRMiscFlag : u8 {
 	None              = 0,
 	StructuredBuffer  = 1 << 0,
 	ByteAddressBuffer = 1 << 1,
@@ -74,7 +74,7 @@ SR_ENABLE_BITMASK_OPERATORS(SRAccessMask);
 SR_ENABLE_BITMASK_OPERATORS(SRBindFlag);
 SR_ENABLE_BITMASK_OPERATORS(SRMiscFlag);
 
-enum class SRBlend : u8 {
+enum struct SRBlend : u8 {
 	Zero,
 	One,
 	SrcColor,
@@ -94,7 +94,7 @@ enum class SRBlend : u8 {
 	InvSrc1Alpha
 };
 
-enum class SRBlendOp : u8 {
+enum struct SRBlendOp : u8 {
 	Add,
 	Subtract,
 	RevSubtract,
@@ -102,13 +102,13 @@ enum class SRBlendOp : u8 {
 	Max
 };
 
-enum class SRBorderColor : u8 {
+enum struct SRBorderColor : u8 {
 	TransparentBlack,
 	OpaqueBlack,
 	OpaqueWhite
 };
 
-enum class SRComparisonFunc : u8 {
+enum struct SRComparisonFunc : u8 {
 	Never,
 	Less,
 	Equal,
@@ -119,23 +119,23 @@ enum class SRComparisonFunc : u8 {
 	Always
 };
 
-enum class SRCullMode : u8 {
+enum struct SRCullMode : u8 {
 	None,
 	Front,
 	Back
 };
 
-enum class SRDepthWriteMask : u8 {
+enum struct SRDepthWriteMask : u8 {
 	Zero, // Disables depth write
 	All // Enables depth write
 };
 
-enum class SRFillMode : u8 {
+enum struct SRFillMode : u8 {
 	Wireframe,
 	Solid
 };
 
-enum class SRFilter : u8 {
+enum struct SRFilter : u8 {
 	MinMagMipPoint,
 	MinMagPointMipLinear,
 	MinPointMagLinearMipPoint,
@@ -174,7 +174,7 @@ enum class SRFilter : u8 {
 	MaximumAnisotropic
 };
 
-enum class SRFormat : u8 {
+enum struct SRFormat : u8 {
 	Unknown,
 
 	RGBA32_FLOAT,
@@ -252,12 +252,12 @@ enum class SRFormat : u8 {
 	NV12				// video YUV420; SRV Luminance aspect: R8_UNORM, SRV Chrominance aspect: R8G8_UNORM
 };
 
-enum class SRInputClass : u8 {
+enum struct SRInputClass : u8 {
 	PerVertex,
 	PerInstance,
 };
 
-enum class SRResourceState : u8 {
+enum struct SRResourceState : u8 {
 	Undefined       = 0,
 	ShaderResource  = 1 << 0,
 	UnorderedAccess = 1 << 1,
@@ -268,27 +268,27 @@ enum class SRResourceState : u8 {
 	CopyDst         = 1 << 6,
 };
 
-enum class SRResourceType : u8 {
+enum struct SRResourceType : u8 {
 	Unknown,
 	Buffer,
 	Texture,
 	Sampler
 };
 
-enum class SRLoadOp : u8 {
+enum struct SRLoadOp : u8 {
 	None,
 	Load,
 	Clear,
 	DontCare
 };
 
-enum class SRStoreOp : u8 {
+enum struct SRStoreOp : u8 {
 	None,
 	Store,
 	DontCare
 };
 
-enum class SRShaderStage : u8 {
+enum struct SRShaderStage : u8 {
 	Vertex,
 	Pixel,
 	Compute,
@@ -296,12 +296,12 @@ enum class SRShaderStage : u8 {
 	Mesh
 };
 
-enum class SRShaderCompileTarget : u8 {
+enum struct SRShaderCompileTarget : u8 {
 	SPIRV,
 	DXIL,
 };
 
-enum class SRTextureAddressMode : u8 {
+enum struct SRTextureAddressMode : u8 {
 	Wrap,
 	Mirror,
 	Clamp,
@@ -309,13 +309,13 @@ enum class SRTextureAddressMode : u8 {
 	MirrorOnce
 };
 
-enum class SRUsage : u8 {
+enum struct SRUsage : u8 {
 	Default, // CPU no access, GPU read/write
 	Upload,  // CPU write, GPU read
 	Copy     // Copy from GPU to CPU
 };
 
-enum class SRBarrierType : u8 {
+enum struct SRBarrierType : u8 {
 	UAV,
 	Image,
 	Buffer

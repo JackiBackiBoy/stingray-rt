@@ -28,8 +28,10 @@ set(FREETYPE_INCLUDE_DIR ${DEPENDENCY_DIR}/FreeType/include/)
 set(GLM_INCLUDE_DIR ${DEPENDENCY_DIR}/GLM/)
 
 # 1. FreeType
+set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 add_subdirectory(Dependencies/FreeType)
 set_property(TARGET freetype PROPERTY FOLDER "Dependencies")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # 2. Volk
 set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)

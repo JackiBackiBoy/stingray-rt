@@ -59,10 +59,10 @@ struct SRRenderPassAttachment {
 	u32 width = 0;
 	u32 height = 0;
 	u32 mipLevels = 1;
-	float depthClearValue = 0.0f; // NOTE: Only used for depth attachment
+	f32 depthClearValue = 0.0f; // NOTE: Only used for depth attachment
 	SRFormat format = SRFormat::Unknown;
 	SRSizeClass sizeClass = SRSizeClass::SwapchainRelative;
-	enum class Type : u8 {
+	enum struct Type : u8 {
 		RenderTarget,
 		DepthStencil,
 		ReadWriteTexture
@@ -119,9 +119,9 @@ public:
 
 	// ------------------------------ Outputs ------------------------------
 	// TODO: Use an AttachmentInfo struct instead of this long signature
-	SRRenderPass& add_color_output(const std::string& name, int width, int height, SRFormat format, int mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
-	SRRenderPass& add_depth_output(const std::string& name, int width, int height, SRFormat format, float clearValue = 0.0f, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
-	SRRenderPass& add_rw_texture_output(const std::string& name, int width, int height, SRFormat format, int mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
+	SRRenderPass& add_color_output(const std::string& name, u32 width, u32 height, SRFormat format, u32 mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
+	SRRenderPass& add_depth_output(const std::string& name, u32 width, u32 height, SRFormat format, f32 clearValue = 0.0f, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
+	SRRenderPass& add_rw_texture_output(const std::string& name, u32 width, u32 height, SRFormat format, u32 mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
 	SRRenderPass& set_execute_callback(std::function<void(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> callback);
 
 	// --------------------------- Miscellaneous ---------------------------
@@ -166,7 +166,7 @@ public:
 
 	void build(SRGFXDevice& gfxDevice);
 	void execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
-	void notify_swapchain_resize(SRGFXDevice& gfxDevice, int newWidth, int newHeight);
+	void notify_swapchain_resize(SRGFXDevice& gfxDevice, u32 new_width, u32 new_height);
 
 	SRRenderPassAttachment* get_attachment(const std::string& name);
 	// TODO: Improve this garbage

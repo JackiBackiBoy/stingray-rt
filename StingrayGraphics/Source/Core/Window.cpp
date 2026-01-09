@@ -60,6 +60,14 @@ internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 			if (window->on_resize_callback) {
 				window->on_resize_callback(window, window->client_width, window->client_height);
 			}
+	}
+		break;
+	case WM_GETMINMAXINFO:
+		{
+			MINMAXINFO* mmi = (MINMAXINFO*)lParam;
+			mmi->ptMinTrackSize.x = 800;
+			mmi->ptMinTrackSize.y = 400;
+			return 0;
 		}
 		break;
 	}
@@ -77,7 +85,7 @@ internal void SRWindowWin32_RegisterClassOnce() {
 
 	WNDCLASSEX window_class = {
 		.cbSize = sizeof(WNDCLASSEX),
-		.style = CS_OWNDC,
+		.style = CS_OWNDC | CS_DBLCLKS,
 		.lpfnWndProc = SRWindowWin32_WindowProc,
 		.hInstance = instance,
 		.hIcon = icon,
@@ -130,7 +138,7 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 	}
 
 	window->handle = CreateWindowEx(
-		WS_EX_APPWINDOW,
+		WS_EX_APPWINDOW | WS_EX_NOREDIRECTIONBITMAP,
 		L"SRWindowWin32Class",
 		wide_name,
 		window_styles,
