@@ -486,7 +486,6 @@ internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfxDevice) {
 
 void UIPass_DrawText(SRRenderPass& self, Str8 str) {
 	auto* pass_data = self.get_pass_data<UIPassData>();
-
 	f32 text_pos_x = 300;
 	f32 text_pos_y = 20;
 	SRDescriptorIndex tex_index = SRGFX_GetDescriptorIndexSRV(&g_gfx_device, &g_font.atlas_tex);
@@ -497,10 +496,10 @@ void UIPass_DrawText(SRRenderPass& self, Str8 str) {
 
 		if (c == ' ') {
 			text_pos_x += glyph->advance_x;
+			continue;
 		}
 
-		// TODO: perhaps we don't need to store bearingX??
-		UIDrawInstance draw_instance = {
+		UIDrawInstance draw_instance = { // TODO: perhaps we don't need to store bearingX??
 			.pos = { text_pos_x + (f32)glyph->bearing_x, text_pos_y + (f32)g_font.bbox_ymax - (f32)glyph->bearing_y },
 			.size = { glyph->width, glyph->height },
 			.texcoord_tl = glyph->atlas_tex_coord_tl,
@@ -509,7 +508,6 @@ void UIPass_DrawText(SRRenderPass& self, Str8 str) {
 			.tex_index = tex_index
 		};
 		SRVector_PushBack(&pass_data->draw_instances_data, draw_instance);
-
 		text_pos_x += glyph->advance_x;
 	}
 }

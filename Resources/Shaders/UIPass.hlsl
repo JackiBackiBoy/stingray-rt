@@ -12,8 +12,8 @@ struct UIDrawInstance {
 struct VSOutput {
 	float4 position : SV_POSITION;
 	float2 texcoord : TEXCOORD0;
-	float3 color    : COLOR;
-	uint tex_index  : TEXINDEX;
+	nointerpolation float3 color    : COLOR;
+	nointerpolation uint tex_index : TEXINDEX;
 };
 
 struct PSOutput {
@@ -28,28 +28,24 @@ struct PushConstants {
 
 SR_PUSH_CONSTANT(PushConstants, g_Push);
 
-static const float2 g_Vertices[4] = {
-    float2(0.0f, 0.0f), // top left
-    float2(1.0f, 0.0f), // top right
-    float2(1.0f, 1.0f), // bottom right
-    float2(0.0f, 1.0f) // bottom left
-};
-
-static const uint g_Indices[6] = {
-    0, 1, 2, 2, 3, 0
-};
-
 VSOutput vertex_main(uint VertexID : SV_VertexID, uint InstanceID : SV_InstanceID) {
 	StructuredBuffer<UIDrawInstance> draw_instance_buffer = ResourceDescriptorHeap[g_Push.draw_intance_buffer_index];
 	UIDrawInstance draw_instance = draw_instance_buffer[InstanceID];
-	uint vertex_index = g_Indices[VertexID];
+
+	// TRICK: Bitwise trick to get corner offsets without vertex/index storage
+    // X pattern: 0, 1, 1, 1, 0, 0 -> binary 001110 (0x0E)
+    // Y pattern: 0, 0, 1, 1, 1, 0 -> binary 011100 (0x1C)
+	float2 corner = float2(
+		(float)((0x0EU >> VertexID) & 1U),
+		(float)((0x1CU >> VertexID) & 1U)
+	);
 
 	VSOutput output;
-	output.position = float4(draw_instance.pos + g_Vertices[vertex_index] * draw_instance.size, 0.0f, 1.0f);
+	output.position = float4(draw_instance.pos + corner * draw_instance.size, 0.0f, 1.0f);
 	output.position.x = (output.position.x * g_Push.inv_screen_width) * 2.0f - 1.0f;
 	output.position.y = (output.position.y * g_Push.inv_screen_height) * 2.0f - 1.0f;
 	output.position.y = -output.position.y;
-	output.texcoord = draw_instance.texcoord_tl + g_Vertices[vertex_index] * (draw_instance.texcoord_br - draw_instance.texcoord_tl);
+	output.texcoord = draw_instance.texcoord_tl + corner * (draw_instance.texcoord_br - draw_instance.texcoord_tl);
 	output.tex_index = draw_instance.tex_index;
 	output.color = draw_instance.color;
 

@@ -14,7 +14,7 @@
 #include FT_FREETYPE_H
 
 #define HR(hr) do { HRESULT _hr = (hr); assert(SUCCEEDED(_hr)); } while (0)
-#define FT_CHECK(err) do { assert(!err); } while (0)
+#define FT_CHECK(err) do { FT_Error _err = (err); assert(!_err); } while (0)
 
 struct SRFontLoader {
 	
@@ -31,7 +31,7 @@ void SRFontLoader_Destroy(SRFontLoader* font_loader) {
 void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx_device, const char* name, u32 size, SRFont* font) {
 	SRArena* arena = SRArena_Create(Kilobytes(1)); // TODO: Move arena
 
-	FT_Library ft_library;
+	FT_Library ft_library = nullptr;
 	FT_CHECK(FT_Init_FreeType(&ft_library));
 
 	Str16 wide_font_dir = {};
@@ -44,7 +44,7 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 	Str8 font_path = Str8_Concat(arena, font_dir, font_name);
 	font_path = Str8_Concat(arena, font_path, Str8_Literal(".ttf"));
 
-	FT_Face ft_face;
+	FT_Face ft_face = nullptr;
 	FT_CHECK(FT_New_Face(ft_library, (char*)font_path.data, 0, &ft_face));
 
 	FT_Set_Pixel_Sizes(ft_face, 0, size);
@@ -72,11 +72,13 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 			FT_Bitmap* bmp = &ft_face->glyph->bitmap;
 
 			if (c == ' ') {
-				glyph->advance_x = ft_face->glyph->advance.x >> 6;
+				*glyph = {
+					.advance_x = (u32)ft_face->glyph->advance.x >> 6
+				};
 				continue;
 			}
 
-			// TODO: Use glyph metrics instead for bearing
+			// TODO: Use glyph metrics instead
 			glyph->width = bmp->width;
 			glyph->height = bmp->rows;
 			glyph->bearing_x = ft_face->glyph->bitmap_left;
