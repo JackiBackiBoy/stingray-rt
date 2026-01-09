@@ -101,6 +101,11 @@ void SRGFX_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRCmdList
 void SRGFX_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList* cmdList) {
 	device->vtbl->draw_indexed(device, idxCount, startIdx, baseVtx, cmdList);
 }
+
+void SRGFX_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, const SRCmdList* cmd_list) {
+	device->vtbl->draw_instanced(device, vtx_count, inst_count, start_vtx, start_inst, cmd_list);
+}
+
 void SRGFX_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdList* cmdList) {
 	device->vtbl->dispatch_mesh(device, x, y, z, cmdList);
 }

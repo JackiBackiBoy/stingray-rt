@@ -68,6 +68,7 @@ internal SRGFXDeviceVTable SRGFXDevice_Vulkan_VTable = {
 	.submit_command_lists        = SRGFXVulkan_SubmitCommandLists,
 	.draw                        = SRGFXVulkan_Draw,
 	.draw_indexed                = SRGFXVulkan_DrawIndexed,
+	.draw_instanced              = SRGFXVulkan_DrawInstanced,
 	.dispatch_mesh               = SRGFXVulkan_DispatchMesh,
 	.get_descriptor_index_srv    = SRGFXVulkan_GetDescriptorIndexSRV,
 	.get_shader_compile_target   = SRGFXVulkan_GetShaderCompileTarget,
@@ -2338,6 +2339,11 @@ void SRGFXVulkan_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRC
 void SRGFXVulkan_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList* cmdList) {
 	auto* internalCmdList = to_vk_internal(*cmdList);
 	vkCmdDrawIndexed(internalCmdList->cmdBuffer, idxCount, 1, startIdx, baseVtx, 0);
+}
+
+void SRGFXVulkan_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, const SRCmdList* cmd_list) {
+	auto* internal_cmd_list = to_vk_internal(*cmd_list);
+	vkCmdDraw(internal_cmd_list->cmdBuffer, vtx_count, inst_count, start_vtx, start_inst);
 }
 
 void SRGFXVulkan_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdList* cmdList) {

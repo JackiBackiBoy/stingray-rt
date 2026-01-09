@@ -22,7 +22,6 @@ struct SRWindow {
 
 global bool g_is_window_class_registered = false;
 
-// -------------------------- Impl Method Definitions --------------------------
 internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam)) {
 		return true;
@@ -38,9 +37,16 @@ internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 
 		SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)window);
 		window->handle = hwnd;
+
+		DefWindowProc(hwnd, msg, wParam, lParam);
+		return TRUE;
 	}
 
 	SRWindow* window = (SRWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+	
+	if (!window) {
+		return DefWindowProc(hwnd, msg, wParam, lParam);
+	}
 
 	switch (msg) {
 	case WM_ERASEBKGND:
@@ -53,6 +59,10 @@ internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 		return 0;
 	case WM_SIZE:
 		{
+			if (wParam == SIZE_MINIMIZED) {
+				return 0;
+			}
+
 			// TODO: Handle the edge case of window being minimized
 			window->client_width = LOWORD(lParam);
 			window->client_height = HIWORD(lParam);
@@ -60,16 +70,16 @@ internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 			if (window->on_resize_callback) {
 				window->on_resize_callback(window, window->client_width, window->client_height);
 			}
-	}
-		break;
+
+		}
+		return 0;
 	case WM_GETMINMAXINFO:
 		{
 			MINMAXINFO* mmi = (MINMAXINFO*)lParam;
 			mmi->ptMinTrackSize.x = 800;
 			mmi->ptMinTrackSize.y = 400;
-			return 0;
 		}
-		break;
+		return 0;
 	}
 
 	return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -106,8 +116,6 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 	// TODO: We might eventually want multiple windows, and as such it
 	// does not make sense to create a new window class for each window.
 	// Instead we should move this logic elsewhere.
-	
-
 	BOOL has_menu = FALSE;
 	int window_styles = WS_OVERLAPPEDWINDOW;
 	int window_width = width;
@@ -138,7 +146,7 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 	}
 
 	window->handle = CreateWindowEx(
-		WS_EX_APPWINDOW | WS_EX_NOREDIRECTIONBITMAP,
+		WS_EX_NOREDIRECTIONBITMAP,
 		L"SRWindowWin32Class",
 		wide_name,
 		window_styles,

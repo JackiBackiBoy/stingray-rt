@@ -27,6 +27,7 @@ struct SRFont {
 	u32 line_spacing;
 	SRFontGlyph glyphs[128];
 	SRTexture atlas_tex;
+	u32 bbox_ymax;
 };
 
 struct SRFontLoader;

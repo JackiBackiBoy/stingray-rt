@@ -51,6 +51,7 @@ internal SRGFXDeviceVTable SRGFXDevice_DX12_VTable = {
 	.submit_command_lists        = SRGFXDX12_SubmitCommandLists,
 	.draw                        = SRGFXDX12_Draw,
 	.draw_indexed                = SRGFXDX12_DrawIndexed,
+	.draw_instanced              = SRGFXDX12_DrawInstanced,
 	.dispatch_mesh               = SRGFXDX12_DispatchMesh,
 	.get_descriptor_index_srv    = SRGFXDX12_GetDescriptorIndexSRV,
 	.get_shader_compile_target   = SRGFXDX12_GetShaderCompileTarget,
@@ -1515,6 +1516,16 @@ void SRGFXDX12_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 
 		startIdx,
 		baseVtx,
 		0
+	);
+}
+
+void SRGFXDX12_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, const SRCmdList* cmd_list) {
+	auto* internal_cmd_list = to_dx12_internal(*cmd_list);
+	internal_cmd_list->graphicsCmdList->DrawInstanced(
+		vtx_count,
+		inst_count,
+		start_vtx,
+		start_inst
 	);
 }
 

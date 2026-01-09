@@ -34,6 +34,7 @@ typedef void (*SRGFX_EndRenderPassFunc)(SRGFXDevice*, const SRCmdList*);
 typedef void (*SRGFX_SubmitCommandListsFunc)(SRGFXDevice*, const SRSwapchain*);
 typedef void (*SRGFX_DrawFunc)(SRGFXDevice*, u32, u32, const SRCmdList*);
 typedef void (*SRGFX_DrawIndexedFunc)(SRGFXDevice*, u32, u32, u32, const SRCmdList*);
+typedef void (*SRGFX_DrawInstancedFunc)(SRGFXDevice*, u32, u32, u32, u32, const SRCmdList*);
 typedef void (*SRGFX_DispatchMeshFunc)(SRGFXDevice*, u32, u32, u32, const SRCmdList*);
 typedef SRDescriptorIndex(*SRGFX_GetDescriptorIndexSRVFunc)(SRGFXDevice*, const SRResource*);
 typedef SRShaderCompileTarget(*SRGFX_GetShaderCompileTargetFunc)(SRGFXDevice*);
@@ -68,6 +69,7 @@ struct SRGFXDeviceVTable {
 	SRGFX_SubmitCommandListsFunc       submit_command_lists;
 	SRGFX_DrawFunc                     draw;
 	SRGFX_DrawIndexedFunc              draw_indexed;
+	SRGFX_DrawInstancedFunc            draw_instanced;
 	SRGFX_DispatchMeshFunc             dispatch_mesh;
 	SRGFX_GetDescriptorIndexSRVFunc    get_descriptor_index_srv;
 	SRGFX_GetShaderCompileTargetFunc   get_shader_compile_target;
@@ -114,6 +116,7 @@ void SRGFX_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapchain)
 
 void SRGFX_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRCmdList* cmdList);
 void SRGFX_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList* cmdList);
+void SRGFX_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, const SRCmdList* cmd_list);
 void SRGFX_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdList* cmdList);
 
 SRDescriptorIndex SRGFX_GetDescriptorIndexSRV(SRGFXDevice* device, const SRResource* resource);

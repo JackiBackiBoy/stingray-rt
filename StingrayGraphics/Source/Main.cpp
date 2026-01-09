@@ -1,5 +1,6 @@
 #include "Core/Logger.h"
 #include "Core/Types.h"
+#include "Core/StringTypes.h"
 #include "Core/Window.h"
 #include "Core/System/Time.h"
 #include "Data/ArenaAllocator.h"
@@ -33,13 +34,27 @@ struct alignas(256) PerFrameData {
 	glm::mat4 inv_proj;
 };
 
+#define MAX_UI_DRAW_INSTANCES 16384
+struct UIDrawInstance {
+	glm::vec2 pos;
+	glm::vec2 size;
+	glm::vec2 texcoord_tl;
+	glm::vec2 texcoord_br;
+	glm::vec3 color;
+	SRDescriptorIndex tex_index;
+};
+
 struct UIPassData {
 	SRPipeline pipeline;
 	SRShader vertex_shader;
 	SRShader pixel_shader;
+	SRBuffer draw_instance_buffers[SR_GFX_FRAMES_IN_FLIGHT];
+	SRVector<UIDrawInstance> draw_instances_data;
 
 	struct PushConstants {
-		SRDescriptorIndex atlas_tex_index;
+		f32 inv_screen_width;
+		f32 inv_screen_height;
+		SRDescriptorIndex draw_intance_buffer_index;
 	} push;
 };
 
@@ -66,33 +81,10 @@ global SRSwapchain g_swapchain;
 global SRSampler g_sampler_linear;
 global SRFont g_font;
 
-internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
-	auto& passData = self.allocate_pass_data<UIPassData>();
-	SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Vertex, "vertex_main" }, &passData.vertex_shader);
-	SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Pixel, "pixel_main" }, &passData.pixel_shader);
-
-	SRPipelineInfo pipelineInfo = {
-		.vertexShader = &passData.vertex_shader,
-		.pixelShader = &passData.pixel_shader,
-		.numRenderTargets = 1,
-		.renderTargetFormats = { SRFormat::RGBA8_UNORM }
-	};
-	SRGFX_CreatePipeline(&gfxDevice, &pipelineInfo, &passData.pipeline);
-}
-internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
-	auto* pass_data = self.get_pass_data<UIPassData>();
-
-	SRViewport viewport = {
-		.width = static_cast<f32>(frameInfo.width),
-		.height = static_cast<f32>(frameInfo.height),
-	};
-	pass_data->push.atlas_tex_index = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &g_font.atlas_tex);
-
-	SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
-	SRGFX_BindPipeline(&gfxDevice, &pass_data->pipeline, &cmdList);
-	SRGFX_PushConstants(&gfxDevice, &pass_data->push, sizeof(pass_data->push), &cmdList);
-	SRGFX_Draw(&gfxDevice, 6, 0, &cmdList);
-}
+internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler);
+internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
+internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfxDevice);
+internal void UIPass_DrawText(SRRenderPass& self, Str8 str);
 
 internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height);
 internal void init_console();
@@ -113,7 +105,6 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 
 	init_window();
 	init_graphics();
-	g_font_loader = SRFontLoader_Create(g_arena);
 	init_resources();
 	init_scene();
 	init_rendergraph();
@@ -173,7 +164,6 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 
 	SRGFX_DestroyPipeline(&g_gfx_device, &depthPrepassData->pipeline);
 	SRGFX_DestroyPipeline(&g_gfx_device, &gBufferPassData->pipeline);
-	SRGFX_DestroyPipeline(&g_gfx_device, &ui_pass_data->pipeline);
 	SRGFX_DestroyPipeline(&g_gfx_device, &compositionPassData->pipeline);
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.vertexBuffer);
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.indexBuffer);
@@ -182,6 +172,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 	SRGFX_DestroyResource(&g_gfx_device, &g_test_model.meshletTrianglesBuffer);
 	SRGFX_DestroyResource(&g_gfx_device, &g_sampler_linear);
 	SRGFX_DestroyResource(&g_gfx_device, &g_font.atlas_tex);
+	UIPass_OnDestroy(*g_ui_pass, g_gfx_device);
 	SRGFX_DestroySwapchain(&g_gfx_device, &g_swapchain);
 
 	delete g_scene;
@@ -194,7 +185,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 	return 0;
 }
 
-void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height) {
+internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height) {
 	SRSwapchainInfo new_swapchain_info = g_swapchain.info;
 	new_swapchain_info.width = new_width;
 	new_swapchain_info.height = new_height;
@@ -221,7 +212,7 @@ void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height) {
 	render(&frame_info);
 }
 
-void init_console() {
+internal void init_console() {
 	if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
 		AllocConsole();
 	}
@@ -246,14 +237,14 @@ void init_console() {
 	SetConsoleTitle(L"Stingray Console");
 }
 
-void init_window() {
+internal void init_window() {
 	const char* title = (g_gfx_backend == SRGFXBackend::Vulkan ? "Stingray (Vulkan)" : "Stingray (DX12)");
 	g_window = SRWindow_Create(title, DEFAULT_WIDTH, DEFAULT_HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
 
 	SRWindow_SetOnResizeCallback(g_window, Window_OnResize);
 }
 
-void init_graphics() {
+internal void init_graphics() {
 	SRGFX_CreateDevice(g_window, &g_gfx_device, g_gfx_backend);
 	g_shader_compiler = SRShaderCompiler_Create(g_arena, g_gfx_backend);
 
@@ -281,7 +272,7 @@ void init_graphics() {
 	SRGFX_CreateSampler(&g_gfx_device, &linearSamplerInfo, &g_sampler_linear);
 }
 
-void init_resources() {
+internal void init_resources() {
 	SRBufferInfo perFrameBufferInfo = {
 		.size = sizeof(PerFrameData),
 		.stride = sizeof(PerFrameData),
@@ -295,10 +286,11 @@ void init_resources() {
 
 	SRModelLoader::load_gltf(RES_DIR "Models/StanfordBunny/StanfordBunny.gltf", g_test_model, g_gfx_device);
 
-	SRFontLoader_LoadFontFromSystem(g_font_loader, &g_gfx_device, "SegoeUI", 64, &g_font);
+	g_font_loader = SRFontLoader_Create(g_arena);
+	SRFontLoader_LoadFontFromSystem(g_font_loader, &g_gfx_device, "SegoeUI", 16, &g_font);
 }
 
-void init_scene() {
+internal void init_scene() {
 	g_scene = new SRScene(g_gfx_device, 65536);
 
 	SREntityID entity = g_scene->add_entity();
@@ -313,7 +305,7 @@ void init_scene() {
 	};
 }
 
-void init_rendergraph() {
+internal void init_rendergraph() {
 	g_render_graph = new SRRenderGraph();
 
 	u32 window_width;
@@ -353,7 +345,7 @@ void init_rendergraph() {
 	g_render_graph->build(g_gfx_device);
 }
 
-void update(const SRFrameInfo* frameInfo) {
+internal void update(const SRFrameInfo* frameInfo) {
 	SRInput::update();
 	SRMouseState mouse = SRInput::get_mouse_state();
 
@@ -401,8 +393,125 @@ void update(const SRFrameInfo* frameInfo) {
 	std::memcpy(frameInfo->perFrameBuffer->mappedData, &g_per_frame_data, sizeof(g_per_frame_data));
 }
 
-void render(const SRFrameInfo* frame_info) {
+internal void render(const SRFrameInfo* frame_info) {
 	SRCmdList cmdList = SRGFX_BeginCommandList(&g_gfx_device, SRQueue_Universal);
 	g_render_graph->execute(g_gfx_device, g_swapchain, cmdList, *frame_info);
 	SRGFX_SubmitCommandLists(&g_gfx_device, &g_swapchain);
 }
+
+internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
+	auto& pass_data = self.allocate_pass_data<UIPassData>();
+	SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Vertex, "vertex_main" }, &pass_data.vertex_shader);
+	SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Pixel, "pixel_main" }, &pass_data.pixel_shader);
+
+	SRPipelineInfo pipelineInfo = {
+		.vertexShader = &pass_data.vertex_shader,
+		.pixelShader = &pass_data.pixel_shader,
+		.blendState = {
+			.alphaToCoverage = false,
+			.independentBlend = false,
+			.renderTargetBlendStates = {
+				SRBlendState::RenderTargetBlendState {
+					.blendEnable = true,
+					.srcBlend = SRBlend::SrcAlpha,
+					.dstBlend = SRBlend::InvSrcAlpha,
+					.blendOp = SRBlendOp::Add,
+					.srcBlendAlpha = SRBlend::One,
+					.dstBlendAlpha = SRBlend::One,
+					.blendOpAlpha = SRBlendOp::Add
+				}
+			}
+		},
+		.numRenderTargets = 1,
+		.renderTargetFormats = { SRFormat::RGBA8_UNORM }
+	};
+	SRGFX_CreatePipeline(&gfxDevice, &pipelineInfo, &pass_data.pipeline);
+
+	SRBufferInfo ui_draw_instance_buffer_info = {
+		.size = MAX_UI_DRAW_INSTANCES * sizeof(UIDrawInstance),
+		.stride = sizeof(UIDrawInstance),
+		.usage = SRUsage::Upload,
+		.bindFlags = SRBindFlag::ShaderResource,
+		.miscFlags = SRMiscFlag::StructuredBuffer
+	};
+	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
+		SRGFX_CreateBuffer(&gfxDevice, &ui_draw_instance_buffer_info, &pass_data.draw_instance_buffers[f], nullptr);
+	}
+
+	SRVector_Create(&pass_data.draw_instances_data);
+}
+
+internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+	auto* pass_data = self.get_pass_data<UIPassData>();
+	u32 frame_index = SRGFX_GetFrameIndex(&gfxDevice);
+
+	// Update
+	// TODO: Move elsewhere
+	UIPass_DrawText(self, Str8_Literal("Hello World! Stingray-RT Version 0.2"));
+
+	memcpy(
+		pass_data->draw_instance_buffers[frame_index].mappedData,
+		pass_data->draw_instances_data.data,
+		pass_data->draw_instances_data.size * sizeof(UIDrawInstance)
+	);
+	//
+
+	SRViewport viewport = {
+		.width = static_cast<f32>(frameInfo.width),
+		.height = static_cast<f32>(frameInfo.height),
+	};
+	pass_data->push.inv_screen_width = 1.0f / viewport.width;
+	pass_data->push.inv_screen_height = 1.0f / viewport.height;
+	pass_data->push.draw_intance_buffer_index = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &pass_data->draw_instance_buffers[frame_index]);
+
+	SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
+	SRGFX_BindPipeline(&gfxDevice, &pass_data->pipeline, &cmdList);
+	SRGFX_PushConstants(&gfxDevice, &pass_data->push, sizeof(pass_data->push), &cmdList);
+
+	assert(pass_data->draw_instances_data.size > 0);
+	SRGFX_DrawInstanced(&gfxDevice, 6, (u32)pass_data->draw_instances_data.size, 0, 0, &cmdList);
+	
+	SRVector_Clear(&pass_data->draw_instances_data);
+}
+
+internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfxDevice) {
+	auto* pass_data = self.get_pass_data<UIPassData>();
+	SRVector_Destroy(&pass_data->draw_instances_data);
+
+	SRGFX_DestroyPipeline(&gfxDevice, &pass_data->pipeline);
+	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
+		SRGFX_DestroyResource(&gfxDevice, &pass_data->draw_instance_buffers[f]);
+	}
+}
+
+void UIPass_DrawText(SRRenderPass& self, Str8 str) {
+	auto* pass_data = self.get_pass_data<UIPassData>();
+
+	f32 text_pos_x = 300;
+	f32 text_pos_y = 20;
+	SRDescriptorIndex tex_index = SRGFX_GetDescriptorIndexSRV(&g_gfx_device, &g_font.atlas_tex);
+
+	for (u64 i = 0; i < str.size; ++i) {
+		u8 c = str.data[i];
+		SRFontGlyph* glyph = &g_font.glyphs[c];
+
+		if (c == ' ') {
+			text_pos_x += glyph->advance_x;
+		}
+
+		// TODO: perhaps we don't need to store bearingX??
+		UIDrawInstance draw_instance = {
+			.pos = { text_pos_x + (f32)glyph->bearing_x, text_pos_y + (f32)g_font.bbox_ymax - (f32)glyph->bearing_y },
+			.size = { glyph->width, glyph->height },
+			.texcoord_tl = glyph->atlas_tex_coord_tl,
+			.texcoord_br = glyph->atlas_tex_coord_br,
+			.color = { 1.0f, 1.0f, 1.0f },
+			.tex_index = tex_index
+		};
+		SRVector_PushBack(&pass_data->draw_instances_data, draw_instance);
+
+		text_pos_x += glyph->advance_x;
+	}
+}
+
+

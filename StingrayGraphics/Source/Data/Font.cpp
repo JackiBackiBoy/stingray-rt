@@ -22,8 +22,6 @@ struct SRFontLoader {
 
 SRFontLoader* SRFontLoader_Create(SRArena* arena) {
 	SRFontLoader* loader = SRArena_PushStructZero(arena, SRFontLoader);
-
-
 	return loader;
 }
 
@@ -51,6 +49,7 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 
 	FT_Set_Pixel_Sizes(ft_face, 0, size);
 	font->line_spacing = ft_face->size->metrics.height >> 6;
+	font->bbox_ymax = ft_face->bbox.yMax >> 6;
 
 	b32 has_kerning = FT_HAS_KERNING(ft_face);
 	u32 atlas_padding = 4;
@@ -77,6 +76,7 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 				continue;
 			}
 
+			// TODO: Use glyph metrics instead for bearing
 			glyph->width = bmp->width;
 			glyph->height = bmp->rows;
 			glyph->bearing_x = ft_face->glyph->bitmap_left;

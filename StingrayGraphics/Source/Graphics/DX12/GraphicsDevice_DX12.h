@@ -35,6 +35,7 @@ void SRGFXDX12_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapch
 
 void SRGFXDX12_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRCmdList* cmdList);
 void SRGFXDX12_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList* cmdList);
+void SRGFXDX12_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, const SRCmdList* cmd_list);
 void SRGFXDX12_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdList* cmdList);
 
 SRDescriptorIndex SRGFXDX12_GetDescriptorIndexSRV(SRGFXDevice* device, const SRResource* resource);

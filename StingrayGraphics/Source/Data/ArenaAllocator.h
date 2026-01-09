@@ -98,6 +98,11 @@ void SRVector_PopBack(SRVector<T>* vec) {
 }
 
 template<typename T>
+void SRVector_Clear(SRVector<T>* vec) {
+	vec->size = 0;
+}
+
+template<typename T>
 void SRVector_Destroy(SRVector<T>* vec) {
 	free(vec->data);
 	vec->data = nullptr;
