@@ -930,7 +930,7 @@ u32 SRGFXVulkan_GetFrameIndex(SRGFXDevice* device) {
 	return dev->frame_index;
 }
 
-void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* info, SRSwapchain* swapchain) {
+void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, SRSwapchainInfo info, SRSwapchain* swapchain) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 
 	SRSwapchain_Vulkan* internalSwapchain;
@@ -942,25 +942,25 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 		internalSwapchain = SRArena_PushStructZero(dev->arena_general, SRSwapchain_Vulkan);
 	}
 
-	swapchain->info = *info;
+	swapchain->info = info;
 	swapchain->internalState = internalSwapchain;
 
 	SRSwapchainSupportInfo supportInfo = SRVulkanHelpers::query_swapchain_support(dev->physical_device, dev->surface);
 	VkSurfaceFormatKHR surfaceFormat = SRVulkanHelpers::pick_surface_format(
-		to_vk_format(info->format),
-		info->useHDR,
+		to_vk_format(info.format),
+		info.useHDR,
 		supportInfo.surfaceFormats
 	);
 
 	// Check minimum and maximum number of supported backbuffers
 	if (
-		(supportInfo.capabilities.minImageCount > info->numBuffers) ||
-		(supportInfo.capabilities.maxImageCount > 0 && supportInfo.capabilities.maxImageCount < info->numBuffers))
+		(supportInfo.capabilities.minImageCount > info.numBuffers) ||
+		(supportInfo.capabilities.maxImageCount > 0 && supportInfo.capabilities.maxImageCount < info.numBuffers))
 	{
 		SRLOG_CRITICAL_CAT(
 			SRLOG_CAT_VULKAN,
 			"Swapchain does not support %d backbuffers(s). Number of backbuffers must be in range [%u, %u]",
-			info->numBuffers,
+			info.numBuffers,
 			supportInfo.capabilities.minImageCount,
 			supportInfo.capabilities.maxImageCount
 		);
@@ -993,7 +993,7 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 		.flags = 0, // TODO: Investigate swapchain flags
 		.surface = dev->surface,
-		.minImageCount = static_cast<u32>(info->numBuffers),
+		.minImageCount = info.numBuffers,
 		.imageFormat = surfaceFormat.format,
 		.imageColorSpace = surfaceFormat.colorSpace,
 		.imageExtent = extent,
@@ -1002,7 +1002,7 @@ void SRGFXVulkan_CreateSwapchain(SRGFXDevice* device, const SRSwapchainInfo* inf
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.preTransform = supportInfo.capabilities.currentTransform,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-		.presentMode = SRVulkanHelpers::pick_present_mode(info->vSync, supportInfo.presentModes),
+		.presentMode = SRVulkanHelpers::pick_present_mode(info.vSync, supportInfo.presentModes),
 		.clipped = VK_TRUE,
 		.oldSwapchain = old_swapchain
 	};
@@ -1290,19 +1290,19 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 }
 
 // TODO: Add support for ReBar devices
-void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuffer* buffer, const void* data) {
+void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, SRBufferInfo info, SRBuffer* buffer, const void* data) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalBuffer = SRArena_PushStructZero(dev->arena_general, SRBuffer_Vulkan);
 
 	buffer->type = SRResourceType::Buffer;
-	buffer->info = *info;
+	buffer->info = info;
 	buffer->internalState = internalBuffer;
 	buffer->mappedData = nullptr;
 	buffer->mappedSize = 0;
 
 	VkBufferCreateInfo createInfo = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = info->size,
+		.size = info.size,
 		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE
 	};
@@ -1310,20 +1310,20 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRB
 		.usage = VMA_MEMORY_USAGE_AUTO
 	};
 
-	if (has_flag(info->bindFlags, SRBindFlag::VertexBuffer)) {
+	if (has_flag(info.bindFlags, SRBindFlag::VertexBuffer)) {
 		createInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 	}
-	else if (has_flag(info->bindFlags, SRBindFlag::IndexBuffer)) {
+	else if (has_flag(info.bindFlags, SRBindFlag::IndexBuffer)) {
 		createInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 	}
-	else if (has_flag(info->bindFlags, SRBindFlag::ConstantBuffer)) {
+	else if (has_flag(info.bindFlags, SRBindFlag::ConstantBuffer)) {
 		createInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	}
-	if (has_flag(info->miscFlags, SRMiscFlag::StructuredBuffer)) {
+	if (has_flag(info.miscFlags, SRMiscFlag::StructuredBuffer)) {
 		createInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	}
 
-	switch (info->usage) {
+	switch (info.usage) {
 	case SRUsage::Upload:
 		allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 		break;
@@ -1339,15 +1339,15 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRB
 		&allocInfo
 	), "Create buffer");
 
-	if (info->usage == SRUsage::Default && data != nullptr) {
+	if (info.usage == SRUsage::Default && data != nullptr) {
 		// Staging buffer
-		SRBufferInfo stagingBufferInfo = *info;
+		SRBufferInfo stagingBufferInfo = info;
 		stagingBufferInfo.usage = SRUsage::Upload;
 		stagingBufferInfo.bindFlags = SRBindFlag::None;
 		stagingBufferInfo.miscFlags = SRMiscFlag::None;
 
 		SRBuffer stagingBuffer;
-		SRGFXVulkan_CreateBuffer(device, &stagingBufferInfo, &stagingBuffer, data);
+		SRGFXVulkan_CreateBuffer(device, stagingBufferInfo, &stagingBuffer, data);
 		auto* internal_staging_buffer = to_vk_internal(stagingBuffer);
 
 		SRResource* upload = SRArena_PushStruct(dev->arena_upload, SRResource);
@@ -1368,7 +1368,7 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRB
 		VkBufferCopy copyRegion = {
 			.srcOffset = 0,
 			.dstOffset = 0,
-			.size = info->size
+			.size = info.size
 		};
 		vkCmdCopyBuffer(
 			dev->cmd_buffer_upload,
@@ -1378,12 +1378,12 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRB
 			&copyRegion
 		);
 	}
-	else if (info->usage == SRUsage::Upload) {
+	else if (info.usage == SRUsage::Upload) {
 		buffer->mappedData = internalBuffer->allocation->GetMappedData();
-		buffer->mappedSize = info->size;
+		buffer->mappedSize = info.size;
 
 		if (data != nullptr) {
-			memcpy(buffer->mappedData, data, info->size);
+			memcpy(buffer->mappedData, data, info.size);
 		}
 	}
 
@@ -1493,7 +1493,7 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 		};
 
 		SRBuffer stagingBuffer;
-		SRGFXVulkan_CreateBuffer(device, &stagingBufferInfo, &stagingBuffer, data);
+		SRGFXVulkan_CreateBuffer(device, stagingBufferInfo, &stagingBuffer, data);
 		auto* internalStagingBuffer = to_vk_internal(stagingBuffer);
 
 		// Copy staging buffer into target buffer
@@ -1604,30 +1604,30 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 	}
 }
 
-void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRSampler* sampler) {
+void SRGFXVulkan_CreateSampler(SRGFXDevice* device, SRSamplerInfo info, SRSampler* sampler) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalSampler = SRArena_PushStructZero(dev->arena_general, SRSampler_Vulkan);
 
 	sampler->type = SRResourceType::Sampler;
-	sampler->info = *info;
+	sampler->info = info;
 	sampler->internalState = internalSampler;
 
 	VkSamplerCreateInfo samplerCreateInfo = {
 		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-		.addressModeU = to_vk_texture_address_mode(info->addressU),
-		.addressModeV = to_vk_texture_address_mode(info->addressV),
-		.addressModeW = to_vk_texture_address_mode(info->addressW),
-		.mipLodBias = info->mipLODBias,
+		.addressModeU = to_vk_texture_address_mode(info.addressU),
+		.addressModeV = to_vk_texture_address_mode(info.addressV),
+		.addressModeW = to_vk_texture_address_mode(info.addressW),
+		.mipLodBias = info.mipLODBias,
 		.anisotropyEnable = VK_TRUE,
 		.maxAnisotropy = 16, // TODO: Enforce or check if always available
-		.compareOp = to_vk_comparison_func(info->comparisonFunc),
-		.minLod = info->minLOD,
+		.compareOp = to_vk_comparison_func(info.comparisonFunc),
+		.minLod = info.minLOD,
 		.maxLod = std::numeric_limits<float>::max(), // TODO: Please fix
-		.borderColor = to_vk_sampler_border_color(info->borderColor),
+		.borderColor = to_vk_sampler_border_color(info.borderColor),
 		.unnormalizedCoordinates = VK_FALSE
 	};
 
-	switch (info->filter) {
+	switch (info.filter) {
 	case SRFilter::MinMagMipPoint:
 	case SRFilter::MinimumMinMagMipPoint:
 	case SRFilter::MaximumMinMagMipPoint:
@@ -1707,7 +1707,7 @@ void SRGFXVulkan_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, S
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.anisotropyEnable = VK_TRUE;
-		samplerCreateInfo.maxAnisotropy = std::min(16.0f, std::max(1.0f, static_cast<float>(info->maxAnisotropy)));
+		samplerCreateInfo.maxAnisotropy = std::min(16.0f, std::max(1.0f, static_cast<float>(info.maxAnisotropy)));
 		samplerCreateInfo.compareEnable = VK_FALSE;
 		break;
 	case SRFilter::ComparisonMinMagMipPoint:
@@ -1874,10 +1874,10 @@ void SRGFXVulkan_DestroyResource(SRGFXDevice* device, SRResource* resource) {
 	}
 }
 
-void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, const SRCmdList* cmdList) {
+void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, SRCmdList cmdList) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalPipeline = to_vk_internal(*pipeline);
-	auto* internalCmdList = to_vk_internal(*cmdList);
+	auto* internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdBindPipeline(internalCmdList->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internalPipeline->pipeline);
 	dev->active_pipeline = internalPipeline;
@@ -1894,8 +1894,8 @@ void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, c
 	);
 }
 
-void SRGFXVulkan_BindViewport(SRGFXDevice* device, const SRViewport* viewport, const SRCmdList* cmdList) {
-	auto* internalCmdList = to_vk_internal(*cmdList);
+void SRGFXVulkan_BindViewport(SRGFXDevice* device, const SRViewport* viewport, SRCmdList cmdList) {
+	auto* internalCmdList = to_vk_internal(cmdList);
 
 	// NOTE: We need to flip the viewport vertically in order to work with DX12
 	VkViewport vkViewport = {
@@ -1918,33 +1918,33 @@ void SRGFXVulkan_BindViewport(SRGFXDevice* device, const SRViewport* viewport, c
 	vkCmdSetScissor(internalCmdList->cmdBuffer, 0, 1, &scissor);
 }
 
-void SRGFXVulkan_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
+void SRGFXVulkan_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::VertexBuffer));
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalBuffer = to_vk_internal(*buffer);
-	auto* internalCmdList = to_vk_internal(*cmdList);
+	auto* internalCmdList = to_vk_internal(cmdList);
 
 	VkDeviceSize offset = 0;
 	vkCmdBindVertexBuffers(internalCmdList->cmdBuffer, 0, 1, &internalBuffer->buffer, &offset);
 }
 
-void SRGFXVulkan_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
+void SRGFXVulkan_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::IndexBuffer));
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalBuffer = to_vk_internal(*buffer);
-	auto* internalCmdList = to_vk_internal(*cmdList);
+	auto* internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdBindIndexBuffer(internalCmdList->cmdBuffer, internalBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void SRGFXVulkan_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
+void SRGFXVulkan_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::ConstantBuffer));
 	assert(dev->active_pipeline != nullptr);
 
 	auto* internalBuffer = to_vk_internal(*buffer);
-	auto* internalCmdList = to_vk_internal(*cmdList);
+	auto* internalCmdList = to_vk_internal(cmdList);
 
 	VkDescriptorBufferInfo bufferInfo = {
 		.buffer = internalBuffer->buffer,
@@ -1970,14 +1970,14 @@ void SRGFXVulkan_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buf
 	);
 }
 
-void SRGFXVulkan_PushConstants(SRGFXDevice* device, const void* data, u32 size, const SRCmdList* cmdList) {
+void SRGFXVulkan_PushConstants(SRGFXDevice* device, const void* data, u32 size, SRCmdList cmdList) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 
 	assert(data != nullptr);
 	assert(size <= 128);
 	assert(dev->active_pipeline != nullptr);
 
-	auto internalCmdList = to_vk_internal(*cmdList);
+	auto internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdPushConstants(
 		internalCmdList->cmdBuffer,
@@ -1989,12 +1989,12 @@ void SRGFXVulkan_PushConstants(SRGFXDevice* device, const void* data, u32 size, 
 	);
 }
 
-void SRGFXVulkan_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, const SRCmdList* cmdList) {
+void SRGFXVulkan_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, SRCmdList cmdList) {
 	if (!barriers || numBarriers == 0) {
 		return;
 	}
 
-	auto* internalCmdList = to_vk_internal(*cmdList);
+	auto* internalCmdList = to_vk_internal(cmdList);
 	std::vector<VkImageMemoryBarrier2> vkBarriers;
 	vkBarriers.reserve(numBarriers);
 
@@ -2112,10 +2112,10 @@ SRCmdList SRGFXVulkan_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 	return SRCmdList{ internal_cmd_list };
 }
 
-void SRGFXVulkan_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, const SRCmdList* cmdList) {
+void SRGFXVulkan_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmdList) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalSwapchain = to_vk_internal(*swapchain);
-	auto* internalCmdList = to_vk_internal(*cmdList);
+	auto* internalCmdList = to_vk_internal(cmdList);
 
 	SRSwapchain_Vulkan::Backbuffer* currBackbuffer = &internalSwapchain->backbuffers[dev->image_index];
 	SRImageTransitionInfo transitionInfo = {
@@ -2169,8 +2169,8 @@ void SRGFXVulkan_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain
 	vkCmdBeginRendering(internalCmdList->cmdBuffer, &renderInfo);
 }
 
-void SRGFXVulkan_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, const SRCmdList* cmdList) {
-	auto* internalCmdList = to_vk_internal(*cmdList);
+void SRGFXVulkan_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, SRCmdList cmdList) {
+	auto* internalCmdList = to_vk_internal(cmdList);
 
 	std::vector<VkRenderingAttachmentInfo> colorAttachmentInfos;
 	VkRenderingAttachmentInfo depthAttachmentInfo;
@@ -2239,10 +2239,10 @@ void SRGFXVulkan_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo
 	vkCmdBeginRendering(internalCmdList->cmdBuffer, &renderInfo);
 }
 
-void SRGFXVulkan_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, const SRCmdList* cmdList) {
+void SRGFXVulkan_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmdList) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalSwapchain = to_vk_internal(*swapchain);
-	auto* internalCmdList = to_vk_internal(*cmdList);
+	auto* internalCmdList = to_vk_internal(cmdList);
 
 	vkCmdEndRendering(internalCmdList->cmdBuffer);
 
@@ -2259,8 +2259,8 @@ void SRGFXVulkan_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* 
 	SRVulkanHelpers::transition_image_layout(transitionInfo, internalCmdList->cmdBuffer);
 }
 
-void SRGFXVulkan_EndRenderPass(SRGFXDevice* device, const SRCmdList* cmdList) {
-	auto internalCmdList = to_vk_internal(*cmdList);
+void SRGFXVulkan_EndRenderPass(SRGFXDevice* device, SRCmdList cmdList) {
+	auto internalCmdList = to_vk_internal(cmdList);
 	vkCmdEndRendering(internalCmdList->cmdBuffer);
 }
 
@@ -2331,33 +2331,34 @@ void SRGFXVulkan_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swap
 	++dev->frame_counter;
 }
 
-void SRGFXVulkan_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRCmdList* cmdList) {
-	auto* internalCmdList = to_vk_internal(*cmdList);
+void SRGFXVulkan_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, SRCmdList cmdList) {
+	auto* internalCmdList = to_vk_internal(cmdList);
 	vkCmdDraw(internalCmdList->cmdBuffer, vtxCount, 1, startVtx, 0);
 }
 
-void SRGFXVulkan_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList* cmdList) {
-	auto* internalCmdList = to_vk_internal(*cmdList);
+void SRGFXVulkan_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, SRCmdList cmdList) {
+	auto* internalCmdList = to_vk_internal(cmdList);
 	vkCmdDrawIndexed(internalCmdList->cmdBuffer, idxCount, 1, startIdx, baseVtx, 0);
 }
 
-void SRGFXVulkan_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, const SRCmdList* cmd_list) {
-	auto* internal_cmd_list = to_vk_internal(*cmd_list);
+void SRGFXVulkan_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, SRCmdList cmd_list) {
+	auto* internal_cmd_list = to_vk_internal(cmd_list);
 	vkCmdDraw(internal_cmd_list->cmdBuffer, vtx_count, inst_count, start_vtx, start_inst);
 }
 
-void SRGFXVulkan_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdList* cmdList) {
+void SRGFXVulkan_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, SRCmdList cmdList) {
 	// TODO: IMPLEMENT
 	assert(false);
 }
 
-SRDescriptorIndex SRGFXVulkan_GetDescriptorIndexSRV(SRGFXDevice* device, const SRResource* resource) {
-	assert(resource->type == SRResourceType::Texture); // TODO: Support other SRV types
+SRDescriptorIndex SRGFXVulkan_GetDescriptorIndexSRV(SRGFXDevice* device, SRResource resource) {
+	assert(resource.type == SRResourceType::Texture); // TODO: Support other SRV types
 
-	if (resource->type == SRResourceType::Texture) {
-		auto* internalTexture = (SRTexture_Vulkan*)resource->internalState;
+	if (resource.type == SRResourceType::Texture) {
+		auto* internalTexture = (SRTexture_Vulkan*)resource.internalState;
 		return internalTexture->srvDescriptor;
 	}
+	assert(false);
 
 	return SR_INVALID_DESCRIPTOR_INDEX;
 }

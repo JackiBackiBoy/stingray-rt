@@ -247,11 +247,11 @@ namespace SRModelLoader {
 			meshlet.triangleOffset = triangleOffset;
 		}
 
-		SRGFX_CreateBuffer(&gfxDevice, &vertexBufferInfo, &model.vertexBuffer, vertices);
-		SRGFX_CreateBuffer(&gfxDevice, &indexBufferInfo, &model.indexBuffer, indices);
-		SRGFX_CreateBuffer(&gfxDevice, &meshletBufferInfo, &model.meshletBuffer, meshlets.data());
-		SRGFX_CreateBuffer(&gfxDevice, &meshletVerticesBufferInfo, &model.meshletVerticesBuffer, meshletVertices.data());
-		SRGFX_CreateBuffer(&gfxDevice, &meshletTrianglesBufferInfo, &model.meshletTrianglesBuffer, meshletTrianglesU32.data());
+		SRGFX_CreateBuffer(&gfxDevice, vertexBufferInfo, &model.vertexBuffer, vertices);
+		SRGFX_CreateBuffer(&gfxDevice, indexBufferInfo, &model.indexBuffer, indices);
+		SRGFX_CreateBuffer(&gfxDevice, meshletBufferInfo, &model.meshletBuffer, meshlets.data());
+		SRGFX_CreateBuffer(&gfxDevice, meshletVerticesBufferInfo, &model.meshletVerticesBuffer, meshletVertices.data());
+		SRGFX_CreateBuffer(&gfxDevice, meshletTrianglesBufferInfo, &model.meshletTrianglesBuffer, meshletTrianglesU32.data());
 		model.numMeshlets = (u32)meshlets.size();
 
 		delete[] vertices;

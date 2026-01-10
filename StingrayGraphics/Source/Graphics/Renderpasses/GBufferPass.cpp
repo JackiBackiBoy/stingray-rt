@@ -38,27 +38,27 @@ namespace SRGBufferPass {
 		auto* passData = self.get_pass_data<GBufferPassData>();
 
 		SRViewport viewport = {
-			.width = static_cast<float>(frameInfo.width),
-			.height = static_cast<float>(frameInfo.height),
+			.width = static_cast<f32>(frameInfo.width),
+			.height = static_cast<f32>(frameInfo.height),
 		};
 
-		SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
-		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, &cmdList);
-		SRGFX_BindRootConstantBuffer(&gfxDevice, frameInfo.perFrameBuffer, &cmdList);
+		SRGFX_BindViewport(&gfxDevice, &viewport, cmdList);
+		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, cmdList);
+		SRGFX_BindRootConstantBuffer(&gfxDevice, frameInfo.perFrameBuffer, cmdList);
 
 		frameInfo.scene->for_each<SRTransform, SRRenderable>([&](SRTransform& t, SRRenderable& r) {
 			(void)t;
 			const SRModel* model = r.model;
 
-			SRGFX_BindVertexBuffer(&gfxDevice, &model->vertexBuffer, &cmdList);
-			SRGFX_BindIndexBuffer(&gfxDevice, &model->indexBuffer, &cmdList);
+			SRGFX_BindVertexBuffer(&gfxDevice, &model->vertexBuffer, cmdList);
+			SRGFX_BindIndexBuffer(&gfxDevice, &model->indexBuffer, cmdList);
 
 			// TODO: Transform
 			for (const auto& mesh : model->meshes) {
 				for (u32 i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
 					const SRMeshPrimitive& primitive = model->primitives[i];
 
-					SRGFX_DrawIndexed(&gfxDevice, primitive.numIndices, primitive.baseIndex, primitive.baseVertex, &cmdList);
+					SRGFX_DrawIndexed(&gfxDevice, primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);
 				}
 			}
 		});

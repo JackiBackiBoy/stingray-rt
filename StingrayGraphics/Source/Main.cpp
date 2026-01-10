@@ -86,28 +86,29 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const
 internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfxDevice);
 internal void UIPass_DrawText(SRRenderPass& self, Str8 str);
 
+internal void Window_Initialize();
 internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height);
-internal void init_console();
-internal void init_window();
-internal void init_graphics();
-internal void init_resources();
-internal void init_scene();
-internal void init_rendergraph();
-internal void update(const SRFrameInfo* frameInfo);
-internal void render(const SRFrameInfo* frameInfo);
+
+internal void Console_Initialize();
+internal void App_InitializeGraphics();
+internal void App_InitializeResources();
+internal void App_InitializeScene();
+internal void App_InitializeRendergraph();
+internal void App_OnUpdate(const SRFrameInfo* frameInfo);
+internal void App_OnRender(const SRFrameInfo* frameInfo);
 
 int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 	#ifdef _DEBUG
-		init_console();
+		Console_Initialize();
 	#endif
 
 	g_arena = SRArena_Create(Megabytes(512));
 
-	init_window();
-	init_graphics();
-	init_resources();
-	init_scene();
-	init_rendergraph();
+	Window_Initialize();
+	App_InitializeGraphics();
+	App_InitializeResources();
+	App_InitializeScene();
+	App_InitializeRendergraph();
 	SRGFX_FlushInitialUploads(&g_gfx_device); // TEMPORARY but important for now
 
 	u32 window_width;
@@ -139,8 +140,8 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 		frame_info.width = window_width;
 		frame_info.height = window_height;
 
-		update(&frame_info);
-		render(&frame_info);
+		App_OnUpdate(&frame_info);
+		App_OnRender(&frame_info);
 
 		if (is_first_frame) {
 			SRWindow_Show(g_window);
@@ -190,7 +191,7 @@ internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height) {
 	new_swapchain_info.width = new_width;
 	new_swapchain_info.height = new_height;
 
-	SRGFX_CreateSwapchain(&g_gfx_device, window, &new_swapchain_info, &g_swapchain);
+	SRGFX_CreateSwapchain(&g_gfx_device, new_swapchain_info, &g_swapchain);
 	g_render_graph->notify_swapchain_resize(g_gfx_device, new_width, new_height);
 
 	SRFrameInfo frame_info = {
@@ -208,11 +209,11 @@ internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height) {
 	frame_info.width = new_width;
 	frame_info.height = new_height;
 
-	update(&frame_info);
-	render(&frame_info);
+	App_OnUpdate(&frame_info);
+	App_OnRender(&frame_info);
 }
 
-internal void init_console() {
+internal void Console_Initialize() {
 	if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
 		AllocConsole();
 	}
@@ -237,14 +238,14 @@ internal void init_console() {
 	SetConsoleTitle(L"Stingray Console");
 }
 
-internal void init_window() {
+internal void Window_Initialize() {
 	const char* title = (g_gfx_backend == SRGFXBackend::Vulkan ? "Stingray (Vulkan)" : "Stingray (DX12)");
 	g_window = SRWindow_Create(title, DEFAULT_WIDTH, DEFAULT_HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
 
 	SRWindow_SetOnResizeCallback(g_window, Window_OnResize);
 }
 
-internal void init_graphics() {
+internal void App_InitializeGraphics() {
 	SRGFX_CreateDevice(g_window, &g_gfx_device, g_gfx_backend);
 	g_shader_compiler = SRShaderCompiler_Create(g_arena, g_gfx_backend);
 
@@ -259,7 +260,7 @@ internal void init_graphics() {
 		.format = SRFormat::RGBA8_UNORM,
 		.vSync = true
 	};
-	SRGFX_CreateSwapchain(&g_gfx_device, g_window, &swapchainInfo, &g_swapchain);
+	SRGFX_CreateSwapchain(&g_gfx_device, swapchainInfo, &g_swapchain);
 	g_editor = new SREditor(*g_window, g_gfx_device, g_gfx_backend);
 
 	// Samplers
@@ -269,10 +270,10 @@ internal void init_graphics() {
 		.addressV = SRTextureAddressMode::Wrap,
 		.addressW = SRTextureAddressMode::Wrap
 	};
-	SRGFX_CreateSampler(&g_gfx_device, &linearSamplerInfo, &g_sampler_linear);
+	SRGFX_CreateSampler(&g_gfx_device, linearSamplerInfo, &g_sampler_linear);
 }
 
-internal void init_resources() {
+internal void App_InitializeResources() {
 	SRBufferInfo perFrameBufferInfo = {
 		.size = sizeof(PerFrameData),
 		.stride = sizeof(PerFrameData),
@@ -281,7 +282,7 @@ internal void init_resources() {
 	};
 
 	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-		SRGFX_CreateBuffer(&g_gfx_device, &perFrameBufferInfo, &g_per_frame_buffers[f], &g_per_frame_data);
+		SRGFX_CreateBuffer(&g_gfx_device, perFrameBufferInfo, &g_per_frame_buffers[f], &g_per_frame_data);
 	}
 
 	SRModelLoader::load_gltf(RES_DIR "Models/StanfordBunny/StanfordBunny.gltf", g_test_model, g_gfx_device);
@@ -290,7 +291,7 @@ internal void init_resources() {
 	SRFontLoader_LoadFontFromSystem(g_font_loader, &g_gfx_device, "SegoeUI", 16, &g_font);
 }
 
-internal void init_scene() {
+internal void App_InitializeScene() {
 	g_scene = new SRScene(g_gfx_device, 65536);
 
 	SREntityID entity = g_scene->add_entity();
@@ -305,7 +306,7 @@ internal void init_scene() {
 	};
 }
 
-internal void init_rendergraph() {
+internal void App_InitializeRendergraph() {
 	g_render_graph = new SRRenderGraph();
 
 	u32 window_width;
@@ -345,7 +346,7 @@ internal void init_rendergraph() {
 	g_render_graph->build(g_gfx_device);
 }
 
-internal void update(const SRFrameInfo* frameInfo) {
+internal void App_OnUpdate(const SRFrameInfo* frameInfo) {
 	SRInput::update();
 	SRMouseState mouse = SRInput::get_mouse_state();
 
@@ -393,7 +394,7 @@ internal void update(const SRFrameInfo* frameInfo) {
 	std::memcpy(frameInfo->perFrameBuffer->mappedData, &g_per_frame_data, sizeof(g_per_frame_data));
 }
 
-internal void render(const SRFrameInfo* frame_info) {
+internal void App_OnRender(const SRFrameInfo* frame_info) {
 	SRCmdList cmdList = SRGFX_BeginCommandList(&g_gfx_device, SRQueue_Universal);
 	g_render_graph->execute(g_gfx_device, g_swapchain, cmdList, *frame_info);
 	SRGFX_SubmitCommandLists(&g_gfx_device, &g_swapchain);
@@ -435,7 +436,7 @@ internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRSh
 		.miscFlags = SRMiscFlag::StructuredBuffer
 	};
 	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-		SRGFX_CreateBuffer(&gfxDevice, &ui_draw_instance_buffer_info, &pass_data.draw_instance_buffers[f], nullptr);
+		SRGFX_CreateBuffer(&gfxDevice, ui_draw_instance_buffer_info, &pass_data.draw_instance_buffers[f], nullptr);
 	}
 
 	SRVector_Create(&pass_data.draw_instances_data);
@@ -462,14 +463,14 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const
 	};
 	pass_data->push.inv_screen_width = 1.0f / viewport.width;
 	pass_data->push.inv_screen_height = 1.0f / viewport.height;
-	pass_data->push.draw_intance_buffer_index = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &pass_data->draw_instance_buffers[frame_index]);
+	pass_data->push.draw_intance_buffer_index = SRGFX_GetDescriptorIndexSRV(&gfxDevice, pass_data->draw_instance_buffers[frame_index]);
 
-	SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
-	SRGFX_BindPipeline(&gfxDevice, &pass_data->pipeline, &cmdList);
-	SRGFX_PushConstants(&gfxDevice, &pass_data->push, sizeof(pass_data->push), &cmdList);
+	SRGFX_BindViewport(&gfxDevice, &viewport, cmdList);
+	SRGFX_BindPipeline(&gfxDevice, &pass_data->pipeline, cmdList);
+	SRGFX_PushConstants(&gfxDevice, &pass_data->push, sizeof(pass_data->push), cmdList);
 
 	assert(pass_data->draw_instances_data.size > 0);
-	SRGFX_DrawInstanced(&gfxDevice, 6, (u32)pass_data->draw_instances_data.size, 0, 0, &cmdList);
+	SRGFX_DrawInstanced(&gfxDevice, 6, (u32)pass_data->draw_instances_data.size, 0, 0, cmdList);
 	
 	SRVector_Clear(&pass_data->draw_instances_data);
 }
@@ -488,7 +489,7 @@ void UIPass_DrawText(SRRenderPass& self, Str8 str) {
 	auto* pass_data = self.get_pass_data<UIPassData>();
 	f32 text_pos_x = 300;
 	f32 text_pos_y = 20;
-	SRDescriptorIndex tex_index = SRGFX_GetDescriptorIndexSRV(&g_gfx_device, &g_font.atlas_tex);
+	SRDescriptorIndex tex_index = SRGFX_GetDescriptorIndexSRV(&g_gfx_device, g_font.atlas_tex);
 
 	for (u64 i = 0; i < str.size; ++i) {
 		u8 c = str.data[i];
@@ -511,5 +512,3 @@ void UIPass_DrawText(SRRenderPass& self, Str8 str) {
 		text_pos_x += glyph->advance_x;
 	}
 }
-
-

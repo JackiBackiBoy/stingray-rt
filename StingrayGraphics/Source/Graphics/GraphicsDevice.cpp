@@ -22,19 +22,19 @@ u32 SRGFX_GetFrameIndex(SRGFXDevice* device) {
 }
 
 // Resource creation
-void SRGFX_CreateSwapchain(SRGFXDevice* device, const SRWindow* window, const SRSwapchainInfo* info, SRSwapchain* swapchain) {
+void SRGFX_CreateSwapchain(SRGFXDevice* device, SRSwapchainInfo info, SRSwapchain* swapchain) {
 	device->vtbl->create_swapchain(device, info, swapchain);
 }
 void SRGFX_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, SRPipeline* pipeline) {
 	device->vtbl->create_pipeline(device, info, pipeline);
 }
-void SRGFX_CreateBuffer(SRGFXDevice* device, const SRBufferInfo* info, SRBuffer* buffer, const void* data) {
+void SRGFX_CreateBuffer(SRGFXDevice* device, SRBufferInfo info, SRBuffer* buffer, const void* data) {
 	device->vtbl->create_buffer(device, info, buffer, data);
 }
 void SRGFX_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRTexture* texture, const SRSubresourceData* data) {
 	device->vtbl->create_texture(device, info, texture, data);
 }
-void SRGFX_CreateSampler(SRGFXDevice* device, const SRSamplerInfo* info, SRSampler* sampler) {
+void SRGFX_CreateSampler(SRGFXDevice* device, SRSamplerInfo info, SRSampler* sampler) {
 	device->vtbl->create_sampler(device, info, sampler);
 }
 
@@ -49,25 +49,25 @@ void SRGFX_DestroyResource(SRGFXDevice* device, SRResource* resource) {
 }
 
 // Binding
-void SRGFX_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, const SRCmdList* cmdList) {
+void SRGFX_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, SRCmdList cmdList) {
 	device->vtbl->bind_pipeline(device, pipeline, cmdList);
 }
-void SRGFX_BindViewport(SRGFXDevice* device, const SRViewport* viewport, const SRCmdList* cmdList) {
+void SRGFX_BindViewport(SRGFXDevice* device, const SRViewport* viewport, SRCmdList cmdList) {
 	device->vtbl->bind_viewport(device, viewport, cmdList);
 }
-void SRGFX_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
+void SRGFX_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
 	device->vtbl->bind_vertex_buffer(device, buffer, cmdList);
 }
-void SRGFX_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
+void SRGFX_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
 	device->vtbl->bind_index_buffer(device, buffer, cmdList);
 }
-void SRGFX_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, const SRCmdList* cmdList) {
+void SRGFX_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
 	device->vtbl->bind_root_constant_buffer(device, buffer, cmdList);
 }
-void SRGFX_PushConstants(SRGFXDevice* device, const void* data, u32 size, const SRCmdList* cmdList) {
+void SRGFX_PushConstants(SRGFXDevice* device, const void* data, u32 size, SRCmdList cmdList) {
 	device->vtbl->push_constants(device, data, size, cmdList);
 }
-void SRGFX_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, const SRCmdList* cmdList) {
+void SRGFX_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, SRCmdList cmdList) {
 	device->vtbl->barrier(device, barriers, numBarriers, cmdList);
 }
 
@@ -78,16 +78,16 @@ void SRGFX_BeginFrame(SRGFXDevice* device, const SRSwapchain* swapchain) {
 SRCmdList SRGFX_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 	return device->vtbl->begin_command_list(device, queue);
 }
-void SRGFX_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, const SRCmdList* cmdList) {
+void SRGFX_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmdList) {
 	device->vtbl->begin_render_pass_swapchain(device, swapchain, cmdList);
 }
-void SRGFX_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, const SRCmdList* cmdList) {
+void SRGFX_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, SRCmdList cmdList) {
 	device->vtbl->begin_render_pass(device, passInfo, cmdList);
 }
-void SRGFX_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, const SRCmdList* cmdList) {
+void SRGFX_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmdList) {
 	device->vtbl->end_render_pass_swapchain(device, swapchain, cmdList);
 }
-void SRGFX_EndRenderPass(SRGFXDevice* device, const SRCmdList* cmdList) {
+void SRGFX_EndRenderPass(SRGFXDevice* device, SRCmdList cmdList) {
 	device->vtbl->end_render_pass(device, cmdList);
 }
 void SRGFX_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapchain) {
@@ -95,23 +95,23 @@ void SRGFX_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapchain)
 }
 
 // Draw
-void SRGFX_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, const SRCmdList* cmdList) {
+void SRGFX_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, SRCmdList cmdList) {
 	device->vtbl->draw(device, vtxCount, startVtx, cmdList);
 }
-void SRGFX_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, const SRCmdList* cmdList) {
+void SRGFX_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, SRCmdList cmdList) {
 	device->vtbl->draw_indexed(device, idxCount, startIdx, baseVtx, cmdList);
 }
 
-void SRGFX_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, const SRCmdList* cmd_list) {
+void SRGFX_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count, u32 start_vtx, uint32_t start_inst, SRCmdList cmd_list) {
 	device->vtbl->draw_instanced(device, vtx_count, inst_count, start_vtx, start_inst, cmd_list);
 }
 
-void SRGFX_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, const SRCmdList* cmdList) {
+void SRGFX_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, SRCmdList cmdList) {
 	device->vtbl->dispatch_mesh(device, x, y, z, cmdList);
 }
 
 // Misc
-SRDescriptorIndex SRGFX_GetDescriptorIndexSRV(SRGFXDevice* device, const SRResource* resource) {
+SRDescriptorIndex SRGFX_GetDescriptorIndexSRV(SRGFXDevice* device, SRResource resource) {
 	return device->vtbl->get_descriptor_index_srv(device, resource);
 }
 SRShaderCompileTarget SRGFX_GetShaderCompileTarget(SRGFXDevice* device) {

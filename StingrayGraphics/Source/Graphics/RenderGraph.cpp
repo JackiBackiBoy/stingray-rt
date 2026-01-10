@@ -361,7 +361,7 @@ void SRRenderGraph::execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain
 				&gfxDevice,
 				barriers.data(),
 				static_cast<u32>(barriers.size()),
-				&cmdList
+				cmdList
 			);
 		}
 
@@ -376,25 +376,25 @@ void SRRenderGraph::execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain
 		// pass to write to the swapchain.
 		if (encounteredFirstRootPass) {
 			if (isFirstRootPass) {
-				SRGFX_BeginRenderPassSwapchain(&gfxDevice, &swapchain, &cmdList);
+				SRGFX_BeginRenderPassSwapchain(&gfxDevice, &swapchain, cmdList);
 			}
 
 			pass->execute(gfxDevice, cmdList, frameInfo);
 
 			if (i == m_RenderPasses.size() - 1) {
-				SRGFX_EndRenderPassSwapchain(&gfxDevice, &swapchain, &cmdList);
+				SRGFX_EndRenderPassSwapchain(&gfxDevice, &swapchain, cmdList);
 			}
 			continue;
 		}
 
 		// "Normal" render passes
 		if (pass->get_type() == SRPassType::Graphics) {
-			SRGFX_BeginRenderPass(&gfxDevice, &passInfo, &cmdList);
+			SRGFX_BeginRenderPass(&gfxDevice, &passInfo, cmdList);
 		}
 
 		pass->execute(gfxDevice, cmdList, frameInfo);
 		if (pass->get_type() == SRPassType::Graphics) {
-			SRGFX_EndRenderPass(&gfxDevice, &cmdList);
+			SRGFX_EndRenderPass(&gfxDevice, cmdList);
 		}
 	}
 }

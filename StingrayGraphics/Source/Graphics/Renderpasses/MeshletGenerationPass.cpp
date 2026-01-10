@@ -41,21 +41,21 @@ namespace SRMeshletGenerationpass {
 			.height = static_cast<f32>(frameInfo.height),
 		};
 
-		SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
-		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, &cmdList);
-		SRGFX_BindRootConstantBuffer(&gfxDevice, frameInfo.perFrameBuffer, &cmdList);
+		SRGFX_BindViewport(&gfxDevice, &viewport, cmdList);
+		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, cmdList);
+		SRGFX_BindRootConstantBuffer(&gfxDevice, frameInfo.perFrameBuffer, cmdList);
 
 		frameInfo.scene->for_each<SRTransform, SRRenderable>([&](SRTransform& t, SRRenderable& r) {
 			const SRModel* model = r.model;
 			u32 numMeshlets = model->numMeshlets;
 
-			passData->push.vertexBufferIdx = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &model->vertexBuffer);
-			passData->push.meshletBufferIdx = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &model->meshletBuffer);
-			passData->push.meshletVerticesBufferIdx = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &model->meshletVerticesBuffer);
-			passData->push.meshletTrianglesBufferIdx = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &model->meshletTrianglesBuffer);
+			passData->push.vertexBufferIdx = SRGFX_GetDescriptorIndexSRV(&gfxDevice, model->vertexBuffer);
+			passData->push.meshletBufferIdx = SRGFX_GetDescriptorIndexSRV(&gfxDevice, model->meshletBuffer);
+			passData->push.meshletVerticesBufferIdx = SRGFX_GetDescriptorIndexSRV(&gfxDevice, model->meshletVerticesBuffer);
+			passData->push.meshletTrianglesBufferIdx = SRGFX_GetDescriptorIndexSRV(&gfxDevice, model->meshletTrianglesBuffer);
 
-			SRGFX_PushConstants(&gfxDevice, &passData->push, sizeof(passData->push), &cmdList);
-			SRGFX_DispatchMesh(&gfxDevice, numMeshlets, 1, 1, &cmdList);
+			SRGFX_PushConstants(&gfxDevice, &passData->push, sizeof(passData->push), cmdList);
+			SRGFX_DispatchMesh(&gfxDevice, numMeshlets, 1, 1, cmdList);
 		});
 	}
 

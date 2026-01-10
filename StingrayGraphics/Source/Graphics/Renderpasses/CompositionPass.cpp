@@ -26,11 +26,11 @@ namespace SRCompositionPass {
 		};
 
 		const auto* gBufferAlbedo = self.get_attachment("GBufferAlbedo");
-		passData->pushConstants.gBufferAlbedoIndex = SRGFX_GetDescriptorIndexSRV(&gfxDevice, &gBufferAlbedo->texture);
+		passData->pushConstants.gBufferAlbedoIndex = SRGFX_GetDescriptorIndexSRV(&gfxDevice, gBufferAlbedo->texture);
 
-		SRGFX_BindViewport(&gfxDevice, &viewport, &cmdList);
-		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, &cmdList);
-		SRGFX_PushConstants(&gfxDevice, &passData->pushConstants, sizeof(passData->pushConstants), &cmdList);
-		SRGFX_Draw(&gfxDevice, 3, 0, &cmdList);
+		SRGFX_BindViewport(&gfxDevice, &viewport, cmdList);
+		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, cmdList);
+		SRGFX_PushConstants(&gfxDevice, &passData->pushConstants, sizeof(passData->pushConstants), cmdList);
+		SRGFX_Draw(&gfxDevice, 3, 0, cmdList);
 	}
 }

@@ -376,12 +376,12 @@ struct SRSamplerInfo {
 	SRTextureAddressMode addressU = SRTextureAddressMode::Wrap;
 	SRTextureAddressMode addressV = SRTextureAddressMode::Wrap;
 	SRTextureAddressMode addressW = SRTextureAddressMode::Wrap;
-	float mipLODBias = 0.0f;
+	f32 mipLODBias = 0.0f;
 	u32 maxAnisotropy = 0;
 	SRComparisonFunc comparisonFunc = SRComparisonFunc::Never;
 	SRBorderColor borderColor = SRBorderColor::TransparentBlack;
-	float minLOD = 0.0f;
-	float maxLOD;
+	f32 minLOD = 0.0f;
+	f32 maxLOD;
 };
 
 struct SRSampler : public SRResource {
