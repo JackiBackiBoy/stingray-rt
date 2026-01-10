@@ -16,10 +16,6 @@
 [submodule "Dependencies/D3D12MA"]
 	path = Dependencies/D3D12MA
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator
-[submodule "Dependencies/ImGui"]
-	path = Dependencies/ImGui
-	url = https://github.com/ocornut/imgui
-	branch = docking
 [submodule "Dependencies/MeshOptimizer"]
 	path = Dependencies/MeshOptimizer
 	url = https://github.com/zeux/meshoptimizer

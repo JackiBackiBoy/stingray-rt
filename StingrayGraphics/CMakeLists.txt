@@ -16,9 +16,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Bin)
 
 if(MSVC)
-	set(CMAKE_CXX_FLAGS_RELEASE "/O2 /fp:fast")
+	set(CMAKE_CXX_FLAGS_RELEASE "/O2")
 else()
-	set(CMAKE_CXX_FLAGS_RELEASE "-O3 -ffast-math")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 endif()
 
 # --- Dependencies --------------------------------------------------------------------------------
@@ -31,7 +31,6 @@ set(DX_SHADER_COMPILER_INCLUDE_DIR ${DEPENDENCY_DIR}/DXShaderCompiler/inc/)
 set(FASTGLTF_INCLUDE_DIR           ${DEPENDENCY_DIR}/FastGLTF/include/)
 set(FREETYPE_INCLUDE_DIR           ${DEPENDENCY_DIR}/FreeType/include/)
 set(GLM_INCLUDE_DIR                ${DEPENDENCY_DIR}/GLM/)
-set(IMGUI_INCLUDE_DIR              ${DEPENDENCY_DIR}/ImGui/)
 set(MESH_OPTIMIZER_INCLUDE_DIR     ${DEPENDENCY_DIR}/MeshOptimizer/src/)
 set(VMA_INCLUDE_DIR                ${DEPENDENCY_DIR}/VMA/include/)
 
@@ -51,8 +50,6 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Core/Window.h
 
 	# Core/System
-	${SOURCE_DIR}/Core/System/MonitorEnumerator.cpp
-	${SOURCE_DIR}/Core/System/MonitorEnumerator.h
 	${SOURCE_DIR}/Core/System/Time.cpp
 	${SOURCE_DIR}/Core/System/Time.h
 
@@ -110,10 +107,6 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Input/Input.cpp
 	${SOURCE_DIR}/Input/Input.h
 
-	# UI
-	${SOURCE_DIR}/UI/Editor.cpp
-	${SOURCE_DIR}/UI/Editor.h
-
 	# Utilities
 	${SOURCE_DIR}/Utilities/TextUtilities.h
 )
@@ -135,8 +128,6 @@ source_group("Core" FILES
 )
 
 source_group("Core/System" FILES
-	${SOURCE_DIR}/Core/System/MonitorEnumerator.cpp
-	${SOURCE_DIR}/Core/System/MonitorEnumerator.h
 	${SOURCE_DIR}/Core/System/Time.cpp
 	${SOURCE_DIR}/Core/System/Time.h
 )
@@ -201,11 +192,6 @@ source_group("Input" FILES
 	${SOURCE_DIR}/Input/Input.h
 )
 
-source_group("UI" FILES
-	${SOURCE_DIR}/UI/Editor.cpp
-	${SOURCE_DIR}/UI/Editor.h
-)
-
 source_group("Utilities" FILES
 	${SOURCE_DIR}/Utilities/TextUtilities.h
 )
@@ -231,25 +217,11 @@ else()
 endif()
 
 # ------------------------------- Target Sources -------------------------------
-# ImGui
-set(IMGUI_SOURCE_FILES
-	${IMGUI_INCLUDE_DIR}imgui.cpp
-	${IMGUI_INCLUDE_DIR}imgui_demo.cpp
-	${IMGUI_INCLUDE_DIR}imgui_draw.cpp
-	${IMGUI_INCLUDE_DIR}imgui_widgets.cpp
-	${IMGUI_INCLUDE_DIR}imgui_tables.cpp
-	${IMGUI_INCLUDE_DIR}backends/imgui_impl_dx12.cpp
-	${IMGUI_INCLUDE_DIR}backends/imgui_impl_vulkan.cpp
-	${IMGUI_INCLUDE_DIR}backends/imgui_impl_win32.cpp
-)
-source_group("ImGui" FILES ${IMGUI_SOURCE_FILES})
-
 # Win32 resource file and application manifest
 set(WIN32_RES_DIR ${CMAKE_SOURCE_DIR}/Resources/Win32/)
 set_source_files_properties(${WIN32_RES_DIR}Resources.rc PROPERTIES LANGUAGE RC)
 target_sources(StingrayGraphics PRIVATE
 	${WIN32_RES_DIR}Resources.rc
-	${IMGUI_SOURCE_FILES}
 )
 
 set_target_properties(StingrayGraphics PROPERTIES
@@ -262,15 +234,18 @@ target_compile_definitions(StingrayGraphics PRIVATE
 	GLM_FORCE_RADIANS
 	GLM_FORCE_DEPTH_ZERO_TO_ONE
 	VK_NO_PROTOTYPES
-	IMGUI_IMPL_VULKAN_NO_PROTOTYPES
-	IMGUI_IMPL_VULKAN_USE_VOLK
 	ENGINE_BASE_DIR="${CMAKE_SOURCE_DIR}/"
 	RES_DIR="${CMAKE_SOURCE_DIR}/Resources/"
 
-	NOMINMAX
 	UNICODE
 	_UNICODE
+	NODRAWTEXT
+	NOGDICAPMASKS
+	NOMINMAX
+	NOSERVICE
+	NOTAPE
 	WIN32_LEAN_AND_MEAN
+	WIN32_EXTRA_LEAN
 )
 
 target_include_directories(StingrayGraphics PRIVATE
@@ -281,8 +256,6 @@ target_include_directories(StingrayGraphics PRIVATE
 	${FASTGLTF_INCLUDE_DIR}
 	${FREETYPE_INCLUDE_DIR}
 	${GLM_INCLUDE_DIR}
-	${IMGUI_INCLUDE_DIR}
-	${IMGUI_INCLUDE_DIR}backends/
 	${MESH_OPTIMIZER_INCLUDE_DIR}
 	${VMA_INCLUDE_DIR}
 	${WIN32_RES_DIR}

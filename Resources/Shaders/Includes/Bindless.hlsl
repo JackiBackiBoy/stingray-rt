@@ -1,6 +1,8 @@
 #ifndef SR_BINDLESS_H
 #define SR_BINDLESS_H
 
+#define SR_INVALID_DESCRIPTOR_INDEX 0
+
 #ifdef SR_VULKAN
 	#define SR_VK_BINDING(_binding, _set) [[vk::binding(_binding, _set)]]
 	#define SR_PUSH_CONSTANT(type, name) [[vk::push_constant]] type name;

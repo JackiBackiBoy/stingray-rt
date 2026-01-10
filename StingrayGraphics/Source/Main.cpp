@@ -18,11 +18,12 @@
 #include "Graphics/Renderpasses/MeshletGenerationPass.h"
 #include "Graphics/ShaderCompiler.h"
 #include "Input/Input.h"
-#include "UI/Editor.h"
 
 #include <Windows.h>
 #include <glm/glm.hpp>
 #include <assert.h>
+
+// TODO: Move most (if not all) UI-related code
 
 #define DEFAULT_WIDTH  1920
 #define DEFAULT_HEIGHT 1080
@@ -35,6 +36,21 @@ struct alignas(256) PerFrameData {
 };
 
 #define MAX_UI_DRAW_INSTANCES 16384
+enum struct UIWidgetFlags : u32 {
+	None            = 0,
+	Clickable       = 1 << 0,
+	DrawText        = 1 << 1,
+	DrawBackground  = 1 << 2,
+	DrawBorder      = 1 << 3,
+	HotAnimation    = 1 << 4,
+	ActiveAnimation = 1 << 5,
+}; SR_ENABLE_BITMASK_OPERATORS(UIWidgetFlags);
+
+struct UIWidget {
+	UIWidgetFlags flags = UIWidgetFlags::None;
+
+};
+
 struct UIDrawInstance {
 	glm::vec2 pos;
 	glm::vec2 size;
@@ -64,14 +80,12 @@ global SRWindow* g_window;
 global SRRenderGraph* g_render_graph;
 global SRShaderCompiler* g_shader_compiler;
 global SRFontLoader* g_font_loader;
-global SREditor* g_editor;
 global SRScene* g_scene;
 global SRCamera g_camera;
 global SRRenderPass* g_depth_prepass;
 global SRRenderPass* g_composition_pass;
 global SRRenderPass* g_gbuffer_pass;
 global SRRenderPass* g_ui_pass;
-global SRRenderPass* g_imgui_pass;
 global SRGFXBackend g_gfx_backend = SRGFXBackend::DX12;
 global SRGFXDevice g_gfx_device;
 global SRModel g_test_model;
@@ -84,7 +98,8 @@ global SRFont g_font;
 internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler);
 internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
 internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfxDevice);
-internal void UIPass_DrawText(SRRenderPass& self, Str8 str);
+internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 height, glm::vec3 col);
+internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::vec3 col);
 
 internal void Window_Initialize();
 internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height);
@@ -177,7 +192,6 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 	SRGFX_DestroySwapchain(&g_gfx_device, &g_swapchain);
 
 	delete g_scene;
-	delete g_editor;
 	delete g_render_graph;
 	SRWindow_Destroy(g_window);
 	SRGFX_DestroyDevice(&g_gfx_device);
@@ -261,7 +275,6 @@ internal void App_InitializeGraphics() {
 		.vSync = true
 	};
 	SRGFX_CreateSwapchain(&g_gfx_device, swapchainInfo, &g_swapchain);
-	g_editor = new SREditor(*g_window, g_gfx_device, g_gfx_backend);
 
 	// Samplers
 	SRSamplerInfo linearSamplerInfo = {
@@ -288,7 +301,7 @@ internal void App_InitializeResources() {
 	SRModelLoader::load_gltf(RES_DIR "Models/StanfordBunny/StanfordBunny.gltf", g_test_model, g_gfx_device);
 
 	g_font_loader = SRFontLoader_Create(g_arena);
-	SRFontLoader_LoadFontFromSystem(g_font_loader, &g_gfx_device, "SegoeUI", 16, &g_font);
+	SRFontLoader_LoadFontFromSystem(g_font_loader, &g_gfx_device, "SegoeUI", 15, &g_font);
 }
 
 internal void App_InitializeScene() {
@@ -337,11 +350,6 @@ internal void App_InitializeRendergraph() {
 	g_ui_pass = &g_render_graph->add_render_pass("UIPass", SRPassType::Graphics)
 		.set_execute_callback(UIPass_OnExecute);
 	UIPass_Initialize(*g_ui_pass, g_gfx_device, *g_shader_compiler);
-	g_imgui_pass = &g_render_graph->add_render_pass("ImGuiPass", SRPassType::Graphics)
-		.set_execute_callback([&](SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
-			g_editor->update(*g_render_graph);
-			g_editor->render(cmdList);
-		});
 
 	g_render_graph->build(g_gfx_device);
 }
@@ -448,7 +456,8 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const
 
 	// Update
 	// TODO: Move elsewhere
-	UIPass_DrawText(self, Str8_Literal("Hello World! Stingray-RT Version 0.2"));
+	UIPass_DrawRect(self, { 0, 0 }, (f32)frameInfo.width, 30, { 0.2f, 0.23f, 0.25f });
+	UIPass_DrawText(self, Str8_Literal("Stingray"), { (f32)frameInfo.width * 0.5f, 4 }, { 1.0f, 1.0f, 1.0f });
 
 	memcpy(
 		pass_data->draw_instance_buffers[frame_index].mappedData,
@@ -485,10 +494,20 @@ internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfxDevice) {
 	}
 }
 
-void UIPass_DrawText(SRRenderPass& self, Str8 str) {
+internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 height, glm::vec3 col) {
 	auto* pass_data = self.get_pass_data<UIPassData>();
-	f32 text_pos_x = 300;
-	f32 text_pos_y = 20;
+
+	UIDrawInstance draw_instance = {
+		.pos = pos,
+		.size = { width, height },
+		.color = col,
+		.tex_index = SR_INVALID_DESCRIPTOR_INDEX // Note: Shader will just use input color directly
+	};
+	SRVector_PushBack(&pass_data->draw_instances_data, draw_instance);
+}
+
+internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::vec3 col) {
+	auto* pass_data = self.get_pass_data<UIPassData>();
 	SRDescriptorIndex tex_index = SRGFX_GetDescriptorIndexSRV(&g_gfx_device, g_font.atlas_tex);
 
 	for (u64 i = 0; i < str.size; ++i) {
@@ -496,19 +515,19 @@ void UIPass_DrawText(SRRenderPass& self, Str8 str) {
 		SRFontGlyph* glyph = &g_font.glyphs[c];
 
 		if (c == ' ') {
-			text_pos_x += glyph->advance_x;
+			pos.x += (f32)glyph->advance_x;
 			continue;
 		}
 
-		UIDrawInstance draw_instance = { // TODO: perhaps we don't need to store bearingX??
-			.pos = { text_pos_x + (f32)glyph->bearing_x, text_pos_y + (f32)g_font.bbox_ymax - (f32)glyph->bearing_y },
+		UIDrawInstance draw_instance = {
+			.pos = { pos.x + (f32)glyph->bearing_x, pos.y + (f32)g_font.bbox_ymax - (f32)glyph->bearing_y },
 			.size = { glyph->width, glyph->height },
 			.texcoord_tl = glyph->atlas_tex_coord_tl,
 			.texcoord_br = glyph->atlas_tex_coord_br,
-			.color = { 1.0f, 1.0f, 1.0f },
+			.color = col,
 			.tex_index = tex_index
 		};
 		SRVector_PushBack(&pass_data->draw_instances_data, draw_instance);
-		text_pos_x += glyph->advance_x;
+		pos.x += glyph->advance_x;
 	}
 }

@@ -39,7 +39,6 @@ typedef SRDescriptorIndex (*SRGFX_GetDescriptorIndexSRVFunc)(SRGFXDevice*, SRRes
 typedef SRShaderCompileTarget (*SRGFX_GetShaderCompileTargetFunc)(SRGFXDevice*);
 typedef void (*SRGFX_WaitForGPUFunc)(SRGFXDevice*);
 typedef void (*SRGFX_FlushInitialUploadsFunc)(SRGFXDevice*);
-typedef void (*SRGFX_SetupImGuiInitInfoFunc)(SRGFXDevice*, SRFormat);
 
 struct SRGFXDeviceVTable {
 	SRGFX_DestroyDeviceFunc            destroy_device;
@@ -74,7 +73,6 @@ struct SRGFXDeviceVTable {
 	SRGFX_GetShaderCompileTargetFunc   get_shader_compile_target;
 	SRGFX_WaitForGPUFunc               wait_for_gpu;
 	SRGFX_FlushInitialUploadsFunc      flush_initial_uploads;
-	SRGFX_SetupImGuiInitInfoFunc       setup_imgui_init_info;
 };
 
 struct SRGFXDevice {
@@ -122,4 +120,3 @@ SRDescriptorIndex SRGFX_GetDescriptorIndexSRV(SRGFXDevice* device, SRResource re
 SRShaderCompileTarget SRGFX_GetShaderCompileTarget(SRGFXDevice* device);
 void SRGFX_WaitForGPU(SRGFXDevice* device);
 void SRGFX_FlushInitialUploads(SRGFXDevice* device);
-void SRGFX_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat);

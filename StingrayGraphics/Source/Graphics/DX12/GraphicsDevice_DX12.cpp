@@ -6,9 +6,6 @@
 #include "Utilities/TextUtilities.h"
 #include "Data/ArenaAllocator.h"
 
-#include <imgui.h>
-#include <imgui_impl_dx12.h>
-
 #include "d3d12.h"
 #include "d3dx12/d3dx12_pipeline_state_stream.h"
 #include <dxgi1_6.h>
@@ -57,7 +54,6 @@ internal SRGFXDeviceVTable SRGFXDevice_DX12_VTable = {
 	.get_shader_compile_target   = SRGFXDX12_GetShaderCompileTarget,
 	.wait_for_gpu                = SRGFXDX12_WaitForGPU,
 	.flush_initial_uploads       = SRGFXDX12_FlushInitialUploads,
-	.setup_imgui_init_info       = SRGFXDX12_SetupImGuiInitInfo
 };
 
 struct SRGFXDeviceDX12 {
@@ -1495,7 +1491,7 @@ void SRGFXDX12_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapch
 	HR(dev->cmd_queues[SRQueue_Universal]->Signal(dev->frame_fences[SRQueue_Universal], signal_value));
 
 	UINT syncInterval = swapchain->info.vSync ? 1 : 0;
-	UINT presentFlags = dev->is_tearing_supported && !swapchain->info.vSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
+	UINT presentFlags = (dev->is_tearing_supported && !swapchain->info.vSync) ? DXGI_PRESENT_ALLOW_TEARING : 0;
 	internalSwapchain->swapchain->Present(syncInterval, presentFlags);
 
 	dev->frame_done_values[SRQueue_Universal][dev->frame_index] = signal_value;
@@ -1565,6 +1561,8 @@ void SRGFXDX12_WaitForGPU(SRGFXDevice* device) {
 		HR(tempFence->SetEventOnCompletion(1, nullptr));
 	}
 	tempFence->Release();
+	dev->frame_index = 0;
+	dev->image_index = 0;
 }
 
 void SRGFXDX12_FlushInitialUploads(SRGFXDevice* device) {
@@ -1596,41 +1594,4 @@ void SRGFXDX12_FlushInitialUploads(SRGFXDevice* device) {
 
 	SRArena_Clear(dev->arena_upload);
 	dev->upload_cmd_allocator->Reset();
-}
-
-void SRGFXDX12_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat) {
-	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-
-	ImGui_ImplDX12_InitInfo init_info = {};
-	init_info.Device = dev->device;
-	init_info.CommandQueue = dev->cmd_queues[SRQueue_Universal];
-	init_info.NumFramesInFlight = SR_GFX_FRAMES_IN_FLIGHT;
-	init_info.RTVFormat = to_dx12_format(swapchainFormat);
-	init_info.UserData = dev->descriptor_heap_cbv_srv_uav;
-	init_info.SrvDescriptorHeap = dev->descriptor_heap_cbv_srv_uav->heapObject;
-
-	init_info.SrvDescriptorAllocFn = [](
-		ImGui_ImplDX12_InitInfo* init_info,
-		D3D12_CPU_DESCRIPTOR_HANDLE* cpu_handle,
-		D3D12_GPU_DESCRIPTOR_HANDLE* gpu_handle
-	) {
-		SRDescriptorHeap_DX12* heap = (SRDescriptorHeap_DX12*)init_info->UserData;
-		SRDescriptorIndex index = SRDescriptorHeap_DX12_GetNextIndex(heap);
-		*cpu_handle = SRDescriptorHeap_DX12_GetCPUHandle(heap, index);
-		*gpu_handle = SRDescriptorHeap_DX12_GetGPUHandle(heap, index);
-	};
-
-	init_info.SrvDescriptorFreeFn = [](
-		ImGui_ImplDX12_InitInfo* init_info,
-		D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle,
-		D3D12_GPU_DESCRIPTOR_HANDLE
-	) {
-		SRDescriptorHeap_DX12* heap = (SRDescriptorHeap_DX12*)init_info->UserData;
-
-		// NOTE: CPU and GPU handle are related, freeing CPU also frees GPU
-		SRDescriptorIndex index = SRDescriptorHeap_DX12_GetIndexFromCPUHandle(heap, cpu_handle);
-		SRDescriptorHeap_DX12_FreeIndex(heap, index);
-	};
-
-	ImGui_ImplDX12_Init(&init_info);
 }

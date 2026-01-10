@@ -8,9 +8,6 @@
 #include "Core/Logger.h"
 #include "Data/ArenaAllocator.h"
 
-#include <imgui.h>
-#include <imgui_impl_vulkan.h>
-
 #include <Windows.h>
 #include <vector>
 #include <stdlib.h>
@@ -74,7 +71,6 @@ internal SRGFXDeviceVTable SRGFXDevice_Vulkan_VTable = {
 	.get_shader_compile_target   = SRGFXVulkan_GetShaderCompileTarget,
 	.wait_for_gpu                = SRGFXVulkan_WaitForGPU,
 	.flush_initial_uploads       = SRGFXVulkan_FlushInitialUploads,
-	.setup_imgui_init_info       = SRGFXVulkan_SetupImGuiInitInfo
 };
 
 struct SRGFXDeviceVulkan {
@@ -2405,67 +2401,4 @@ void SRGFXVulkan_FlushInitialUploads(SRGFXDevice* device) {
 
 	SRArena_Clear(dev->arena_upload);
 	dev->is_upload_cmd_buffer_recording = false;
-}
-
-void SRGFXVulkan_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat) {
-	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-
-	ImGui::GetPlatformIO().Platform_CreateVkSurface = [](
-		ImGuiViewport* viewport,
-		ImU64 vkInstance,
-		const void* vkAllocators,
-		ImU64* outVkSurface
-	) -> int {
-		VkInstance instance = (VkInstance)vkInstance;
-		HWND hwnd = (HWND)viewport->PlatformHandle;
-
-		if (!hwnd) {
-			hwnd = (HWND)viewport->PlatformHandleRaw;
-		}
-
-		VkWin32SurfaceCreateInfoKHR ci{};
-		ci.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		ci.hinstance = GetModuleHandle(nullptr);
-		ci.hwnd = hwnd;
-
-		VkSurfaceKHR surface = VK_NULL_HANDLE;
-		VkResult err = vkCreateWin32SurfaceKHR(
-			instance, &ci,
-			(const VkAllocationCallbacks*)vkAllocators,
-			&surface
-		);
-
-		if (outVkSurface) {
-			*outVkSurface = (ImU64)surface;
-		}
-
-		return err == VK_SUCCESS;
-	};
-
-	VkFormat vkSwapchainFormat = to_vk_format(swapchainFormat);
-	ImGui_ImplVulkan_InitInfo initInfo = {
-		.ApiVersion = VK_API_VERSION_1_4,
-		.Instance = dev->instance,
-		.PhysicalDevice = dev->physical_device,
-		.Device = dev->device,
-		.QueueFamily = dev->cmd_queue_indices[SRQueue_Universal],
-		.Queue = dev->cmd_queues[SRQueue_Universal],
-		.DescriptorPoolSize = IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE,
-		.MinImageCount = 3, // TODO: Depends on the swapchain buffers we choose, make the function require a swapchain object to check
-		.ImageCount = 3,
-		.PipelineInfoMain = {
-			.PipelineRenderingCreateInfo = {
-				.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-				.viewMask = 0,
-				.colorAttachmentCount = 1,
-				.pColorAttachmentFormats = &vkSwapchainFormat,
-				.depthAttachmentFormat = VK_FORMAT_UNDEFINED,
-				.stencilAttachmentFormat = VK_FORMAT_UNDEFINED
-			}
-		},
-		.UseDynamicRendering = true,
-		.CheckVkResultFn = [](VkResult err) { SR_VK_CHECK(err, ""); }
-	};
-
-	ImGui_ImplVulkan_Init(&initInfo);
 }

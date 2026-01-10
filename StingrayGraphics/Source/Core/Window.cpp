@@ -1,16 +1,12 @@
 #include "Window.h"
 #include "Utilities/TextUtilities.h"
 
-#include <imgui_impl_win32.h>
-
 #include <vector>
 #include <Windows.h>
 #include <dwmapi.h>
 
+#include <assert.h>
 #include <stdlib.h>
-
-// TODO: Rename this to Window_Win32 and introduce other OS variants
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 struct SRWindow {
 	HWND handle;
@@ -23,10 +19,6 @@ struct SRWindow {
 global bool g_is_window_class_registered = false;
 
 internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam)) {
-		return true;
-	}
-
 	// TRICK: WM_NCCREATE is guaranteed to be the first message that has the
 	// valid HWND. Meaning that we can store the SRWindow pointer inside the
 	// GWLP_USERDATA to then be used by other messages and also set m_Hwnd
@@ -163,9 +155,6 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 	GetClientRect(window->handle, &client_rect);
 	window->client_width = (u32)(client_rect.right - client_rect.left);
 	window->client_height = (u32)(client_rect.bottom - client_rect.top);
-
-	BOOL use_dark_mode = TRUE;
-	DwmSetWindowAttribute(window->handle, DWMWA_USE_IMMERSIVE_DARK_MODE, &use_dark_mode, sizeof(use_dark_mode));
 }
 
 SRWindow* SRWindow_Create(const char* name, u32 width, u32 height, SRWindowFlags flags) {

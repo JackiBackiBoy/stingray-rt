@@ -42,4 +42,3 @@ SRDescriptorIndex SRGFXVulkan_GetDescriptorIndexSRV(SRGFXDevice* device, SRResou
 SRShaderCompileTarget SRGFXVulkan_GetShaderCompileTarget(SRGFXDevice* device);
 void SRGFXVulkan_WaitForGPU(SRGFXDevice* device);
 void SRGFXVulkan_FlushInitialUploads(SRGFXDevice* device);
-void SRGFXVulkan_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat);

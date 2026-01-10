@@ -42,4 +42,3 @@ SRDescriptorIndex SRGFXDX12_GetDescriptorIndexSRV(SRGFXDevice* device, SRResourc
 SRShaderCompileTarget SRGFXDX12_GetShaderCompileTarget(SRGFXDevice* device);
 void SRGFXDX12_WaitForGPU(SRGFXDevice* device);
 void SRGFXDX12_FlushInitialUploads(SRGFXDevice* device);
-void SRGFXDX12_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat);

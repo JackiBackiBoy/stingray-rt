@@ -49,7 +49,6 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 
 	FT_Set_Pixel_Sizes(ft_face, 0, size);
 	font->line_spacing = ft_face->size->metrics.height >> 6;
-	font->bbox_ymax = ft_face->bbox.yMax >> 6;
 
 	b32 has_kerning = FT_HAS_KERNING(ft_face);
 	u32 atlas_padding = 4;
@@ -63,6 +62,8 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 		u32 pen_x = atlas_padding;
 		u32 pen_y = atlas_padding;
 		u32 tallest_char_in_row = 0;
+		i32 max_bearing_y = 0;
+		i32 max_negative_bearing_y = 0;
 		f32 inv_target_atlas_width = 1.0f / (f32)target_atlas_width;
 		f32 inv_target_atlas_height = 1.0f / (f32)target_atlas_height;
 
@@ -95,6 +96,15 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 				tallest_char_in_row = glyph->height;
 			}
 
+			if (glyph->bearing_y > max_bearing_y) {
+				max_bearing_y = glyph->bearing_y;
+			}
+
+			// Max negative bearing (i.e. the amount the glyph goes beneath the baseline)
+			if ((i32)glyph->height - (i32)glyph->bearing_y > max_negative_bearing_y) {
+				max_negative_bearing_y = (i32)glyph->height - (i32)glyph->bearing_y;
+			}
+
 			pen_x += glyph->width + atlas_padding;
 			if (pen_x + glyph->width > target_atlas_width - atlas_padding) {
 				pen_x = atlas_padding;
@@ -112,6 +122,7 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 			break;
 		}
 
+		font->bbox_ymax = max_negative_bearing_y + max_bearing_y;
 		target_atlas_width *= 2;
 		target_atlas_height *= 2;
 	}

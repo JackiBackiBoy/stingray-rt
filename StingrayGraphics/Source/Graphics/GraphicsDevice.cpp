@@ -123,6 +123,3 @@ void SRGFX_WaitForGPU(SRGFXDevice* device) {
 void SRGFX_FlushInitialUploads(SRGFXDevice* device) {
 	device->vtbl->flush_initial_uploads(device);
 }
-void SRGFX_SetupImGuiInitInfo(SRGFXDevice* device, SRFormat swapchainFormat) {
-	device->vtbl->setup_imgui_init_info(device, swapchainFormat);
-}
