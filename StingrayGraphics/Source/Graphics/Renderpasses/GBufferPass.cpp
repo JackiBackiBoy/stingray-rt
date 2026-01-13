@@ -3,10 +3,10 @@
 #include "Data/Model.h"
 
 namespace SRGBufferPass {
-	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
+	void build(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler) {
 		auto& passData = self.allocate_pass_data<GBufferPassData>();
-		SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, &passData.vertexShader);
-		SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, &passData.pixelShader);
+		SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, &passData.vertexShader);
+		SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, &passData.pixelShader);
 
 		SRPipelineInfo pipelineInfo = {
 			.vertexShader = &passData.vertexShader,
@@ -31,34 +31,33 @@ namespace SRGBufferPass {
 			.renderTargetFormats = { SRFormat::RGBA8_UNORM },
 			.depthStencilFormat = SRFormat::D32_FLOAT
 		};
-		SRGFX_CreatePipeline(&gfxDevice, &pipelineInfo, &passData.pipeline);
+		SRGFX_CreatePipeline(&gfx_device, &pipelineInfo, &passData.pipeline);
 	}
 
-	void execute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+	void execute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCmdList cmd_list, const SRFrameInfo* frame_info) {
 		auto* passData = self.get_pass_data<GBufferPassData>();
 
 		SRViewport viewport = {
-			.width = static_cast<f32>(frameInfo.width),
-			.height = static_cast<f32>(frameInfo.height),
+			.width = static_cast<f32>(frame_info->width),
+			.height = static_cast<f32>(frame_info->height),
 		};
 
-		SRGFX_BindViewport(&gfxDevice, &viewport, cmdList);
-		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, cmdList);
-		SRGFX_BindRootConstantBuffer(&gfxDevice, frameInfo.perFrameBuffer, cmdList);
+		SRGFX_BindViewport(&gfx_device, &viewport, cmd_list);
+		SRGFX_BindPipeline(&gfx_device, &passData->pipeline, cmd_list);
+		SRGFX_BindRootConstantBuffer(&gfx_device, frame_info->perFrameBuffer, cmd_list);
 
-		frameInfo.scene->for_each<SRTransform, SRRenderable>([&](SRTransform& t, SRRenderable& r) {
-			(void)t;
+		frame_info->scene->for_each<SRTransform, SRRenderable>([&](SRTransform& t, SRRenderable& r) {
 			const SRModel* model = r.model;
 
-			SRGFX_BindVertexBuffer(&gfxDevice, &model->vertexBuffer, cmdList);
-			SRGFX_BindIndexBuffer(&gfxDevice, &model->indexBuffer, cmdList);
+			SRGFX_BindVertexBuffer(&gfx_device, &model->vertexBuffer, cmd_list);
+			SRGFX_BindIndexBuffer(&gfx_device, &model->indexBuffer, cmd_list);
 
 			// TODO: Transform
 			for (const auto& mesh : model->meshes) {
 				for (u32 i = mesh.basePrimitive; i < mesh.numPrimitives; ++i) {
 					const SRMeshPrimitive& primitive = model->primitives[i];
 
-					SRGFX_DrawIndexed(&gfxDevice, primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmdList);
+					SRGFX_DrawIndexed(&gfx_device, primitive.numIndices, primitive.baseIndex, primitive.baseVertex, cmd_list);
 				}
 			}
 		});

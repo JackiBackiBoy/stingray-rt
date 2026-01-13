@@ -62,6 +62,8 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Data/ComponentTypes.h
 	${SOURCE_DIR}/Data/Font.cpp
 	${SOURCE_DIR}/Data/Font.h
+	${SOURCE_DIR}/Data/HashMap.cpp
+	${SOURCE_DIR}/Data/HashMap.h
 	${SOURCE_DIR}/Data/Model.cpp
 	${SOURCE_DIR}/Data/Model.h
 	${SOURCE_DIR}/Data/Scene.cpp
@@ -141,6 +143,8 @@ source_group("Data" FILES
 	${SOURCE_DIR}/Data/ComponentTypes.h
 	${SOURCE_DIR}/Data/Font.cpp
 	${SOURCE_DIR}/Data/Font.h
+	${SOURCE_DIR}/Data/HashMap.cpp
+	${SOURCE_DIR}/Data/HashMap.h
 	${SOURCE_DIR}/Data/Model.cpp
 	${SOURCE_DIR}/Data/Model.h
 	${SOURCE_DIR}/Data/Scene.cpp

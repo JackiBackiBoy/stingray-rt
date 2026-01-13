@@ -3,10 +3,10 @@
 #include "Data/Model.h"
 
 namespace SRCompositionPass {
-	void build(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
+	void build(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler) {
 		auto& passData = self.allocate_pass_data<CompositionPassData>();
-		SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, &passData.vertexShader);
-		SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, &passData.pixelShader);
+		SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, &passData.vertexShader);
+		SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/CompositionPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, &passData.pixelShader);
 
 		const SRPipelineInfo pipelineInfo = {
 			.vertexShader = &passData.vertexShader,
@@ -14,23 +14,23 @@ namespace SRCompositionPass {
 			.numRenderTargets = 1,
 			.renderTargetFormats = { SRFormat::RGBA8_UNORM }
 		};
-		SRGFX_CreatePipeline(&gfxDevice, &pipelineInfo, &passData.pipeline);
+		SRGFX_CreatePipeline(&gfx_device, &pipelineInfo, &passData.pipeline);
 	}
 
-	void execute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+	void execute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCmdList cmd_list, const SRFrameInfo* frame_info) {
 		auto* passData = self.get_pass_data<CompositionPassData>();
 
 		const SRViewport viewport = {
-			.width = static_cast<float>(frameInfo.width),
-			.height = static_cast<float>(frameInfo.height),
+			.width = static_cast<f32>(frame_info->width),
+			.height = static_cast<f32>(frame_info->height),
 		};
 
 		const auto* gBufferAlbedo = self.get_attachment("GBufferAlbedo");
-		passData->pushConstants.gBufferAlbedoIndex = SRGFX_GetDescriptorIndexSRV(&gfxDevice, gBufferAlbedo->texture);
+		passData->pushConstants.gBufferAlbedoIndex = SRGFX_GetDescriptorIndexSRV(&gfx_device, gBufferAlbedo->texture);
 
-		SRGFX_BindViewport(&gfxDevice, &viewport, cmdList);
-		SRGFX_BindPipeline(&gfxDevice, &passData->pipeline, cmdList);
-		SRGFX_PushConstants(&gfxDevice, &passData->pushConstants, sizeof(passData->pushConstants), cmdList);
-		SRGFX_Draw(&gfxDevice, 3, 0, cmdList);
+		SRGFX_BindViewport(&gfx_device, &viewport, cmd_list);
+		SRGFX_BindPipeline(&gfx_device, &passData->pipeline, cmd_list);
+		SRGFX_PushConstants(&gfx_device, &passData->pushConstants, sizeof(passData->pushConstants), cmd_list);
+		SRGFX_Draw(&gfx_device, 3, 0, cmd_list);
 	}
 }

@@ -99,7 +99,7 @@ namespace {
 }
 
 namespace SRModelLoader {
-	void load_gltf(const char* path, SRModel& model, SRGFXDevice& gfxDevice) {
+	void load_gltf(const char* path, SRModel& model, SRGFXDevice& gfx_device) {
 		fastgltf::Parser gltfParser = fastgltf::Parser();
 
 		const fastgltf::Options gltfOptions = (
@@ -247,11 +247,11 @@ namespace SRModelLoader {
 			meshlet.triangleOffset = triangleOffset;
 		}
 
-		SRGFX_CreateBuffer(&gfxDevice, vertexBufferInfo, &model.vertexBuffer, vertices);
-		SRGFX_CreateBuffer(&gfxDevice, indexBufferInfo, &model.indexBuffer, indices);
-		SRGFX_CreateBuffer(&gfxDevice, meshletBufferInfo, &model.meshletBuffer, meshlets.data());
-		SRGFX_CreateBuffer(&gfxDevice, meshletVerticesBufferInfo, &model.meshletVerticesBuffer, meshletVertices.data());
-		SRGFX_CreateBuffer(&gfxDevice, meshletTrianglesBufferInfo, &model.meshletTrianglesBuffer, meshletTrianglesU32.data());
+		SRGFX_CreateBuffer(&gfx_device, vertexBufferInfo, &model.vertexBuffer, vertices);
+		SRGFX_CreateBuffer(&gfx_device, indexBufferInfo, &model.indexBuffer, indices);
+		SRGFX_CreateBuffer(&gfx_device, meshletBufferInfo, &model.meshletBuffer, meshlets.data());
+		SRGFX_CreateBuffer(&gfx_device, meshletVerticesBufferInfo, &model.meshletVerticesBuffer, meshletVertices.data());
+		SRGFX_CreateBuffer(&gfx_device, meshletTrianglesBufferInfo, &model.meshletTrianglesBuffer, meshletTrianglesU32.data());
 		model.numMeshlets = (u32)meshlets.size();
 
 		delete[] vertices;

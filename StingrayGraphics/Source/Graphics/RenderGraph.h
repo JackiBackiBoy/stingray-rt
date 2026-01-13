@@ -6,7 +6,6 @@
 #include "Graphics/GraphicsDevice.h"
 #include "Graphics/FrameInfo.h"
 
-#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -28,6 +27,9 @@ enum struct SRSizeClass : u8 {
 	None,
 	SwapchainRelative
 };
+
+class SRRenderPass;
+typedef void (*SRRenderPass_OnExecuteCallback)(SRRenderPass&, SRGFXDevice&, SRCmdList, const SRFrameInfo*);
 
 struct SRRenderPassAttachmentSubresource {
 	SRResourceState state = SRResourceState::Undefined;
@@ -122,10 +124,10 @@ public:
 	SRRenderPass& add_color_output(const std::string& name, u32 width, u32 height, SRFormat format, u32 mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
 	SRRenderPass& add_depth_output(const std::string& name, u32 width, u32 height, SRFormat format, f32 clearValue = 0.0f, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
 	SRRenderPass& add_rw_texture_output(const std::string& name, u32 width, u32 height, SRFormat format, u32 mipLevels = 1, SRSizeClass sizeClass = SRSizeClass::SwapchainRelative);
-	SRRenderPass& set_execute_callback(std::function<void(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> callback);
+	SRRenderPass& set_execute_callback(SRRenderPass_OnExecuteCallback callback);
 
 	// --------------------------- Miscellaneous ---------------------------
-	void execute(SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
+	void execute(SRGFXDevice& gfx_device, SRCmdList cmd_list, const SRFrameInfo* frame_info);
 
 	template <typename T>
 	T& allocate_pass_data() {
@@ -152,7 +154,7 @@ private:
 	SRPassType m_Type;
 	std::vector<SRRenderPassAttachmentInput> m_InputAttachments;
 	std::vector<SRRenderPassAttachment*> m_OutputAttachments;
-	std::function<void(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> m_ExecuteCallback;
+	SRRenderPass_OnExecuteCallback m_ExecuteCallback;
 	std::shared_ptr<void> m_PassData = nullptr;
 };
 
@@ -164,9 +166,9 @@ public:
 	SRRenderPass& add_render_pass(const std::string& name, SRPassType type);
 	PrefabPass& add_prefab_pass(const std::string& name);
 
-	void build(SRGFXDevice& gfxDevice);
-	void execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
-	void notify_swapchain_resize(SRGFXDevice& gfxDevice, u32 new_width, u32 new_height);
+	void build(SRGFXDevice& gfx_device);
+	void execute(SRGFXDevice& gfx_device, SRSwapchain swapchain, SRCmdList cmd_list, const SRFrameInfo* frame_info);
+	void notify_swapchain_resize(SRGFXDevice& gfx_device, u32 new_width, u32 new_height);
 
 	SRRenderPassAttachment* get_attachment(const std::string& name);
 	// TODO: Improve this garbage

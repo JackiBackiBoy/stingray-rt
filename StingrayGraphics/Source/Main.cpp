@@ -6,6 +6,7 @@
 #include "Data/ArenaAllocator.h"
 #include "Data/Camera.h"
 #include "Data/ComponentTypes.h"
+#include "Data/HashMap.h"
 #include "Data/Model.h"
 #include "Data/Scene.h"
 #include "Data/Font.h"
@@ -24,7 +25,6 @@
 #include <assert.h>
 
 // TODO: Move most (if not all) UI-related code
-
 #define DEFAULT_WIDTH  1920
 #define DEFAULT_HEIGHT 1080
 
@@ -36,6 +36,8 @@ struct alignas(256) PerFrameData {
 };
 
 #define MAX_UI_DRAW_INSTANCES 16384
+typedef u32 UIWidgetID;
+
 enum struct UIWidgetFlags : u32 {
 	None            = 0,
 	Clickable       = 1 << 0,
@@ -47,8 +49,14 @@ enum struct UIWidgetFlags : u32 {
 }; SR_ENABLE_BITMASK_OPERATORS(UIWidgetFlags);
 
 struct UIWidget {
-	UIWidgetFlags flags = UIWidgetFlags::None;
+	UIWidget* first;
+	UIWidget* last;
+	UIWidget* next;
+	UIWidget* prev;
+	UIWidget* parent;
 
+	UIWidgetID id;
+	UIWidgetFlags flags;
 };
 
 struct UIDrawInstance {
@@ -74,6 +82,8 @@ struct UIPassData {
 	} push;
 };
 
+global SRVector<UIWidget> g_ui_widgets;
+global SRHashMap<UIWidgetID, u64> g_ui_id_to_widget_index_map;
 global SRLogger& logger = SRLogger::get(); // NOTE: Trick to ensure that logger outlives everything
 global SRArena* g_arena;
 global SRWindow* g_window;
@@ -95,11 +105,22 @@ global SRSwapchain g_swapchain;
 global SRSampler g_sampler_linear;
 global SRFont g_font;
 
-internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler);
-internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo);
-internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfxDevice);
+internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler);
+internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCmdList cmd_list, const SRFrameInfo* frame_info);
+internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfx_device);
 internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 height, glm::vec3 col);
 internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::vec3 col);
+
+internal u64 Hash_U32(const UIWidgetID* id) {
+	u32 x = *id;
+	x = ((x >> 16) ^ x) * 0x45d9f3b;
+	x = ((x >> 16) ^ x) * 0x45d9f3b;
+	x = (x >> 16) ^ x;
+	return (u64)x;
+}
+internal UIWidgetID UIWidgetID_FromStr8(Str8 str);
+internal UIWidget* UIWidget_Make(UIWidgetFlags flags, Str8 str);
+internal void UI_Button(Str8 str);
 
 internal void Window_Initialize();
 internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height);
@@ -109,8 +130,8 @@ internal void App_InitializeGraphics();
 internal void App_InitializeResources();
 internal void App_InitializeScene();
 internal void App_InitializeRendergraph();
-internal void App_OnUpdate(const SRFrameInfo* frameInfo);
-internal void App_OnRender(const SRFrameInfo* frameInfo);
+internal void App_OnUpdate(const SRFrameInfo* frame_info);
+internal void App_OnRender(const SRFrameInfo* frame_info);
 
 int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 	#ifdef _DEBUG
@@ -119,6 +140,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 
 	g_arena = SRArena_Create(Megabytes(512));
 
+	SRVector_Create(&g_ui_widgets);
 	Window_Initialize();
 	App_InitializeGraphics();
 	App_InitializeResources();
@@ -354,11 +376,11 @@ internal void App_InitializeRendergraph() {
 	g_render_graph->build(g_gfx_device);
 }
 
-internal void App_OnUpdate(const SRFrameInfo* frameInfo) {
+internal void App_OnUpdate(const SRFrameInfo* frame_info) {
 	SRInput::update();
 	SRMouseState mouse = SRInput::get_mouse_state();
 
-	SRCamera* cam = frameInfo->camera;
+	SRCamera* cam = frame_info->camera;
 	f32 cam_move_speed = 0.9f;
 	f32 mouse_sensitivity = 0.001f;
 	f32 dx = mouse_sensitivity * (f32)mouse.dx;
@@ -376,22 +398,22 @@ internal void App_OnUpdate(const SRFrameInfo* frameInfo) {
 	glm::vec3 cam_forward = SRCamera_GetForward(cam);
 
 	if (SRInput::is_key_down(SRKey_W)) {
-		cam->position += cam_move_speed * frameInfo->dt * cam_forward;
+		cam->position += cam_move_speed * frame_info->dt * cam_forward;
 	}
 	if (SRInput::is_key_down(SRKey_A)) {
-		cam->position -= cam_move_speed * frameInfo->dt * cam_right;
+		cam->position -= cam_move_speed * frame_info->dt * cam_right;
 	}
 	if (SRInput::is_key_down(SRKey_S)) {
-		cam->position -= cam_move_speed * frameInfo->dt * cam_forward;
+		cam->position -= cam_move_speed * frame_info->dt * cam_forward;
 	}
 	if (SRInput::is_key_down(SRKey_D)) {
-		cam->position += cam_move_speed * frameInfo->dt * cam_right;
+		cam->position += cam_move_speed * frame_info->dt * cam_right;
 	}
 	if (SRInput::is_key_down(SRKey_Space)) {
-		cam->position.y += cam_move_speed * frameInfo->dt;
+		cam->position.y += cam_move_speed * frame_info->dt;
 	}
 	if (SRInput::is_key_down(SRKey_LeftControl)) {
-		cam->position.y -= cam_move_speed * frameInfo->dt;
+		cam->position.y -= cam_move_speed * frame_info->dt;
 	}
 
 	SRCamera_ComputeView(cam, &g_per_frame_data.view);
@@ -399,19 +421,25 @@ internal void App_OnUpdate(const SRFrameInfo* frameInfo) {
 	g_per_frame_data.inv_view = glm::inverse(g_per_frame_data.view);
 	g_per_frame_data.inv_proj = glm::inverse(g_per_frame_data.proj);
 
-	std::memcpy(frameInfo->perFrameBuffer->mappedData, &g_per_frame_data, sizeof(g_per_frame_data));
+	std::memcpy(frame_info->perFrameBuffer->mappedData, &g_per_frame_data, sizeof(g_per_frame_data));
 }
 
 internal void App_OnRender(const SRFrameInfo* frame_info) {
-	SRCmdList cmdList = SRGFX_BeginCommandList(&g_gfx_device, SRQueue_Universal);
-	g_render_graph->execute(g_gfx_device, g_swapchain, cmdList, *frame_info);
+	SRCmdList cmd_list = SRGFX_BeginCommandList(&g_gfx_device, SRQueue_Universal);
+	g_render_graph->execute(g_gfx_device, g_swapchain, cmd_list, frame_info);
 	SRGFX_SubmitCommandLists(&g_gfx_device, &g_swapchain);
 }
 
-internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRShaderCompiler& shaderCompiler) {
+internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler) {
+	// TODO: Move elsewhere?
+	SRHashMap_Create(
+		&g_ui_id_to_widget_index_map,
+		Hash_U32
+	);
+
 	auto& pass_data = self.allocate_pass_data<UIPassData>();
-	SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Vertex, "vertex_main" }, &pass_data.vertex_shader);
-	SRShaderCompiler_CompileFromFile(&shaderCompiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Pixel, "pixel_main" }, &pass_data.pixel_shader);
+	SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Vertex, "vertex_main" }, &pass_data.vertex_shader);
+	SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Pixel, "pixel_main" }, &pass_data.pixel_shader);
 
 	SRPipelineInfo pipelineInfo = {
 		.vertexShader = &pass_data.vertex_shader,
@@ -434,7 +462,7 @@ internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRSh
 		.numRenderTargets = 1,
 		.renderTargetFormats = { SRFormat::RGBA8_UNORM }
 	};
-	SRGFX_CreatePipeline(&gfxDevice, &pipelineInfo, &pass_data.pipeline);
+	SRGFX_CreatePipeline(&gfx_device, &pipelineInfo, &pass_data.pipeline);
 
 	SRBufferInfo ui_draw_instance_buffer_info = {
 		.size = MAX_UI_DRAW_INSTANCES * sizeof(UIDrawInstance),
@@ -444,20 +472,21 @@ internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfxDevice, SRSh
 		.miscFlags = SRMiscFlag::StructuredBuffer
 	};
 	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-		SRGFX_CreateBuffer(&gfxDevice, ui_draw_instance_buffer_info, &pass_data.draw_instance_buffers[f], nullptr);
+		SRGFX_CreateBuffer(&gfx_device, ui_draw_instance_buffer_info, &pass_data.draw_instance_buffers[f], nullptr);
 	}
 
 	SRVector_Create(&pass_data.draw_instances_data);
 }
 
-internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCmdList cmd_list, const SRFrameInfo* frame_info) {
 	auto* pass_data = self.get_pass_data<UIPassData>();
-	u32 frame_index = SRGFX_GetFrameIndex(&gfxDevice);
+	u32 frame_index = SRGFX_GetFrameIndex(&gfx_device);
 
 	// Update
 	// TODO: Move elsewhere
-	UIPass_DrawRect(self, { 0, 0 }, (f32)frameInfo.width, 30, { 0.2f, 0.23f, 0.25f });
-	UIPass_DrawText(self, Str8_Literal("Stingray"), { (f32)frameInfo.width * 0.5f, 4 }, { 1.0f, 1.0f, 1.0f });
+	UIPass_DrawRect(self, { 0, 0 }, (f32)frame_info->width, 30, { 0.2f, 0.23f, 0.25f });
+	UIPass_DrawText(self, Str8_Literal("Stingray"), { (f32)frame_info->width * 0.5f, 4 }, { 1.0f, 1.0f, 1.0f });
+	UI_Button(Str8_Literal("Click me!"));
 
 	memcpy(
 		pass_data->draw_instance_buffers[frame_index].mappedData,
@@ -467,31 +496,33 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfxDevice, const
 	//
 
 	SRViewport viewport = {
-		.width = static_cast<f32>(frameInfo.width),
-		.height = static_cast<f32>(frameInfo.height),
+		.width = static_cast<f32>(frame_info->width),
+		.height = static_cast<f32>(frame_info->height),
 	};
 	pass_data->push.inv_screen_width = 1.0f / viewport.width;
 	pass_data->push.inv_screen_height = 1.0f / viewport.height;
-	pass_data->push.draw_intance_buffer_index = SRGFX_GetDescriptorIndexSRV(&gfxDevice, pass_data->draw_instance_buffers[frame_index]);
+	pass_data->push.draw_intance_buffer_index = SRGFX_GetDescriptorIndexSRV(&gfx_device, pass_data->draw_instance_buffers[frame_index]);
 
-	SRGFX_BindViewport(&gfxDevice, &viewport, cmdList);
-	SRGFX_BindPipeline(&gfxDevice, &pass_data->pipeline, cmdList);
-	SRGFX_PushConstants(&gfxDevice, &pass_data->push, sizeof(pass_data->push), cmdList);
+	SRGFX_BindViewport(&gfx_device, &viewport, cmd_list);
+	SRGFX_BindPipeline(&gfx_device, &pass_data->pipeline, cmd_list);
+	SRGFX_PushConstants(&gfx_device, &pass_data->push, sizeof(pass_data->push), cmd_list);
 
 	assert(pass_data->draw_instances_data.size > 0);
-	SRGFX_DrawInstanced(&gfxDevice, 6, (u32)pass_data->draw_instances_data.size, 0, 0, cmdList);
+	SRGFX_DrawInstanced(&gfx_device, 6, (u32)pass_data->draw_instances_data.size, 0, 0, cmd_list);
 	
 	SRVector_Clear(&pass_data->draw_instances_data);
 }
 
-internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfxDevice) {
+internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfx_device) {
 	auto* pass_data = self.get_pass_data<UIPassData>();
 	SRVector_Destroy(&pass_data->draw_instances_data);
 
-	SRGFX_DestroyPipeline(&gfxDevice, &pass_data->pipeline);
+	SRGFX_DestroyPipeline(&gfx_device, &pass_data->pipeline);
 	for (u32 f = 0; f < SR_GFX_FRAMES_IN_FLIGHT; ++f) {
-		SRGFX_DestroyResource(&gfxDevice, &pass_data->draw_instance_buffers[f]);
+		SRGFX_DestroyResource(&gfx_device, &pass_data->draw_instance_buffers[f]);
 	}
+
+	SRHashMap_Destroy(&g_ui_id_to_widget_index_map);
 }
 
 internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 height, glm::vec3 col) {
@@ -528,6 +559,41 @@ internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::
 			.tex_index = tex_index
 		};
 		SRVector_PushBack(&pass_data->draw_instances_data, draw_instance);
-		pos.x += glyph->advance_x;
+
+		pos.x += static_cast<f32>(glyph->advance_x);
 	}
+}
+
+internal UIWidgetID UIWidgetID_FromStr8(Str8 str) {
+	UIWidgetID hash = 2166136261u; // FNV offset basis
+	for (u64 i = 0; i < str.size; ++i) {
+		hash ^= str.data[i];
+        hash *= 16777619u; // FNV prime
+    }
+    return hash;
+}
+
+internal UIWidget* UIWidget_Make(UIWidgetFlags flags, Str8 str) {
+	UIWidgetID widget_id = UIWidgetID_FromStr8(str);
+	u64* widget_index = SRHashMap_Get(&g_ui_id_to_widget_index_map, widget_id);
+
+	if (widget_index == nullptr) {
+		UIWidget widget = {
+			.id = widget_id,
+			.flags = flags
+		};
+
+		SRVector_PushBack(&g_ui_widgets, widget);
+		SRHashMap_Put(&g_ui_id_to_widget_index_map, widget_id, g_ui_widgets.size - 1);
+		return &g_ui_widgets.data[g_ui_widgets.size - 1];
+	}
+
+	return &g_ui_widgets.data[*widget_index];
+}
+
+internal void UI_Button(Str8 str) {
+	// TODO: We need to implement #-symboling to indicate extra information to be hashed WITHOUT
+	// being visible in the final string.
+	UIWidget* widget = UIWidget_Make(UIWidgetFlags::Clickable | UIWidgetFlags::HotAnimation, str);
+
 }

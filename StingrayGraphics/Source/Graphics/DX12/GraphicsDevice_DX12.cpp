@@ -199,7 +199,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 		auto capabilities = SRDX12Helpers::query_device_capabilities(device);
 
 		std::vector<std::string> missing;
-		const auto REQUIRE = [&](bool condition, const char* str) {
+		auto REQUIRE = [&](bool condition, const char* str) {
 			if (!condition) { missing.emplace_back(str); }
 		};
 
@@ -625,7 +625,7 @@ void SRGFXDX12_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, S
 	blendDesc.AlphaToCoverageEnable = info->blendState.alphaToCoverage ? TRUE : FALSE;
 	blendDesc.IndependentBlendEnable = info->blendState.independentBlend ? TRUE : FALSE;
 	for (size_t i = 0; i < 8; ++i) {
-		const auto& blendState = info->blendState.renderTargetBlendStates[i];
+		auto& blendState = info->blendState.renderTargetBlendStates[i];
 		auto& dx12BlendState = blendDesc.RenderTarget[i];
 
 		dx12BlendState.BlendEnable = blendState.blendEnable ? TRUE : FALSE;
@@ -649,7 +649,7 @@ void SRGFXDX12_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info, S
 	inputElements.reserve(info->inputLayout.num_elements);
 
 	for (size_t i = 0; i < info->inputLayout.num_elements; ++i) {
-		const auto& element = info->inputLayout.elements[i];
+		auto& element = info->inputLayout.elements[i];
 		D3D12_INPUT_ELEMENT_DESC dx12Element = {
 			.SemanticName = element.name,
 			.SemanticIndex = 0U, // TODO: Pretty certain this doesn't matter
@@ -815,8 +815,8 @@ void SRGFXDX12_CreateBuffer(SRGFXDevice* device, SRBufferInfo info, SRBuffer* bu
 	// TODO: CBV
 }
 
-void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRTexture* texture, const SRSubresourceData* data) {
-	assert(info->usage == SRUsage::Default);
+void SRGFXDX12_CreateTexture(SRGFXDevice* device, SRTextureInfo info, SRTexture* texture, const SRSubresourceData* data) {
+	assert(info.usage == SRUsage::Default);
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 
 	SRTexture_DX12* internal_texture;
@@ -829,19 +829,19 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 		internal_texture = SRArena_PushStructZero(dev->arena_general, SRTexture_DX12);
 	}
 
-	texture->info = *info;
+	texture->info = info;
 	texture->internalState = internal_texture;
 	texture->type = SRResourceType::Texture;
 
 	D3D12_RESOURCE_DESC1 resource_desc = {
 		.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
 		.Alignment = 0,
-		.Width = static_cast<UINT64>(info->width),
-		.Height = info->height,
-		.DepthOrArraySize = static_cast<UINT16>(info->depth),
-		.MipLevels = static_cast<UINT16>(info->mipLevels),
-		.Format = to_dx12_format(info->format),
-		.SampleDesc = { .Count = info->sampleCount, .Quality = 0 },
+		.Width = static_cast<UINT64>(info.width),
+		.Height = info.height,
+		.DepthOrArraySize = static_cast<UINT16>(info.depth),
+		.MipLevels = static_cast<UINT16>(info.mipLevels),
+		.Format = to_dx12_format(info.format),
+		.SampleDesc = { .Count = info.sampleCount, .Quality = 0 },
 		.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
 		.Flags = D3D12_RESOURCE_FLAG_NONE
 	};
@@ -851,13 +851,13 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 	}
 
 	// Bind flags
-	if (has_flag(info->bindFlags, SRBindFlag::DepthStencil)) {
+	if (has_flag(info.bindFlags, SRBindFlag::DepthStencil)) {
 		resource_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 	}
-	if (has_flag(info->bindFlags, SRBindFlag::UnorderedAccess)) {
+	if (has_flag(info.bindFlags, SRBindFlag::UnorderedAccess)) {
 		resource_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	}
-	if (has_flag(info->bindFlags, SRBindFlag::RenderTarget)) {
+	if (has_flag(info.bindFlags, SRBindFlag::RenderTarget)) {
 		resource_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 	}
 
@@ -878,7 +878,7 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 	// for some resources. I.e. ignore all reported errors stemming from this function
 
 	// TODO: Implement subresource data copying
-	u32 subres_count = info->mipLevels;
+	u32 subres_count = info.mipLevels;
 	if (data && data->data && subres_count > 0) {
 		SRArenaMarker m = SRArena_GetMarker(dev->arena_general);
 		auto* subres_footprints = SRArena_PushArrayZero(dev->arena_general, D3D12_PLACED_SUBRESOURCE_FOOTPRINT, subres_count);
@@ -969,7 +969,7 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 	}
 
 	// RTV Descriptor
-	if (has_flag(info->bindFlags, SRBindFlag::RenderTarget)) {
+	if (has_flag(info.bindFlags, SRBindFlag::RenderTarget)) {
 		D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {
 			.Format = resource_desc.Format,
 			.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D
@@ -986,7 +986,7 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 	}
 
 	// DSV Descriptors
-	if (has_flag(info->bindFlags, SRBindFlag::DepthStencil)) {
+	if (has_flag(info.bindFlags, SRBindFlag::DepthStencil)) {
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
 			.Format = resource_desc.Format,
 			.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
@@ -1017,13 +1017,13 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 	}
 
 	// SRV Descriptor
-	if (has_flag(info->bindFlags, SRBindFlag::ShaderResource)) {
+	if (has_flag(info.bindFlags, SRBindFlag::ShaderResource)) {
 		DXGI_FORMAT srvFormat = resource_desc.Format;
 
-		if (info->format == SRFormat::D32_FLOAT) {
+		if (info.format == SRFormat::D32_FLOAT) {
 			srvFormat = DXGI_FORMAT_R32_FLOAT;
 		}
-		else if (info->format == SRFormat::D16_UNORM) {
+		else if (info.format == SRFormat::D16_UNORM) {
 			srvFormat = DXGI_FORMAT_R16_UNORM;
 		}
 
@@ -1033,7 +1033,7 @@ void SRGFXDX12_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRT
 			.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
 			.Texture2D = {
 				.MostDetailedMip = 0,
-				.MipLevels = info->mipLevels,
+				.MipLevels = info.mipLevels,
 			}
 		};
 
@@ -1165,17 +1165,17 @@ void SRGFXDX12_DestroyResource(SRGFXDevice* device, SRResource* resource) {
 	}
 }
 
-void SRGFXDX12_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, SRCmdList cmdList) {
+void SRGFXDX12_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, SRCmdList cmd_list) {
 	auto* internalPipeline = to_dx12_internal(pipeline);
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 
 	internalCmdList->graphicsCmdList->SetPipelineState(internalPipeline->pipeline);
 	internalCmdList->graphicsCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	internalCmdList->graphicsCmdList->SetGraphicsRootSignature(internalPipeline->rootSignature);
 }
 
-void SRGFXDX12_BindViewport(SRGFXDevice* device, const SRViewport* viewport, SRCmdList cmdList) {
-	auto* internalCmdList = to_dx12_internal(cmdList);
+void SRGFXDX12_BindViewport(SRGFXDevice* device, const SRViewport* viewport, SRCmdList cmd_list) {
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 
 	D3D12_RECT scissorRect = {
 		.left = static_cast<LONG>(viewport->topLeftX),
@@ -1188,10 +1188,10 @@ void SRGFXDX12_BindViewport(SRGFXDevice* device, const SRViewport* viewport, SRC
 	internalCmdList->graphicsCmdList->RSSetScissorRects(1, &scissorRect);
 }
 
-void SRGFXDX12_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
+void SRGFXDX12_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmd_list) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::VertexBuffer));
 	auto* internalBuffer = to_dx12_internal(buffer);
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView = {
 		.BufferLocation = internalBuffer->allocation->GetResource()->GetGPUVirtualAddress(),
@@ -1202,10 +1202,10 @@ void SRGFXDX12_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRC
 	internalCmdList->graphicsCmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
 }
 
-void SRGFXDX12_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
+void SRGFXDX12_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmd_list) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::IndexBuffer));
 	auto* internalBuffer = to_dx12_internal(buffer);
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 
 	D3D12_INDEX_BUFFER_VIEW indexBufferView = {
 		.BufferLocation = internalBuffer->allocation->GetResource()->GetGPUVirtualAddress(),
@@ -1216,10 +1216,10 @@ void SRGFXDX12_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCm
 	internalCmdList->graphicsCmdList->IASetIndexBuffer(&indexBufferView);
 }
 
-void SRGFXDX12_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
+void SRGFXDX12_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmd_list) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::ConstantBuffer));
 	auto* internalBuffer = to_dx12_internal(buffer);
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 
 	internalCmdList->graphicsCmdList->SetGraphicsRootConstantBufferView(
 		1,
@@ -1227,20 +1227,20 @@ void SRGFXDX12_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffe
 	);
 }
 
-void SRGFXDX12_PushConstants(SRGFXDevice* device, const void* data, u32 size, SRCmdList cmdList) {
-	auto* internalCmdList = to_dx12_internal(cmdList);
+void SRGFXDX12_PushConstants(SRGFXDevice* device, const void* data, u32 size, SRCmdList cmd_list) {
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 	assert(size <= 128);
 
 	internalCmdList->graphicsCmdList->SetGraphicsRoot32BitConstants(0, size >> 2, data, 0);
 }
 
-void SRGFXDX12_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, SRCmdList cmdList) {
+void SRGFXDX12_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, SRCmdList cmd_list) {
 	if (!barriers || numBarriers == 0) {
 		return;
 	}
 
 	// TODO: Support UAV and buffer barriers
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 	std::vector<D3D12_TEXTURE_BARRIER> dx12Barriers;
 	dx12Barriers.reserve(numBarriers);
 
@@ -1323,10 +1323,10 @@ SRCmdList SRGFXDX12_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 	return SRCmdList{ internalCmdList };
 }
 
-void SRGFXDX12_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmdList) {
+void SRGFXDX12_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 	auto* internalSwapchain = to_dx12_internal(swapchain);
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 
 	// NOTE: Stingray always assumes that the swapchain will never be cleared,
 	// and thus we assume an immediate overwrite of the swapchain backbuffer.
@@ -1372,9 +1372,9 @@ void SRGFXDX12_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* 
 	);
 }
 
-void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, SRCmdList cmdList) {
+void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 
 	// RTVs
 	std::vector<D3D12_RENDER_PASS_RENDER_TARGET_DESC> passRTVDescs;
@@ -1452,10 +1452,10 @@ void SRGFXDX12_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, 
 	);
 }
 
-void SRGFXDX12_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmdList) {
+void SRGFXDX12_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 	auto* internalSwapchain = to_dx12_internal(swapchain);
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 	internalCmdList->graphicsCmdList->EndRenderPass();
 
 	SRImageTransitionInfo_DX12 transitionInfo = {
@@ -1470,9 +1470,9 @@ void SRGFXDX12_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* sw
 	SRDX12Helpers::transition_image_layout(transitionInfo, internalCmdList->graphicsCmdList);
 }
 
-void SRGFXDX12_EndRenderPass(SRGFXDevice* device, SRCmdList cmdList) {
+void SRGFXDX12_EndRenderPass(SRGFXDevice* device, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
-	auto* internalCmdList = to_dx12_internal(cmdList);
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 	internalCmdList->graphicsCmdList->EndRenderPass();
 }
 
@@ -1499,13 +1499,13 @@ void SRGFXDX12_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swapch
 	++dev->frame_counter;
 }
 
-void SRGFXDX12_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, SRCmdList cmdList) {
-	auto* internalCmdList = to_dx12_internal(cmdList);
+void SRGFXDX12_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, SRCmdList cmd_list) {
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 	internalCmdList->graphicsCmdList->DrawInstanced(vtxCount, 1, startVtx, 0);
 }
 
-void SRGFXDX12_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, SRCmdList cmdList) {
-	auto* internalCmdList = to_dx12_internal(cmdList);
+void SRGFXDX12_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, SRCmdList cmd_list) {
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 	internalCmdList->graphicsCmdList->DrawIndexedInstanced(
 		idxCount,
 		1,
@@ -1525,8 +1525,8 @@ void SRGFXDX12_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_count,
 	);
 }
 
-void SRGFXDX12_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, SRCmdList cmdList) {
-	auto* internalCmdList = to_dx12_internal(cmdList);
+void SRGFXDX12_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, SRCmdList cmd_list) {
+	auto* internalCmdList = to_dx12_internal(cmd_list);
 	internalCmdList->graphicsCmdList->DispatchMesh(x, y, z);
 }
 
@@ -1569,8 +1569,8 @@ void SRGFXDX12_FlushInitialUploads(SRGFXDevice* device) {
 	auto* dev = (SRGFXDeviceDX12*)device->internalState;
 	HR(dev->upload_cmd_list->Close());
 
-	ID3D12CommandList* cmdLists[1] = { dev->upload_cmd_list };
-	dev->cmd_queues[SRQueue_Copy]->ExecuteCommandLists(1, cmdLists );
+	ID3D12CommandList* cmd_lists[1] = { dev->upload_cmd_list };
+	dev->cmd_queues[SRQueue_Copy]->ExecuteCommandLists(1, cmd_lists );
 
 	// TEMPORARY
 	ID3D12Fence* tempFence;

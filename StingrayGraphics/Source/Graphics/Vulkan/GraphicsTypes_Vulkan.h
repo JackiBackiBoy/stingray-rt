@@ -218,8 +218,8 @@ inline SRBuffer_Vulkan* to_vk_internal(const SRBuffer& buffer) {
 	return (SRBuffer_Vulkan*)buffer.internalState;
 }
 
-inline SRCmdList_Vulkan* to_vk_internal(const SRCmdList& cmdList) {
-	return (SRCmdList_Vulkan*)cmdList.internalState;
+inline SRCmdList_Vulkan* to_vk_internal(const SRCmdList& cmd_list) {
+	return (SRCmdList_Vulkan*)cmd_list.internalState;
 }
 
 inline SRPipeline_Vulkan* to_vk_internal(const SRPipeline& pipeline) {

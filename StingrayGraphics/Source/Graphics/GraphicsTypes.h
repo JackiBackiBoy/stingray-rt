@@ -32,7 +32,7 @@ enum struct SRPipelineStage : u16 {
 	ComputeShader = 1 << 7,
 	RayTracing    = 1 << 8,
 	Copy          = 1 << 9,
-};
+}; SR_ENABLE_BITMASK_OPERATORS(SRPipelineStage);
 
 enum struct SRAccessMask : u16 {
 	None              = 0,
@@ -46,7 +46,7 @@ enum struct SRAccessMask : u16 {
 	ShaderResource    = 1 << 7,
 	CopyDst           = 1 << 8,
 	CopySrc           = 1 << 9
-};
+}; SR_ENABLE_BITMASK_OPERATORS(SRAccessMask);
 
 enum struct SRBindFlag : u8 {
 	None            = 0,
@@ -58,7 +58,7 @@ enum struct SRBindFlag : u8 {
 	DepthStencil    = 1 << 5,
 	UnorderedAccess = 1 << 6,
 	ShadingRate     = 1 << 7 // NOTE: Not supported right now
-};
+}; SR_ENABLE_BITMASK_OPERATORS(SRBindFlag);
 
 enum struct SRMiscFlag : u8 {
 	None              = 0,
@@ -67,12 +67,7 @@ enum struct SRMiscFlag : u8 {
 	IndirectArgs      = 1 << 2,
 	CubeTexture       = 1 << 3,
 	RayTracing        = 1 << 4,
-};
-
-SR_ENABLE_BITMASK_OPERATORS(SRPipelineStage);
-SR_ENABLE_BITMASK_OPERATORS(SRAccessMask);
-SR_ENABLE_BITMASK_OPERATORS(SRBindFlag);
-SR_ENABLE_BITMASK_OPERATORS(SRMiscFlag);
+}; SR_ENABLE_BITMASK_OPERATORS(SRMiscFlag);
 
 enum struct SRBlend : u8 {
 	Zero,

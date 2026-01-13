@@ -87,8 +87,8 @@ inline SRTexture_DX12* to_dx12_internal(const SRTexture* texture) {
 	return (SRTexture_DX12*)texture->internalState;
 }
 
-inline SRCmdList_DX12* to_dx12_internal(const SRCmdList& cmdList) {
-	return (SRCmdList_DX12*)cmdList.internalState;
+inline SRCmdList_DX12* to_dx12_internal(const SRCmdList& cmd_list) {
+	return (SRCmdList_DX12*)cmd_list.internalState;
 }
 
 inline SRPipeline_DX12* to_dx12_internal(const SRPipeline* pipeline) {

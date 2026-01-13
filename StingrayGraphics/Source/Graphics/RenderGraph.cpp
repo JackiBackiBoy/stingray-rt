@@ -97,14 +97,14 @@ SRRenderPass& SRRenderPass::add_rw_texture_output(const std::string& name, u32 w
 	return *this;
 }
 
-SRRenderPass& SRRenderPass::set_execute_callback(std::function<void(SRRenderPass& self, SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo)> callback) {
+SRRenderPass& SRRenderPass::set_execute_callback(SRRenderPass_OnExecuteCallback callback) {
 	m_ExecuteCallback = callback;
 	return *this;
 }
 
-void SRRenderPass::execute(SRGFXDevice& gfxDevice, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+void SRRenderPass::execute(SRGFXDevice& gfx_device, SRCmdList cmd_list, const SRFrameInfo* frame_info) {
 	if (m_ExecuteCallback) {
-		m_ExecuteCallback(*this, gfxDevice, cmdList, frameInfo);
+		m_ExecuteCallback(*this, gfx_device, cmd_list, frame_info);
 	}
 }
 
@@ -158,8 +158,8 @@ PrefabPass& SRRenderGraph::add_prefab_pass(const std::string& name) {
 	return passRef;
 }
 
-void SRRenderGraph::build(SRGFXDevice& gfxDevice) {
-	m_GfxDevice = &gfxDevice; // TEMPORARY
+void SRRenderGraph::build(SRGFXDevice& gfx_device) {
+	m_GfxDevice = &gfx_device; // TEMPORARY
 
 	// NOTE: This render graph performs NO pass re-ordering of any kind and
 	// does not currently deal with aliasing or transient resources.
@@ -207,12 +207,12 @@ void SRRenderGraph::build(SRGFXDevice& gfxDevice) {
 				break;
 			}
 
-			SRGFX_CreateTexture(&gfxDevice, &textureInfo, &output->texture, nullptr);
+			SRGFX_CreateTexture(&gfx_device, textureInfo, &output->texture, nullptr);
 		}
 	}
 }
 
-void SRRenderGraph::execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain, const SRCmdList& cmdList, const SRFrameInfo& frameInfo) {
+void SRRenderGraph::execute(SRGFXDevice& gfx_device, SRSwapchain swapchain, SRCmdList cmd_list, const SRFrameInfo* frame_info) {
 	bool encounteredFirstRootPass = false;
 
 	for (size_t i = 0; i < m_RenderPasses.size(); ++i) {
@@ -358,10 +358,10 @@ void SRRenderGraph::execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain
 		// Execute resource barriers if any
 		if (!barriers.empty()) {
 			SRGFX_Barrier(
-				&gfxDevice,
+				&gfx_device,
 				barriers.data(),
 				static_cast<u32>(barriers.size()),
-				cmdList
+				cmd_list
 			);
 		}
 
@@ -376,30 +376,30 @@ void SRRenderGraph::execute(SRGFXDevice& gfxDevice, const SRSwapchain& swapchain
 		// pass to write to the swapchain.
 		if (encounteredFirstRootPass) {
 			if (isFirstRootPass) {
-				SRGFX_BeginRenderPassSwapchain(&gfxDevice, &swapchain, cmdList);
+				SRGFX_BeginRenderPassSwapchain(&gfx_device, &swapchain, cmd_list);
 			}
 
-			pass->execute(gfxDevice, cmdList, frameInfo);
+			pass->execute(gfx_device, cmd_list, frame_info);
 
 			if (i == m_RenderPasses.size() - 1) {
-				SRGFX_EndRenderPassSwapchain(&gfxDevice, &swapchain, cmdList);
+				SRGFX_EndRenderPassSwapchain(&gfx_device, &swapchain, cmd_list);
 			}
 			continue;
 		}
 
 		// "Normal" render passes
 		if (pass->get_type() == SRPassType::Graphics) {
-			SRGFX_BeginRenderPass(&gfxDevice, &passInfo, cmdList);
+			SRGFX_BeginRenderPass(&gfx_device, &passInfo, cmd_list);
 		}
 
-		pass->execute(gfxDevice, cmdList, frameInfo);
+		pass->execute(gfx_device, cmd_list, frame_info);
 		if (pass->get_type() == SRPassType::Graphics) {
-			SRGFX_EndRenderPass(&gfxDevice, cmdList);
+			SRGFX_EndRenderPass(&gfx_device, cmd_list);
 		}
 	}
 }
 
-void SRRenderGraph::notify_swapchain_resize(SRGFXDevice& gfxDevice, u32 new_width, u32 new_height) {
+void SRRenderGraph::notify_swapchain_resize(SRGFXDevice& gfx_device, u32 new_width, u32 new_height) {
 	for (auto& attachment : m_Attachments) {
 		// TODO: Right now we assume that "swapchain relative" means that an
 		// attachment will have the EXACT dimensions as the swapchain. But
@@ -409,8 +409,8 @@ void SRRenderGraph::notify_swapchain_resize(SRGFXDevice& gfxDevice, u32 new_widt
 			newTextureInfo.width = new_width;
 			newTextureInfo.height = new_height;
 
-			SRGFX_DestroyResource(&gfxDevice, &attachment->texture);
-			SRGFX_CreateTexture(&gfxDevice, &newTextureInfo, &attachment->texture, nullptr);
+			SRGFX_DestroyResource(&gfx_device, &attachment->texture);
+			SRGFX_CreateTexture(&gfx_device, newTextureInfo, &attachment->texture, nullptr);
 
 			// Reset subresource states to the default state, depending on
 			// the resource type.

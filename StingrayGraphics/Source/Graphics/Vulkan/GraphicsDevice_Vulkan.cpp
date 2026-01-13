@@ -1386,9 +1386,9 @@ void SRGFXVulkan_CreateBuffer(SRGFXDevice* device, SRBufferInfo info, SRBuffer* 
 	// TODO: Descriptors (non UBO that is)
 }
 
-void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, SRTexture* texture, const SRSubresourceData* data) {
+void SRGFXVulkan_CreateTexture(SRGFXDevice* device, SRTextureInfo info, SRTexture* texture, const SRSubresourceData* data) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
-	assert(info->usage == SRUsage::Default);
+	assert(info.usage == SRUsage::Default);
 
 	SRTexture_Vulkan* internalTexture;
 
@@ -1400,17 +1400,17 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 	}
 
 	texture->type = SRResourceType::Texture;
-	texture->info = *info;
+	texture->info = info;
 	texture->internalState = internalTexture;
 
 	VkImageCreateInfo imageInfo = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.flags = 0,
 		.imageType = VK_IMAGE_TYPE_2D, // TODO: Make dynamic
-		.format = to_vk_format(info->format),
-		.extent = { info->width, info->height, info->depth },
-		.mipLevels = info->mipLevels,
-		.arrayLayers = info->arraySize,
+		.format = to_vk_format(info.format),
+		.extent = { info.width, info.height, info.depth },
+		.mipLevels = info.mipLevels,
+		.arrayLayers = info.arraySize,
 		.samples = VK_SAMPLE_COUNT_1_BIT, // TODO: Make dynamic
 		.tiling = VK_IMAGE_TILING_OPTIMAL,
 		.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
@@ -1424,20 +1424,20 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 
 	VkAccessFlags2 accessFlags = 0;
 
-	if (has_flag(info->bindFlags, SRBindFlag::ShaderResource)) {
+	if (has_flag(info.bindFlags, SRBindFlag::ShaderResource)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 		accessFlags |= VK_ACCESS_2_SHADER_READ_BIT;
 	}
-	if (has_flag(info->bindFlags, SRBindFlag::UnorderedAccess)) {
+	if (has_flag(info.bindFlags, SRBindFlag::UnorderedAccess)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	}
 
-	if (has_flag(info->bindFlags, SRBindFlag::RenderTarget)) {
+	if (has_flag(info.bindFlags, SRBindFlag::RenderTarget)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		accessFlags |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
 		accessFlags |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	}
-	else if (has_flag(info->bindFlags, SRBindFlag::DepthStencil)) {
+	else if (has_flag(info.bindFlags, SRBindFlag::DepthStencil)) {
 		imageInfo.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 		accessFlags |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
 		accessFlags |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -1453,13 +1453,13 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 		&allocInfo
 	), "Create image");
 
-	bool isDepthFormat = SRGraphicsHelpers::is_depth_format(info->format);
+	bool isDepthFormat = SRGraphicsHelpers::is_depth_format(info.format);
 	VkImageAspectFlags aspectMask = isDepthFormat ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 	VkImageViewCreateInfo imageViewInfo = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.image = internalTexture->image,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D, // TODO: Make dynamic
-		.format = to_vk_format(info->format),
+		.format = to_vk_format(info.format),
 		.components = {
 			.r = VK_COMPONENT_SWIZZLE_IDENTITY,
 			.g = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -1469,9 +1469,9 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 		.subresourceRange = {
 			.aspectMask = aspectMask,
 			.baseMipLevel = 0,
-			.levelCount = info->mipLevels,
+			.levelCount = info.mipLevels,
 			.baseArrayLayer = 0,
-			.layerCount = info->arraySize
+			.layerCount = info.arraySize
 		}
 	};
 	SR_VK_CHECK(vkCreateImageView(
@@ -1484,7 +1484,7 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 	if (data && data->data) {
 		// Staging buffer
 		SRBufferInfo stagingBufferInfo = {
-			.size = static_cast<u64>(data->rowPitch * info->height),
+			.size = static_cast<u64>(data->rowPitch * info.height),
 			.usage = SRUsage::Upload
 		};
 
@@ -1508,17 +1508,17 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 		VkDeviceSize copyOffset = 0;
 		u32 dataIdx = 0;
 
-		for (u32 layer = 0; layer < info->arraySize; ++layer) {
-			u32 width = info->width;
-			u32 height = info->height;
-			u32 depth = info->depth;
+		for (u32 layer = 0; layer < info.arraySize; ++layer) {
+			u32 width = info.width;
+			u32 height = info.height;
+			u32 depth = info.depth;
 
-			for (u32 mip = 0; mip < info->mipLevels; ++mip) {
+			for (u32 mip = 0; mip < info.mipLevels; ++mip) {
 				SRSubresourceData subresourceData = data[dataIdx++];
 				u32 texelBlockSize = 1; // TODO: For block-compressed textures, this must be 4, please fix
 				u32 numTexelBlocksX = std::max(1U, width / texelBlockSize);
 				u32 numTexelBlocksY = std::max(1U, height / texelBlockSize);
-				u32 dstRowPitch = numTexelBlocksX * SRGraphicsHelpers::get_format_stride(info->format);
+				u32 dstRowPitch = numTexelBlocksX * SRGraphicsHelpers::get_format_stride(info.format);
 				u32 dstSlicePitch = dstRowPitch * numTexelBlocksY;
 				u32 srcRowPitch = subresourceData.rowPitch;
 				u32 srcSlicePitch = subresourceData.slicePitch;
@@ -1577,7 +1577,7 @@ void SRGFXVulkan_CreateTexture(SRGFXDevice* device, const SRTextureInfo* info, S
 	// TODO: More descriptors
 	// SRV Descriptor
 	// TODO: Cleanup, move descriptor write functions into separate file
-	if (has_flag(info->bindFlags, SRBindFlag::ShaderResource)) {
+	if (has_flag(info.bindFlags, SRBindFlag::ShaderResource)) {
 		VkDescriptorImageInfo descriptorImageInfo = {
 			.sampler = nullptr,
 			.imageView = internalTexture->imageView,
@@ -1870,10 +1870,10 @@ void SRGFXVulkan_DestroyResource(SRGFXDevice* device, SRResource* resource) {
 	}
 }
 
-void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, SRCmdList cmdList) {
+void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalPipeline = to_vk_internal(*pipeline);
-	auto* internalCmdList = to_vk_internal(cmdList);
+	auto* internalCmdList = to_vk_internal(cmd_list);
 
 	vkCmdBindPipeline(internalCmdList->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, internalPipeline->pipeline);
 	dev->active_pipeline = internalPipeline;
@@ -1890,8 +1890,8 @@ void SRGFXVulkan_BindPipeline(SRGFXDevice* device, const SRPipeline* pipeline, S
 	);
 }
 
-void SRGFXVulkan_BindViewport(SRGFXDevice* device, const SRViewport* viewport, SRCmdList cmdList) {
-	auto* internalCmdList = to_vk_internal(cmdList);
+void SRGFXVulkan_BindViewport(SRGFXDevice* device, const SRViewport* viewport, SRCmdList cmd_list) {
+	auto* internalCmdList = to_vk_internal(cmd_list);
 
 	// NOTE: We need to flip the viewport vertically in order to work with DX12
 	VkViewport vkViewport = {
@@ -1914,33 +1914,33 @@ void SRGFXVulkan_BindViewport(SRGFXDevice* device, const SRViewport* viewport, S
 	vkCmdSetScissor(internalCmdList->cmdBuffer, 0, 1, &scissor);
 }
 
-void SRGFXVulkan_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
+void SRGFXVulkan_BindVertexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmd_list) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::VertexBuffer));
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalBuffer = to_vk_internal(*buffer);
-	auto* internalCmdList = to_vk_internal(cmdList);
+	auto* internalCmdList = to_vk_internal(cmd_list);
 
 	VkDeviceSize offset = 0;
 	vkCmdBindVertexBuffers(internalCmdList->cmdBuffer, 0, 1, &internalBuffer->buffer, &offset);
 }
 
-void SRGFXVulkan_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
+void SRGFXVulkan_BindIndexBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmd_list) {
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::IndexBuffer));
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalBuffer = to_vk_internal(*buffer);
-	auto* internalCmdList = to_vk_internal(cmdList);
+	auto* internalCmdList = to_vk_internal(cmd_list);
 
 	vkCmdBindIndexBuffer(internalCmdList->cmdBuffer, internalBuffer->buffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
-void SRGFXVulkan_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmdList) {
+void SRGFXVulkan_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buffer, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 
 	assert(has_flag(buffer->info.bindFlags, SRBindFlag::ConstantBuffer));
 	assert(dev->active_pipeline != nullptr);
 
 	auto* internalBuffer = to_vk_internal(*buffer);
-	auto* internalCmdList = to_vk_internal(cmdList);
+	auto* internalCmdList = to_vk_internal(cmd_list);
 
 	VkDescriptorBufferInfo bufferInfo = {
 		.buffer = internalBuffer->buffer,
@@ -1966,14 +1966,14 @@ void SRGFXVulkan_BindRootConstantBuffer(SRGFXDevice* device, const SRBuffer* buf
 	);
 }
 
-void SRGFXVulkan_PushConstants(SRGFXDevice* device, const void* data, u32 size, SRCmdList cmdList) {
+void SRGFXVulkan_PushConstants(SRGFXDevice* device, const void* data, u32 size, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 
 	assert(data != nullptr);
 	assert(size <= 128);
 	assert(dev->active_pipeline != nullptr);
 
-	auto internalCmdList = to_vk_internal(cmdList);
+	auto internalCmdList = to_vk_internal(cmd_list);
 
 	vkCmdPushConstants(
 		internalCmdList->cmdBuffer,
@@ -1985,12 +1985,12 @@ void SRGFXVulkan_PushConstants(SRGFXDevice* device, const void* data, u32 size, 
 	);
 }
 
-void SRGFXVulkan_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, SRCmdList cmdList) {
+void SRGFXVulkan_Barrier(SRGFXDevice* device, const SRBarrier* barriers, u32 numBarriers, SRCmdList cmd_list) {
 	if (!barriers || numBarriers == 0) {
 		return;
 	}
 
-	auto* internalCmdList = to_vk_internal(cmdList);
+	auto* internalCmdList = to_vk_internal(cmd_list);
 	std::vector<VkImageMemoryBarrier2> vkBarriers;
 	vkBarriers.reserve(numBarriers);
 
@@ -2108,10 +2108,10 @@ SRCmdList SRGFXVulkan_BeginCommandList(SRGFXDevice* device, SRQueue queue) {
 	return SRCmdList{ internal_cmd_list };
 }
 
-void SRGFXVulkan_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmdList) {
+void SRGFXVulkan_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalSwapchain = to_vk_internal(*swapchain);
-	auto* internalCmdList = to_vk_internal(cmdList);
+	auto* internalCmdList = to_vk_internal(cmd_list);
 
 	SRSwapchain_Vulkan::Backbuffer* currBackbuffer = &internalSwapchain->backbuffers[dev->image_index];
 	SRImageTransitionInfo transitionInfo = {
@@ -2165,8 +2165,8 @@ void SRGFXVulkan_BeginRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain
 	vkCmdBeginRendering(internalCmdList->cmdBuffer, &renderInfo);
 }
 
-void SRGFXVulkan_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, SRCmdList cmdList) {
-	auto* internalCmdList = to_vk_internal(cmdList);
+void SRGFXVulkan_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo, SRCmdList cmd_list) {
+	auto* internalCmdList = to_vk_internal(cmd_list);
 
 	std::vector<VkRenderingAttachmentInfo> colorAttachmentInfos;
 	VkRenderingAttachmentInfo depthAttachmentInfo;
@@ -2235,10 +2235,10 @@ void SRGFXVulkan_BeginRenderPass(SRGFXDevice* device, const SRPassInfo* passInfo
 	vkCmdBeginRendering(internalCmdList->cmdBuffer, &renderInfo);
 }
 
-void SRGFXVulkan_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmdList) {
+void SRGFXVulkan_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* swapchain, SRCmdList cmd_list) {
 	auto* dev = (SRGFXDeviceVulkan*)device->internalState;
 	auto* internalSwapchain = to_vk_internal(*swapchain);
-	auto* internalCmdList = to_vk_internal(cmdList);
+	auto* internalCmdList = to_vk_internal(cmd_list);
 
 	vkCmdEndRendering(internalCmdList->cmdBuffer);
 
@@ -2255,8 +2255,8 @@ void SRGFXVulkan_EndRenderPassSwapchain(SRGFXDevice* device, const SRSwapchain* 
 	SRVulkanHelpers::transition_image_layout(transitionInfo, internalCmdList->cmdBuffer);
 }
 
-void SRGFXVulkan_EndRenderPass(SRGFXDevice* device, SRCmdList cmdList) {
-	auto internalCmdList = to_vk_internal(cmdList);
+void SRGFXVulkan_EndRenderPass(SRGFXDevice* device, SRCmdList cmd_list) {
+	auto internalCmdList = to_vk_internal(cmd_list);
 	vkCmdEndRendering(internalCmdList->cmdBuffer);
 }
 
@@ -2327,13 +2327,13 @@ void SRGFXVulkan_SubmitCommandLists(SRGFXDevice* device, const SRSwapchain* swap
 	++dev->frame_counter;
 }
 
-void SRGFXVulkan_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, SRCmdList cmdList) {
-	auto* internalCmdList = to_vk_internal(cmdList);
+void SRGFXVulkan_Draw(SRGFXDevice* device, u32 vtxCount, u32 startVtx, SRCmdList cmd_list) {
+	auto* internalCmdList = to_vk_internal(cmd_list);
 	vkCmdDraw(internalCmdList->cmdBuffer, vtxCount, 1, startVtx, 0);
 }
 
-void SRGFXVulkan_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, SRCmdList cmdList) {
-	auto* internalCmdList = to_vk_internal(cmdList);
+void SRGFXVulkan_DrawIndexed(SRGFXDevice* device, u32 idxCount, u32 startIdx, u32 baseVtx, SRCmdList cmd_list) {
+	auto* internalCmdList = to_vk_internal(cmd_list);
 	vkCmdDrawIndexed(internalCmdList->cmdBuffer, idxCount, 1, startIdx, baseVtx, 0);
 }
 
@@ -2342,7 +2342,7 @@ void SRGFXVulkan_DrawInstanced(SRGFXDevice* device, u32 vtx_count, u32 inst_coun
 	vkCmdDraw(internal_cmd_list->cmdBuffer, vtx_count, inst_count, start_vtx, start_inst);
 }
 
-void SRGFXVulkan_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, SRCmdList cmdList) {
+void SRGFXVulkan_DispatchMesh(SRGFXDevice* device, u32 x, u32 y, u32 z, SRCmdList cmd_list) {
 	// TODO: IMPLEMENT
 	assert(false);
 }

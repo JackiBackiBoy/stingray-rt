@@ -152,7 +152,7 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 		.format = SRFormat::R8_UNORM,
 		.bindFlags = SRBindFlag::ShaderResource
 	};
-	SRGFX_CreateTexture(gfx_device, &font_atlas_tex_info, &font->atlas_tex, &font_atlas_tex_subresource);
+	SRGFX_CreateTexture(gfx_device, font_atlas_tex_info, &font->atlas_tex, &font_atlas_tex_subresource);
 
 	free(font_atlas_tex_data);
 	CoTaskMemFree(wide_font_dir.data);
