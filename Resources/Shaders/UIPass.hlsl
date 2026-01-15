@@ -5,14 +5,14 @@ struct UIDrawInstance {
 	float2 size;
 	float2 texcoord_tl;
 	float2 texcoord_br;
-	float3 color;
+	float4 color;
 	SRDescriptorIndex tex_index;
 };
 
 struct VSOutput {
 	float4 position                : SV_POSITION;
 	float2 texcoord                : TEXCOORD0;
-	nointerpolation float3 color   : COLOR;
+	nointerpolation float4 color   : COLOR;
 	nointerpolation uint tex_index : TEXINDEX;
 };
 
@@ -53,17 +53,17 @@ VSOutput vertex_main(uint VertexID : SV_VertexID, uint InstanceID : SV_InstanceI
 }
 
 PSOutput pixel_main(VSOutput input) {
+	PSOutput output;
+	output.color = input.color;
+
 	if (input.tex_index == SR_INVALID_DESCRIPTOR_INDEX) {
-		PSOutput output;
-		output.color = float4(input.color, 1.0f);
 		return output;
 	}
 
 	SamplerState sampler = SamplerDescriptorHeap[1]; // TODO: Remove hardcoded
 	Texture2D<float> tex = ResourceDescriptorHeap[input.tex_index];
 	float a = tex.Sample(sampler, input.texcoord).r;
-
-	PSOutput output;
-	output.color = float4(input.color, a);
+	output.color.a *= a;
+	
 	return output;
 }

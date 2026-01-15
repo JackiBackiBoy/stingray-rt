@@ -36,7 +36,6 @@ void SRHashMap_Create(SRHashMap<K, V>* hash_map, u64(*hash_func)(const K* key), 
 	hash_map->equals_func = equals_func;
 }
 
-// 2. The "Default" version that uses a built-in POD comparator
 template<typename K, typename V>
 void SRHashMap_Create(SRHashMap<K, V>* hash_map, u64(*hash_func)(const K*)) {
 	struct Default {
@@ -134,6 +133,7 @@ void SRHashMap_Put(SRHashMap<K, V>* hash_map, K key, V val) {
 
 template<typename K, typename V>
 void SRHashMap_Destroy(SRHashMap<K, V>* hash_map) {
+	assert(hash_map->slots);
 	free(hash_map->slots);
 	hash_map->slots = nullptr;
 }

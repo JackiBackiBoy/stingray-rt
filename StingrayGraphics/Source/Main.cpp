@@ -19,12 +19,13 @@
 #include "Graphics/Renderpasses/MeshletGenerationPass.h"
 #include "Graphics/ShaderCompiler.h"
 #include "Input/Input.h"
+#include "Math/MathFunctions.h"
+#include "UI/UICore.h"
 
 #include <Windows.h>
 #include <glm/glm.hpp>
 #include <assert.h>
 
-// TODO: Move most (if not all) UI-related code
 #define DEFAULT_WIDTH  1920
 #define DEFAULT_HEIGHT 1080
 
@@ -35,36 +36,12 @@ struct alignas(256) PerFrameData {
 	glm::mat4 inv_proj;
 };
 
-#define MAX_UI_DRAW_INSTANCES 16384
-typedef u32 UIWidgetID;
-
-enum struct UIWidgetFlags : u32 {
-	None            = 0,
-	Clickable       = 1 << 0,
-	DrawText        = 1 << 1,
-	DrawBackground  = 1 << 2,
-	DrawBorder      = 1 << 3,
-	HotAnimation    = 1 << 4,
-	ActiveAnimation = 1 << 5,
-}; SR_ENABLE_BITMASK_OPERATORS(UIWidgetFlags);
-
-struct UIWidget {
-	UIWidget* first;
-	UIWidget* last;
-	UIWidget* next;
-	UIWidget* prev;
-	UIWidget* parent;
-
-	UIWidgetID id;
-	UIWidgetFlags flags;
-};
-
 struct UIDrawInstance {
 	glm::vec2 pos;
 	glm::vec2 size;
 	glm::vec2 texcoord_tl;
 	glm::vec2 texcoord_br;
-	glm::vec3 color;
+	glm::vec4 color;
 	SRDescriptorIndex tex_index;
 };
 
@@ -82,8 +59,6 @@ struct UIPassData {
 	} push;
 };
 
-global SRVector<UIWidget> g_ui_widgets;
-global SRHashMap<UIWidgetID, u64> g_ui_id_to_widget_index_map;
 global SRLogger& logger = SRLogger::get(); // NOTE: Trick to ensure that logger outlives everything
 global SRArena* g_arena;
 global SRWindow* g_window;
@@ -104,23 +79,16 @@ global PerFrameData g_per_frame_data;
 global SRSwapchain g_swapchain;
 global SRSampler g_sampler_linear;
 global SRFont g_font;
+global UIContext* g_ui_ctx;
+global u32 g_rand_state = 17;
+
+internal void UI_RenderPass_GenerateDrawInstances(SRRenderPass& self, UINode* node);
 
 internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler);
 internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCmdList cmd_list, const SRFrameInfo* frame_info);
 internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfx_device);
-internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 height, glm::vec3 col);
-internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::vec3 col);
-
-internal u64 Hash_U32(const UIWidgetID* id) {
-	u32 x = *id;
-	x = ((x >> 16) ^ x) * 0x45d9f3b;
-	x = ((x >> 16) ^ x) * 0x45d9f3b;
-	x = (x >> 16) ^ x;
-	return (u64)x;
-}
-internal UIWidgetID UIWidgetID_FromStr8(Str8 str);
-internal UIWidget* UIWidget_Make(UIWidgetFlags flags, Str8 str);
-internal void UI_Button(Str8 str);
+internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 height, glm::vec4 col);
+internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::vec4 col);
 
 internal void Window_Initialize();
 internal void Window_OnResize(SRWindow* window, u32 new_width, u32 new_height);
@@ -140,10 +108,10 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 
 	g_arena = SRArena_Create(Megabytes(512));
 
-	SRVector_Create(&g_ui_widgets);
 	Window_Initialize();
 	App_InitializeGraphics();
 	App_InitializeResources();
+	g_ui_ctx = UI_CreateContext(&g_font);
 	App_InitializeScene();
 	App_InitializeRendergraph();
 	SRGFX_FlushInitialUploads(&g_gfx_device); // TEMPORARY but important for now
@@ -212,6 +180,8 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
 	SRGFX_DestroyResource(&g_gfx_device, &g_font.atlas_tex);
 	UIPass_OnDestroy(*g_ui_pass, g_gfx_device);
 	SRGFX_DestroySwapchain(&g_gfx_device, &g_swapchain);
+
+	UI_DestroyContext(g_ui_ctx);
 
 	delete g_scene;
 	delete g_render_graph;
@@ -430,13 +400,33 @@ internal void App_OnRender(const SRFrameInfo* frame_info) {
 	SRGFX_SubmitCommandLists(&g_gfx_device, &g_swapchain);
 }
 
-internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler) {
-	// TODO: Move elsewhere?
-	SRHashMap_Create(
-		&g_ui_id_to_widget_index_map,
-		Hash_U32
-	);
+internal void UI_RenderPass_GenerateDrawInstances(SRRenderPass& self, UINode* node) {
+	assert(node);
 
+	if (has_flag(node->flags, UINodeFlags::DrawBackground)) {
+		UIPass_DrawRect(
+			self,
+			{ node->computed_pos_rel[UIAxis_X], node->computed_pos_rel[UIAxis_Y] },
+			node->computed_size[UIAxis_X],
+			node->computed_size[UIAxis_Y],
+			glm::vec4(Rand_F32(&g_rand_state), Rand_F32(&g_rand_state), Rand_F32(&g_rand_state), 0.5f)
+		);
+	}
+	if (has_flag(node->flags, UINodeFlags::DrawText)) {
+		UIPass_DrawText(self, node->str, { node->computed_pos_rel[UIAxis_X], node->computed_pos_rel[UIAxis_Y] }, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+	}
+	if (has_flag(node->flags, UINodeFlags::Clickable)) {
+		// TODO
+	}
+
+	UINode* child = node->first_child;
+	while (child != nullptr) {
+		UI_RenderPass_GenerateDrawInstances(self, child);
+		child = child->next_sibling;
+	}
+}
+
+internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler) {
 	auto& pass_data = self.allocate_pass_data<UIPassData>();
 	SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Vertex, "vertex_main" }, &pass_data.vertex_shader);
 	SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Pixel, "pixel_main" }, &pass_data.pixel_shader);
@@ -484,16 +474,48 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCm
 
 	// Update
 	// TODO: Move elsewhere
-	UIPass_DrawRect(self, { 0, 0 }, (f32)frame_info->width, 30, { 0.2f, 0.23f, 0.25f });
-	UIPass_DrawText(self, Str8_Literal("Stingray"), { (f32)frame_info->width * 0.5f, 4 }, { 1.0f, 1.0f, 1.0f });
-	UI_Button(Str8_Literal("Click me!"));
+	UI_BeginFrame((f32)frame_info->width, (f32)frame_info->height);
+	{
+		UINode* title_bar = UI_HorizontalLayout(Str8_Literal("Title Bar"), { UISizeType::PercentOfParent, 1.0f }, { UISizeType::Pixels, 34 });
+		UI_PushParent(title_bar);
+		{
+			UI_Button(Str8_Literal("File"));
+			UI_Button(Str8_Literal("Edit"));
+			UI_Button(Str8_Literal("View"));
+			UI_Button(Str8_Literal("Tools"));
+			UI_Button(Str8_Literal("Window"));
+			UI_Button(Str8_Literal("Help"));
+		}
+		UI_PopParent();
 
+		UINode* main_content = UI_HorizontalLayout(Str8_Literal("Main Content"), { UISizeType::PercentOfParent, 1.0f }, { UISizeType::Pixels, 600 });
+		UI_PushParent(main_content);
+		{
+			UINode* left_layout = UI_VerticalLayout(Str8_Literal("Left Layout"), { UISizeType::PercentOfParent, 0.2f }, { UISizeType::Pixels, 300 });
+			UI_PushParent(left_layout);
+			{
+				UI_Button(Str8_Literal("Button in the left layout"));
+			}
+			UI_PopParent();
+
+			UINode* right_layout = UI_VerticalLayout(Str8_Literal("Right Layout"), { UISizeType::PercentOfParent, 0.8f }, { UISizeType::Pixels, 300 });
+			UI_PushParent(right_layout);
+			{
+				UI_Button(Str8_Literal("Button in the right layout"));
+			}
+			UI_PopParent();
+		}
+		UI_PopParent();
+	}
+	UI_EndFrame();
+	
+	// TODO: Move UI rendering logic elsewhere?
+	UI_RenderPass_GenerateDrawInstances(self, UI_GetRootNode());
 	memcpy(
 		pass_data->draw_instance_buffers[frame_index].mappedData,
 		pass_data->draw_instances_data.data,
 		pass_data->draw_instances_data.size * sizeof(UIDrawInstance)
 	);
-	//
 
 	SRViewport viewport = {
 		.width = static_cast<f32>(frame_info->width),
@@ -511,6 +533,7 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCm
 	SRGFX_DrawInstanced(&gfx_device, 6, (u32)pass_data->draw_instances_data.size, 0, 0, cmd_list);
 	
 	SRVector_Clear(&pass_data->draw_instances_data);
+	g_rand_state = 17;
 }
 
 internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfx_device) {
@@ -522,10 +545,9 @@ internal void UIPass_OnDestroy(SRRenderPass& self, SRGFXDevice& gfx_device) {
 		SRGFX_DestroyResource(&gfx_device, &pass_data->draw_instance_buffers[f]);
 	}
 
-	SRHashMap_Destroy(&g_ui_id_to_widget_index_map);
 }
 
-internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 height, glm::vec3 col) {
+internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 height, glm::vec4 col) {
 	auto* pass_data = self.get_pass_data<UIPassData>();
 
 	UIDrawInstance draw_instance = {
@@ -537,7 +559,7 @@ internal void UIPass_DrawRect(SRRenderPass& self, glm::vec2 pos, f32 width, f32 
 	SRVector_PushBack(&pass_data->draw_instances_data, draw_instance);
 }
 
-internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::vec3 col) {
+internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::vec4 col) {
 	auto* pass_data = self.get_pass_data<UIPassData>();
 	SRDescriptorIndex tex_index = SRGFX_GetDescriptorIndexSRV(&g_gfx_device, g_font.atlas_tex);
 
@@ -551,7 +573,7 @@ internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::
 		}
 
 		UIDrawInstance draw_instance = {
-			.pos = { pos.x + (f32)glyph->bearing_x, pos.y + (f32)g_font.bbox_ymax - (f32)glyph->bearing_y },
+			.pos = { pos.x + (f32)glyph->bearing_x, pos.y + (f32)g_font.bearing_ymax - (f32)glyph->bearing_y },
 			.size = { glyph->width, glyph->height },
 			.texcoord_tl = glyph->atlas_tex_coord_tl,
 			.texcoord_br = glyph->atlas_tex_coord_br,
@@ -562,38 +584,4 @@ internal void UIPass_DrawText(SRRenderPass& self, Str8 str, glm::vec2 pos, glm::
 
 		pos.x += static_cast<f32>(glyph->advance_x);
 	}
-}
-
-internal UIWidgetID UIWidgetID_FromStr8(Str8 str) {
-	UIWidgetID hash = 2166136261u; // FNV offset basis
-	for (u64 i = 0; i < str.size; ++i) {
-		hash ^= str.data[i];
-        hash *= 16777619u; // FNV prime
-    }
-    return hash;
-}
-
-internal UIWidget* UIWidget_Make(UIWidgetFlags flags, Str8 str) {
-	UIWidgetID widget_id = UIWidgetID_FromStr8(str);
-	u64* widget_index = SRHashMap_Get(&g_ui_id_to_widget_index_map, widget_id);
-
-	if (widget_index == nullptr) {
-		UIWidget widget = {
-			.id = widget_id,
-			.flags = flags
-		};
-
-		SRVector_PushBack(&g_ui_widgets, widget);
-		SRHashMap_Put(&g_ui_id_to_widget_index_map, widget_id, g_ui_widgets.size - 1);
-		return &g_ui_widgets.data[g_ui_widgets.size - 1];
-	}
-
-	return &g_ui_widgets.data[*widget_index];
-}
-
-internal void UI_Button(Str8 str) {
-	// TODO: We need to implement #-symboling to indicate extra information to be hashed WITHOUT
-	// being visible in the final string.
-	UIWidget* widget = UIWidget_Make(UIWidgetFlags::Clickable | UIWidgetFlags::HotAnimation, str);
-
 }

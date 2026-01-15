@@ -1,7 +1,5 @@
 #include "Font.h"
 
-#include "Core/StringTypes.h"
-
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +7,6 @@
 #include <ShlObj.h>
 
 #undef internal
-
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -17,8 +14,19 @@
 #define FT_CHECK(err) do { FT_Error _err = (err); assert(!_err); } while (0)
 
 struct SRFontLoader {
-	
+	u64 reserved;
 };
+
+f32 SRFont_CalcTextWidth(const SRFont* font, Str8 str) {
+	assert(font);
+
+	f32 width = 0.0f;
+	for (u64 i = 0; i < str.size; ++i) {
+		const SRFontGlyph* glyph = &font->glyphs[str.data[i]];
+		width += glyph->advance_x;
+	}
+	return width;
+}
 
 SRFontLoader* SRFontLoader_Create(SRArena* arena) {
 	SRFontLoader* loader = SRArena_PushStructZero(arena, SRFontLoader);
@@ -122,6 +130,7 @@ void SRFontLoader_LoadFontFromSystem(SRFontLoader* font_loader, SRGFXDevice* gfx
 			break;
 		}
 
+		font->bearing_ymax = max_bearing_y;
 		font->bbox_ymax = max_negative_bearing_y + max_bearing_y;
 		target_atlas_width *= 2;
 		target_atlas_height *= 2;

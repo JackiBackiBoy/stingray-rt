@@ -109,11 +109,19 @@ set(SOURCE_FILES
 	${SOURCE_DIR}/Input/Input.cpp
 	${SOURCE_DIR}/Input/Input.h
 
+	# Math
+	${SOURCE_DIR}/Math/MathFunctions.cpp
+	${SOURCE_DIR}/Math/MathFunctions.h
+
+	# UI
+	${SOURCE_DIR}/UI/UICore.cpp
+	${SOURCE_DIR}/UI/UICore.h
+
 	# Utilities
 	${SOURCE_DIR}/Utilities/TextUtilities.h
 )
 
-# ------------------------------ Source Groupings ------------------------------
+# --- Source Groupings ----------------------------------------------------------------------------
 source_group("" FILES
 	${SOURCE_DIR}/Main.cpp
 )
@@ -196,11 +204,21 @@ source_group("Input" FILES
 	${SOURCE_DIR}/Input/Input.h
 )
 
+source_group("Math" FILES
+	${SOURCE_DIR}/Math/MathFunctions.cpp
+	${SOURCE_DIR}/Math/MathFunctions.h
+)
+
+source_group("UI" FILES
+	${SOURCE_DIR}/UI/UICore.cpp
+	${SOURCE_DIR}/UI/UICore.h
+)
+
 source_group("Utilities" FILES
 	${SOURCE_DIR}/Utilities/TextUtilities.h
 )
 
-# ----------------------------- Compile Executable -----------------------------
+# --- Compile Executable --------------------------------------------------------------------------
 add_executable(
 	StingrayGraphics
 	WIN32
@@ -220,7 +238,7 @@ else()
 	)
 endif()
 
-# ------------------------------- Target Sources -------------------------------
+# --- Target Sources ------------------------------------------------------------------------------
 # Win32 resource file and application manifest
 set(WIN32_RES_DIR ${CMAKE_SOURCE_DIR}/Resources/Win32/)
 set_source_files_properties(${WIN32_RES_DIR}Resources.rc PROPERTIES LANGUAGE RC)
@@ -280,7 +298,7 @@ target_link_libraries(StingrayGraphics
 
 target_link_options(StingrayGraphics PRIVATE "/MANIFEST:NO")
 
-# Copy DX12 Dependencies
+# --- Copy DX12 Dependencies ----------------------------------------------------------------------
 add_custom_command(
 	TARGET StingrayGraphics POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_directory

@@ -69,8 +69,8 @@ struct SRVector {
 };
 
 template<typename T>
-void SRVector_Create(SRVector<T>* vec) {
-	vec->capacity = 16;
+void SRVector_Create(SRVector<T>* vec, u64 initial_capacity = 32) {
+	vec->capacity = initial_capacity;
 	vec->data = (T*)malloc(vec->capacity * sizeof(T));
 	vec->size = 0;
 }
@@ -104,6 +104,7 @@ void SRVector_Clear(SRVector<T>* vec) {
 
 template<typename T>
 void SRVector_Destroy(SRVector<T>* vec) {
+	assert(vec->data);
 	free(vec->data);
 	vec->data = nullptr;
 	vec->capacity = 0;
