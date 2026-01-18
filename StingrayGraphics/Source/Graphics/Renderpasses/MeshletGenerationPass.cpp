@@ -18,8 +18,8 @@ namespace SRMeshletGenerationpass {
 
 	void build(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler) {
 		auto& passData = self.allocate_pass_data<MeshletGenerationPassData>();
-		SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/MeshShader.hlsl", { SRShaderStage::Mesh, "meshMain" }, &passData.meshShader);
-		SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/MeshShader.hlsl", { SRShaderStage::Pixel, "pixelMain" }, &passData.pixelShader);
+		SRShaderCompiler_CompileFromFile(&shader_compiler, Str8_Literal(RES_DIR "Shaders/MeshShader.hlsl"), { SRShaderStage::Mesh, Str8_Literal("meshMain") }, &passData.meshShader);
+		SRShaderCompiler_CompileFromFile(&shader_compiler, Str8_Literal(RES_DIR "Shaders/MeshShader.hlsl"), { SRShaderStage::Pixel, Str8_Literal("pixelMain") }, &passData.pixelShader);
 
 		SRPipelineInfo pipelineInfo = {
 			.pixelShader = &passData.pixelShader,

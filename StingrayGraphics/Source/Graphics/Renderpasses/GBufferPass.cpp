@@ -5,8 +5,8 @@
 namespace SRGBufferPass {
 	void build(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler) {
 		auto& passData = self.allocate_pass_data<GBufferPassData>();
-		SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Vertex, "vertexMain" }, &passData.vertexShader);
-		SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/GBufferPass.hlsl", { SRShaderStage::Pixel, "pixelMain" }, &passData.pixelShader);
+		SRShaderCompiler_CompileFromFile(&shader_compiler, Str8_Literal(RES_DIR "Shaders/GBufferPass.hlsl"), { SRShaderStage::Vertex, Str8_Literal("vertexMain") }, &passData.vertexShader);
+		SRShaderCompiler_CompileFromFile(&shader_compiler, Str8_Literal(RES_DIR "Shaders/GBufferPass.hlsl"), { SRShaderStage::Pixel, Str8_Literal("pixelMain") }, &passData.pixelShader);
 
 		SRPipelineInfo pipelineInfo = {
 			.vertexShader = &passData.vertexShader,

@@ -3,7 +3,6 @@
 #include "Graphics/DX12/GraphicsTypes_DX12.h"
 #include "Core/Logger.h"
 #include "Core/StringTypes.h"
-#include "Utilities/TextUtilities.h"
 #include "Data/ArenaAllocator.h"
 
 #include "d3d12.h"
@@ -12,6 +11,8 @@
 #include <dxgidebug.h>
 #include <Windows.h>
 #include <stdlib.h>
+
+#include <vector>
 
 #define SR_MAX_CBV_SRV_UAV_DESCRIPTORS 65536
 #define SR_MAX_SAMPLER_DESCRIPTORS     2048
@@ -154,9 +155,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 	// EnumAdapters1 instead.
 	IDXGIFactory6* dxgi_factory_6 = nullptr;
 	bool is_dxgi_factory_6_avail = SUCCEEDED(dev->dxgi_factory->QueryInterface(IID_PPV_ARGS(&dxgi_factory_6)));
-
-	char device_name_str8_data[128 * sizeof(WCHAR)];
-	Str8 device_name_str8 = { (u8*)device_name_str8_data, 128 * sizeof(WCHAR) };
+	Str8 device_name = {};
 
 	for (UINT i = 0;; ++i) {
 		IDXGIAdapter1* adapter = nullptr;
@@ -177,13 +176,13 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 			break;
 		}
 
-		DXGI_ADAPTER_DESC1 adapterDesc;
-		adapter->GetDesc1(&adapterDesc);
-		Str16 device_name_str16 = { (u16*)adapterDesc.Description, 128 * sizeof(WCHAR) };
-		Str16_ToStr8(&device_name_str16, &device_name_str8);
+		DXGI_ADAPTER_DESC1 adapter_desc;
+		adapter->GetDesc1(&adapter_desc);
+		Str16 wide_device_name = { (u16*)adapter_desc.Description, 128 * sizeof(WCHAR) };
+		device_name = Str8_FromStr16(dev->arena_general, wide_device_name);
 
-		if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
-			SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Software/WARP adapter", i, device_name_str8.data);
+		if (adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+			SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Software/WARP adapter", i, device_name.data);
 			adapter->Release();
 			continue;
 		}
@@ -191,7 +190,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 		ID3D12Device* device = nullptr;
 		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device));
 		if (FAILED(hr)) {
-			SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Device creation failed", i, device_name_str8.data);
+			SRLOG_DEBUG_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Device creation failed", i, device_name.data);
 			adapter->Release();
 			continue;
 		}
@@ -211,7 +210,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 		REQUIRE(capabilities.enhancedBarriersSupported, "Enhanced Barriers");
 
 		if (!missing.empty()) {
-			SRLOG_WARN_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Missing %zu requirement(s):", i, device_name_str8.data, missing.size());
+			SRLOG_WARN_CAT(SRLOG_CAT_DX12, "[GPU%u] %s REJECTED. Missing %zu requirement(s):", i, device_name.data, missing.size());
 
 			for (const auto& str : missing) {
 				SRLOG_WARN_CAT(SRLOG_CAT_DX12, "\t%s", str.c_str());
@@ -247,7 +246,7 @@ internal void SRGFXDeviceDX12_CreateDevice(SRGFXDeviceDX12* dev) {
 		throw std::runtime_error("DX12 ERROR: No suitable GPU found");
 	}
 
-	SRLOG_INFO_CAT(SRLOG_CAT_DX12, "Picked [GPU%u] %s", picked_device_idx, device_name_str8.data);
+	SRLOG_INFO_CAT(SRLOG_CAT_DX12, "Picked [GPU%u] %s", picked_device_idx, device_name.data);
 }
 
 internal void SRGFXDeviceDX12_CreateMemoryAllocator(SRGFXDeviceDX12* dev) {

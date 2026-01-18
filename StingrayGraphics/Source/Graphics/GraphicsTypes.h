@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/StringTypes.h"
 #include "Core/Types.h"
 #include "Core/EnumBitmaskOperators.h"
 
@@ -415,7 +416,7 @@ struct SRBarrier {
 struct SRShader {
 	u8* data;
 	u64 size;
-	const char* entry_point;
+	Str8 entry_point;
 };
 
 struct SRBlendState {

@@ -1,5 +1,4 @@
 #include "Window.h"
-#include "Utilities/TextUtilities.h"
 
 #include <vector>
 #include <Windows.h>
@@ -33,7 +32,6 @@ internal LRESULT SRWindowWin32_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 		DefWindowProc(hwnd, msg, wParam, lParam);
 		return TRUE;
 	}
-
 	SRWindow* window = (SRWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 	
 	if (!window) {
@@ -101,8 +99,9 @@ internal void SRWindowWin32_RegisterClassOnce() {
 	g_is_window_class_registered = true;
 }
 
-internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, SRWindowFlags flags, SRWindow* window) {
-	SRWideTemp wide_name = SRWideTemp(name);
+internal void SRWindowWin32_Initialize(SRArena* arena, Str8 name, u32 width, u32 height, SRWindowFlags flags, SRWindow* window) {
+	SRArenaMarker m = SRArena_GetMarker(arena);
+	Str16 wide_name = Str16_FromStr8(arena, name);
 	HINSTANCE instance = (HINSTANCE)GetModuleHandle(nullptr);
 
 	// TODO: We might eventually want multiple windows, and as such it
@@ -140,7 +139,7 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 	window->handle = CreateWindowEx(
 		WS_EX_NOREDIRECTIONBITMAP,
 		L"SRWindowWin32Class",
-		wide_name,
+		(WCHAR*)wide_name.data,
 		window_styles,
 		window_pos_x,
 		window_pos_y,
@@ -155,15 +154,17 @@ internal void SRWindowWin32_Initialize(const char* name, u32 width, u32 height, 
 	GetClientRect(window->handle, &client_rect);
 	window->client_width = (u32)(client_rect.right - client_rect.left);
 	window->client_height = (u32)(client_rect.bottom - client_rect.top);
+
+	SRArena_PopToMarker(arena, m);
 }
 
-SRWindow* SRWindow_Create(const char* name, u32 width, u32 height, SRWindowFlags flags) {
+SRWindow* SRWindow_Create(SRArena* arena, Str8 name, u32 width, u32 height, SRWindowFlags flags) {
 	SRWindow* window = (SRWindow*)malloc(sizeof(SRWindow));
 	assert(window);
 	ZeroMemory(window, sizeof(*window));
 	
 	SRWindowWin32_RegisterClassOnce();
-	SRWindowWin32_Initialize(name, width, height, flags, window);
+	SRWindowWin32_Initialize(arena, name, width, height, flags, window);
 
 	return window;
 }

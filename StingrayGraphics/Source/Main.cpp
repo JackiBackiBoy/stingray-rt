@@ -6,7 +6,6 @@
 #include "Data/ArenaAllocator.h"
 #include "Data/Camera.h"
 #include "Data/ComponentTypes.h"
-#include "Data/HashMap.h"
 #include "Data/Model.h"
 #include "Data/Scene.h"
 #include "Data/Font.h"
@@ -245,8 +244,13 @@ internal void Console_Initialize() {
 }
 
 internal void Window_Initialize() {
-	const char* title = (g_gfx_backend == SRGFXBackend::Vulkan ? "Stingray (Vulkan)" : "Stingray (DX12)");
-	g_window = SRWindow_Create(title, DEFAULT_WIDTH, DEFAULT_HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
+	Str8 title;
+	switch (g_gfx_backend) {
+		case SRGFXBackend::Vulkan: { title = Str8_Literal("Stingray (Vulkan)"); } break;
+		case SRGFXBackend::DX12: { title = Str8_Literal("Stingray (DX12)"); } break;
+	}
+
+	g_window = SRWindow_Create(g_arena, title, DEFAULT_WIDTH, DEFAULT_HEIGHT, SRWindowFlags_Centered | SRWindowFlags_SizeIsClientArea);
 
 	SRWindow_SetOnResizeCallback(g_window, Window_OnResize);
 }
@@ -428,8 +432,8 @@ internal void UI_RenderPass_GenerateDrawInstances(SRRenderPass& self, UINode* no
 
 internal void UIPass_Initialize(SRRenderPass& self, SRGFXDevice& gfx_device, SRShaderCompiler& shader_compiler) {
 	auto& pass_data = self.allocate_pass_data<UIPassData>();
-	SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Vertex, "vertex_main" }, &pass_data.vertex_shader);
-	SRShaderCompiler_CompileFromFile(&shader_compiler, RES_DIR "Shaders/UIPass.hlsl", { SRShaderStage::Pixel, "pixel_main" }, &pass_data.pixel_shader);
+	SRShaderCompiler_CompileFromFile(&shader_compiler, Str8_Literal(RES_DIR "Shaders/UIPass.hlsl"), { SRShaderStage::Vertex, Str8_Literal("vertex_main") }, &pass_data.vertex_shader);
+	SRShaderCompiler_CompileFromFile(&shader_compiler, Str8_Literal(RES_DIR "Shaders/UIPass.hlsl"), { SRShaderStage::Pixel, Str8_Literal("pixel_main") }, &pass_data.pixel_shader);
 
 	SRPipelineInfo pipelineInfo = {
 		.vertexShader = &pass_data.vertex_shader,
@@ -472,12 +476,9 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCm
 	auto* pass_data = self.get_pass_data<UIPassData>();
 	u32 frame_index = SRGFX_GetFrameIndex(&gfx_device);
 
-	// Update
-	// TODO: Move elsewhere
 	UI_BeginFrame((f32)frame_info->width, (f32)frame_info->height);
 	{
-		UINode* title_bar = UI_HorizontalLayout(Str8_Literal("Title Bar"), { UISizeType::PercentOfParent, 1.0f }, { UISizeType::Pixels, 34 });
-		UI_PushParent(title_bar);
+		UINode* title_bar = UI_BeginRow(Str8_Literal("Title Bar"), { UISizeType::PercentOfParent, 1.0f }, { UISizeType::Pixels, 34 });
 		{
 			UI_Button(Str8_Literal("File"));
 			UI_Button(Str8_Literal("Edit"));
@@ -486,26 +487,23 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCm
 			UI_Button(Str8_Literal("Window"));
 			UI_Button(Str8_Literal("Help"));
 		}
-		UI_PopParent();
+		UI_EndRow();
 
-		UINode* main_content = UI_HorizontalLayout(Str8_Literal("Main Content"), { UISizeType::PercentOfParent, 1.0f }, { UISizeType::Pixels, 600 });
-		UI_PushParent(main_content);
+		UINode* main_content = UI_BeginRow(Str8_Literal("Main Content"), { UISizeType::PercentOfParent, 1.0f }, { UISizeType::Pixels, 600 });
 		{
-			UINode* left_layout = UI_VerticalLayout(Str8_Literal("Left Layout"), { UISizeType::PercentOfParent, 0.2f }, { UISizeType::Pixels, 300 });
-			UI_PushParent(left_layout);
+			UINode* left_layout = UI_BeginCol(Str8_Literal("Left Layout"), { UISizeType::PercentOfParent, 0.2f }, { UISizeType::Pixels, 300 });
 			{
 				UI_Button(Str8_Literal("Button in the left layout"));
 			}
-			UI_PopParent();
+			UI_EndCol();
 
-			UINode* right_layout = UI_VerticalLayout(Str8_Literal("Right Layout"), { UISizeType::PercentOfParent, 0.8f }, { UISizeType::Pixels, 300 });
-			UI_PushParent(right_layout);
+			UINode* right_layout = UI_BeginCol(Str8_Literal("Right Layout"), { UISizeType::PercentOfParent, 0.8f }, { UISizeType::Pixels, 300 });
 			{
 				UI_Button(Str8_Literal("Button in the right layout"));
 			}
-			UI_PopParent();
+			UI_EndCol();
 		}
-		UI_PopParent();
+		UI_EndRow();
 	}
 	UI_EndFrame();
 	

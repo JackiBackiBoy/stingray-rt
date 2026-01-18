@@ -10,11 +10,15 @@ struct UIContext {
 	const SRFont* font;
 
 	UINode* root_node;
-	SRVector<UINode> g_ui_nodes;
-	SRHashMap<UINodeID, u64> g_ui_id_to_node_index_map;
-	SRVector<UINode*> g_ui_stack_parents;
-	UINodeID g_ui_active_id;
-	UINodeID g_ui_hot_id;
+	SRVector<UINode> nodes;
+	SRHashMap<UINodeID, u64> id_to_node_index_map;
+	UINodeID active_id;
+	UINodeID hot_id;
+
+	// Stack
+	SRVector<UINode*> stack_parents;
+	SRVector<UISize> stack_semantic_widths;
+	SRVector<UISize> stack_semantic_heights;
 };
 
 global UIContext* g_ctx;
@@ -37,8 +41,8 @@ internal UINodeID UINodeID_FromStr8(Str8 str) {
 }
 
 internal UINode* UI_GetCurrentParent() {
-	if (g_ctx->g_ui_stack_parents.size > 0) {
-		return g_ctx->g_ui_stack_parents[g_ctx->g_ui_stack_parents.size - 1];
+	if (g_ctx->stack_parents.size > 0) {
+		return g_ctx->stack_parents[g_ctx->stack_parents.size - 1];
 	}
 
 	return nullptr;
@@ -46,20 +50,20 @@ internal UINode* UI_GetCurrentParent() {
 
 internal UINode* UINode_CreateOrGet(UINodeFlags flags, Str8 str) {
 	UINodeID node_id = UINodeID_FromStr8(str);
-	u64* node_index = SRHashMap_Get(&g_ctx->g_ui_id_to_node_index_map, node_id);
+	u64* node_index = SRHashMap_Get(&g_ctx->id_to_node_index_map, node_id);
 	UINode* node;
 
 	if (node_index == nullptr) {
-		SRVector_PushBack(&g_ctx->g_ui_nodes, {
+		SRVector_PushBack(&g_ctx->nodes, {
 			.id = node_id,
 			.flags = flags,
 			.str = str
 			});
-		SRHashMap_Put(&g_ctx->g_ui_id_to_node_index_map, node_id, g_ctx->g_ui_nodes.size - 1);
-		node = &g_ctx->g_ui_nodes.data[g_ctx->g_ui_nodes.size - 1];
+		SRHashMap_Put(&g_ctx->id_to_node_index_map, node_id, g_ctx->nodes.size - 1);
+		node = &g_ctx->nodes.data[g_ctx->nodes.size - 1];
 	}
 	else {
-		node = &g_ctx->g_ui_nodes.data[*node_index];
+		node = &g_ctx->nodes.data[*node_index];
 	}
 
 	// Reset per-frame state
@@ -74,6 +78,9 @@ internal UINode* UINode_CreateOrGet(UINodeFlags flags, Str8 str) {
 	node->computed_size[UIAxis_Y] = 0.0f;
 
 	node->parent = UI_GetCurrentParent();
+	if (g_ctx->stack_semantic_widths.size > 0) { node->semantic_size[UIAxis_X] = SRVector_GetBack(&g_ctx->stack_semantic_widths); }
+	if (g_ctx->stack_semantic_heights.size > 0) { node->semantic_size[UIAxis_Y] = SRVector_GetBack(&g_ctx->stack_semantic_heights); }
+
 	if (node->parent) {
 		for (u32 axis = 0; axis < UIAxis_COUNT; ++axis) {
 			assert(!(node->parent->semantic_size[axis].type == UISizeType::ChildSum && node->semantic_size[axis].type == UISizeType::PercentOfParent));
@@ -236,9 +243,12 @@ UIContext* UI_CreateContext(const SRFont* font) {
 	ctx->font = font;
 	g_ctx = ctx;
 
-	SRVector_Create(&ctx->g_ui_nodes, MAX_UI_NODES);
-	SRVector_Create(&ctx->g_ui_stack_parents);
-	SRHashMap_Create(&ctx->g_ui_id_to_node_index_map, Hash_U32);
+	SRVector_Create(&ctx->nodes, MAX_UI_NODES);
+	SRHashMap_Create(&ctx->id_to_node_index_map, Hash_U32);
+
+	SRVector_Create(&ctx->stack_parents);
+	SRVector_Create(&ctx->stack_semantic_widths);
+	SRVector_Create(&ctx->stack_semantic_heights);
 
 	return ctx;
 }
@@ -248,9 +258,12 @@ void UI_DestroyContext(UIContext* ctx) {
 		ctx = g_ctx;
 	}
 
-	SRVector_Destroy(&ctx->g_ui_nodes);
-	SRVector_Destroy(&ctx->g_ui_stack_parents);
-	SRHashMap_Destroy(&ctx->g_ui_id_to_node_index_map);
+	SRVector_Destroy(&ctx->nodes);
+	SRHashMap_Destroy(&ctx->id_to_node_index_map);
+
+	SRVector_Destroy(&ctx->stack_parents);
+	SRVector_Destroy(&ctx->stack_semantic_widths);
+	SRVector_Destroy(&ctx->stack_semantic_heights);
 
 	free(ctx);
 }
@@ -280,22 +293,34 @@ UINode* UI_GetRootNode() {
 	return g_ctx->root_node;
 }
 
-UINode* UI_HorizontalLayout(Str8 str, UISize size_x, UISize size_y) {
+UINode* UI_BeginRow(Str8 str, UISize size_x, UISize size_y) {
 	UINode* node = UINode_CreateOrGet(UINodeFlags::DrawBackground, str);
 	node->semantic_size[UIAxis_X] = size_x;
 	node->semantic_size[UIAxis_Y] = size_y;
 	node->child_layout_axis = UIAxis_X;
 
+	UI_PushParent(node);
 	return node;
 }
 
-UINode* UI_VerticalLayout(Str8 str, UISize size_x, UISize size_y) {
+void UI_EndRow() {
+	assert(g_ctx->stack_parents.size > 1);
+	UI_PopParent();
+}
+
+UINode* UI_BeginCol(Str8 str, UISize size_x, UISize size_y) {
 	UINode* node = UINode_CreateOrGet(UINodeFlags::DrawBackground, str);
 	node->semantic_size[UIAxis_X] = size_x;
 	node->semantic_size[UIAxis_Y] = size_y;
 	node->child_layout_axis = UIAxis_Y;
 
+	UI_PushParent(node);
 	return node;
+}
+
+void UI_EndCol() {
+	assert(g_ctx->stack_parents.size > 1);
+	UI_PopParent();
 }
 
 UINode* UI_Button(Str8 str) {
@@ -311,5 +336,21 @@ UINode* UI_Button(Str8 str) {
 	return node;
 }
 
-void UI_PushParent(UINode* node) { SRVector_PushBack(&g_ctx->g_ui_stack_parents, node); }
-void UI_PopParent() { SRVector_PopBack(&g_ctx->g_ui_stack_parents); }
+void UI_PushParent(UINode* node)        { SRVector_PushBack(&g_ctx->stack_parents, node); }
+void UI_PushSemanticWidth(UISize size)  { SRVector_PushBack(&g_ctx->stack_semantic_widths, size); }
+void UI_PushSemanticHeight(UISize size) { SRVector_PushBack(&g_ctx->stack_semantic_heights, size); }
+
+void UI_PopSemanticWidth() {
+	assert(g_ctx->stack_semantic_widths.size > 0);
+	SRVector_PopBack(&g_ctx->stack_semantic_widths);
+}
+
+void UI_PopSemanticHeight() {
+	assert(g_ctx->stack_semantic_heights.size > 0);
+	SRVector_PopBack(&g_ctx->stack_semantic_heights);
+}
+
+void UI_PopParent() {
+	assert(g_ctx->stack_parents.size > 0);
+	SRVector_PopBack(&g_ctx->stack_parents);
+}

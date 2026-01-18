@@ -52,24 +52,32 @@ struct UINode {
 	UINodeFlags flags;
 	Str8 str;
 	UISize semantic_size[UIAxis_COUNT];
+	UIAxis child_layout_axis;
+	f32 padding;
 
 	f32 computed_pos_rel[UIAxis_COUNT];
 	f32 computed_size[UIAxis_COUNT];
-	UIAxis child_layout_axis;
 };
 
 // TODO: Improve font handling, right now we only use one font at a time
+// TODO: Transition to exclusively use Arenas
 struct UIContext;
-UIContext* UI_CreateContext(const SRFont* font); // TODO: Make use of arena
+UIContext* UI_CreateContext(const SRFont* font);
 void       UI_DestroyContext(UIContext* ctx = nullptr);
 void       UI_BeginFrame(f32 viewport_width, f32 viewport_height);
 void       UI_EndFrame();
 
 UINode*    UI_GetRootNode();
-UINode*    UI_HorizontalLayout(Str8 str, UISize size_x, UISize size_y);
-UINode*    UI_VerticalLayout(Str8 str, UISize size_x, UISize size_y);
+UINode*    UI_BeginRow(Str8 str, UISize size_x, UISize size_y);
+void       UI_EndRow();
+UINode*    UI_BeginCol(Str8 str, UISize size_x, UISize size_y);
+void       UI_EndCol();
 UINode*    UI_Button(Str8 str);
 
 void       UI_PushParent(UINode* node);
-void       UI_PopParent();
+void       UI_PushSemanticWidth(UISize size);
+void       UI_PushSemanticHeight(UISize size);
 
+void       UI_PopParent();
+void       UI_PopSemanticWidth();
+void       UI_PopSemanticHeight();

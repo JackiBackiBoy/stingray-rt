@@ -98,6 +98,12 @@ void SRVector_PopBack(SRVector<T>* vec) {
 }
 
 template<typename T>
+T& SRVector_GetBack(SRVector<T>* vec) {
+	assert(vec->size > 0);
+	return vec->data[vec->size - 1];
+}
+
+template<typename T>
 void SRVector_Clear(SRVector<T>* vec) {
 	vec->size = 0;
 }

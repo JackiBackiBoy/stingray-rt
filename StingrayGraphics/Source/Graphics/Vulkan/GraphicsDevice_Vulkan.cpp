@@ -1083,7 +1083,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_VERTEX_BIT,
 			.module = shaderModule,
-			.pName = info->vertexShader->entry_point,
+			.pName = (char*)info->vertexShader->entry_point.data,
 			.pSpecializationInfo = nullptr
 		};
 		shaderStages.push_back(shaderStageInfo);
@@ -1097,7 +1097,7 @@ void SRGFXVulkan_CreatePipeline(SRGFXDevice* device, const SRPipelineInfo* info,
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 			.module = shaderModule,
-			.pName = info->pixelShader->entry_point,
+			.pName = (char*)info->pixelShader->entry_point.data,
 			.pSpecializationInfo = nullptr
 		};
 		shaderStages.push_back(shaderStageInfo);

@@ -1,6 +1,5 @@
 #include "ShaderCompiler.h"
 #include "Core/Logger.h"
-#include "Utilities/TextUtilities.h"
 
 #include <Unknwn.h>
 #include <dxcapi.h>
@@ -41,30 +40,35 @@ void SRShaderCompiler_Destroy(SRShaderCompiler* compiler) {
 	compiler->dxc_utils->Release();
 }
 
-void SRShaderCompiler_CompileFromFile(SRShaderCompiler* compiler, const char* path, SRShaderCompileInfo info, SRShader* shader) {
-	u64 path_len = strlen(path);
-	const char* last_forward_slash = strrchr(path, '/');
-	const char* last_backward_slash = strrchr(path, '\\');
-	const char* last_slash = nullptr;
+void SRShaderCompiler_CompileFromFile(SRShaderCompiler* compiler, Str8 path, SRShaderCompileInfo info, SRShader* shader) {
+	u64 last_forward_slash_pos = Str8_FindLastOf(path, '/');
+	u64 last_back_slash_pos = Str8_FindLastOf(path, '\\');
+	u64 last_slash_pos = STR8_NOT_FOUND;
 
-	if ((uintptr_t)last_forward_slash > (uintptr_t)last_backward_slash) {
-		last_slash = last_forward_slash;
+	if (last_forward_slash_pos != STR8_NOT_FOUND && last_back_slash_pos != STR8_NOT_FOUND) {
+		last_slash_pos = last_forward_slash_pos > last_back_slash_pos ? last_forward_slash_pos : last_back_slash_pos;
 	}
-	else {
-		last_slash = last_backward_slash;
+	else if (last_forward_slash_pos != STR8_NOT_FOUND) {
+		last_slash_pos = last_forward_slash_pos;
+	}
+	else if (last_back_slash_pos != STR8_NOT_FOUND) {
+		last_slash_pos = last_back_slash_pos;
 	}
 
-	u64 dir_size = (uintptr_t)(last_slash - path);
-	char* dir_str = (char*)malloc(dir_size + 1);
-	memcpy(dir_str, path, dir_size);
-	dir_str[dir_size] = '\0';
+	assert(last_slash_pos != STR8_NOT_FOUND);
 
-	SRWideTemp wstr_path = SRWideTemp(path);
-	SRWideTemp wstr_dir = SRWideTemp(dir_str);
-	SRWideTemp wstr_entry_point = SRWideTemp(info.entry_point);
+	SRArenaMarker m = SRArena_GetMarker(compiler->arena);
+	Str8 dir = { SRArena_PushBytes(compiler->arena, last_slash_pos + 1), last_slash_pos };
+
+	memcpy(dir.data, path.data, last_slash_pos);
+	dir.data[last_slash_pos] = '\0';
+
+	Str16 wide_path = Str16_FromStr8(compiler->arena, path);
+	Str16 wide_dir = Str16_FromStr8(compiler->arena, dir);
+	Str16 wide_entry_point = Str16_FromStr8(compiler->arena, info.entry_point);
 
 	IDxcBlobEncoding* blob_src = nullptr;
-	HR(compiler->dxc_utils->LoadFile(wstr_path, nullptr, &blob_src));
+	HR(compiler->dxc_utils->LoadFile((WCHAR*)wide_path.data, nullptr, &blob_src));
 
 	const WCHAR* profile;
 	switch (info.stage) {
@@ -90,9 +94,9 @@ void SRShaderCompiler_CompileFromFile(SRShaderCompiler* compiler, const char* pa
 	args[arg_count++] = L"-HV";
 	args[arg_count++] = L"2021";
 	args[arg_count++] = L"-I";
-	args[arg_count++] = wstr_dir;
+	args[arg_count++] = (WCHAR*)wide_dir.data;
 	args[arg_count++] = L"-E";
-	args[arg_count++] = wstr_entry_point;
+	args[arg_count++] = (WCHAR*)wide_entry_point.data;
 	args[arg_count++] = L"-T";
 	args[arg_count++] = profile;
 	args[arg_count++] = DXC_ARG_PACK_MATRIX_COLUMN_MAJOR;
@@ -135,7 +139,7 @@ void SRShaderCompiler_CompileFromFile(SRShaderCompiler* compiler, const char* pa
 
 	if (FAILED(hr)) {
 		WCHAR outStr[MAX_PATH] = {};
-		wsprintfW(outStr, L"Failed to compile shader at: %ls", wstr_path.buffer.data());
+		wsprintfW(outStr, L"Failed to compile shader at: %ls", (WCHAR*)wide_path.data);
 		OutputDebugStringW(outStr);
 	}
 
@@ -150,6 +154,7 @@ void SRShaderCompiler_CompileFromFile(SRShaderCompiler* compiler, const char* pa
 	HR(compiled_shader->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&blob_compiled_shader), nullptr));
 
 	u64 buffer_size = blob_compiled_shader->GetBufferSize();
+	SRArena_PopToMarker(compiler->arena, m);
 	shader->data = SRArena_PushBytes(compiler->arena, buffer_size);
 	shader->size = buffer_size;
 	shader->entry_point = info.entry_point;
@@ -160,5 +165,4 @@ void SRShaderCompiler_CompileFromFile(SRShaderCompiler* compiler, const char* pa
 	blob_errors->Release();
 	compiled_shader->Release();
 	blob_src->Release();
-	free(dir_str);
 }

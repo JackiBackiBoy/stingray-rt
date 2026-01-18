@@ -116,9 +116,6 @@ set(SOURCE_FILES
 	# UI
 	${SOURCE_DIR}/UI/UICore.cpp
 	${SOURCE_DIR}/UI/UICore.h
-
-	# Utilities
-	${SOURCE_DIR}/Utilities/TextUtilities.h
 )
 
 # --- Source Groupings ----------------------------------------------------------------------------
@@ -212,10 +209,6 @@ source_group("Math" FILES
 source_group("UI" FILES
 	${SOURCE_DIR}/UI/UICore.cpp
 	${SOURCE_DIR}/UI/UICore.h
-)
-
-source_group("Utilities" FILES
-	${SOURCE_DIR}/Utilities/TextUtilities.h
 )
 
 # --- Compile Executable --------------------------------------------------------------------------
