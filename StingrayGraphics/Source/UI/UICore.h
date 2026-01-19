@@ -68,16 +68,26 @@ void       UI_BeginFrame(f32 viewport_width, f32 viewport_height);
 void       UI_EndFrame();
 
 UINode*    UI_GetRootNode();
-UINode*    UI_BeginRow(Str8 str, UISize size_x, UISize size_y);
+UINode*    UI_BeginRow(Str8 str);
 void       UI_EndRow();
-UINode*    UI_BeginCol(Str8 str, UISize size_x, UISize size_y);
+UINode*    UI_BeginCol(Str8 str);
 void       UI_EndCol();
 UINode*    UI_Button(Str8 str);
 
 void       UI_PushParent(UINode* node);
 void       UI_PushSemanticWidth(UISize size);
 void       UI_PushSemanticHeight(UISize size);
+void       UI_PushSemanticSize(UIAxis axis, UISize size);
 
 void       UI_PopParent();
 void       UI_PopSemanticWidth();
 void       UI_PopSemanticHeight();
+void       UI_PopSemanticSize(UIAxis axis);
+
+#define DeferLoop(begin, end) for (int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
+#define UI_Row(str)              DeferLoop(UI_BeginRow(str), UI_EndRow())
+#define UI_Col(str)              DeferLoop(UI_BeginCol(str), UI_EndCol())
+#define UI_Parent(v)             DeferLoop(UI_PushParent(v), UI_PopParent())
+#define UI_SemanticWidth(v)      DeferLoop(UI_PushSemanticWidth(v), UI_PopSemanticWidth())
+#define UI_SemanticHeight(v)     DeferLoop(UI_PushSemanticHeight(v), UI_PopSemanticHeight())
+#define UI_SemanticSize(axis, v) DeferLoop(UI_PushSemanticSize((axis), (v)), UI_PopSemanticSize(axis))

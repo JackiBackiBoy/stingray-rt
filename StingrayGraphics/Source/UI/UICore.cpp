@@ -293,10 +293,8 @@ UINode* UI_GetRootNode() {
 	return g_ctx->root_node;
 }
 
-UINode* UI_BeginRow(Str8 str, UISize size_x, UISize size_y) {
+UINode* UI_BeginRow(Str8 str) {
 	UINode* node = UINode_CreateOrGet(UINodeFlags::DrawBackground, str);
-	node->semantic_size[UIAxis_X] = size_x;
-	node->semantic_size[UIAxis_Y] = size_y;
 	node->child_layout_axis = UIAxis_X;
 
 	UI_PushParent(node);
@@ -304,14 +302,11 @@ UINode* UI_BeginRow(Str8 str, UISize size_x, UISize size_y) {
 }
 
 void UI_EndRow() {
-	assert(g_ctx->stack_parents.size > 1);
 	UI_PopParent();
 }
 
-UINode* UI_BeginCol(Str8 str, UISize size_x, UISize size_y) {
+UINode* UI_BeginCol(Str8 str) {
 	UINode* node = UINode_CreateOrGet(UINodeFlags::DrawBackground, str);
-	node->semantic_size[UIAxis_X] = size_x;
-	node->semantic_size[UIAxis_Y] = size_y;
 	node->child_layout_axis = UIAxis_Y;
 
 	UI_PushParent(node);
@@ -319,7 +314,6 @@ UINode* UI_BeginCol(Str8 str, UISize size_x, UISize size_y) {
 }
 
 void UI_EndCol() {
-	assert(g_ctx->stack_parents.size > 1);
 	UI_PopParent();
 }
 
@@ -340,6 +334,14 @@ void UI_PushParent(UINode* node)        { SRVector_PushBack(&g_ctx->stack_parent
 void UI_PushSemanticWidth(UISize size)  { SRVector_PushBack(&g_ctx->stack_semantic_widths, size); }
 void UI_PushSemanticHeight(UISize size) { SRVector_PushBack(&g_ctx->stack_semantic_heights, size); }
 
+void UI_PushSemanticSize(UIAxis axis, UISize size) {
+	switch (axis) {
+		case UIAxis_X: { UI_PushSemanticWidth(size); } break;
+		case UIAxis_Y: { UI_PushSemanticHeight(size); } break;
+		default: break;
+	}
+}
+
 void UI_PopSemanticWidth() {
 	assert(g_ctx->stack_semantic_widths.size > 0);
 	SRVector_PopBack(&g_ctx->stack_semantic_widths);
@@ -348,6 +350,14 @@ void UI_PopSemanticWidth() {
 void UI_PopSemanticHeight() {
 	assert(g_ctx->stack_semantic_heights.size > 0);
 	SRVector_PopBack(&g_ctx->stack_semantic_heights);
+}
+
+void UI_PopSemanticSize(UIAxis axis) {
+	switch (axis) {
+		case UIAxis_X: { UI_PopSemanticWidth(); } break;
+		case UIAxis_Y: { UI_PopSemanticHeight(); } break;
+		default: break;
+	}
 }
 
 void UI_PopParent() {
