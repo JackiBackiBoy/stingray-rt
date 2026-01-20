@@ -478,8 +478,8 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCm
 
 	UI_BeginFrame((f32)frame_info->width, (f32)frame_info->height);
 	{
-		UI_PushSemanticWidth({ UISizeType::PercentOfParent, 1.0f });
-		UI_PushSemanticHeight({ UISizeType::Pixels, 34 });
+		UI_SemanticWidth(UISize_PctParent(1.0f))
+		UI_SemanticHeight(UISize_Pixels(34))
 		UI_Row(Str8_Literal("Title Bar")) {
 			UI_Button(Str8_Literal("File"));
 			UI_Button(Str8_Literal("Edit"));
@@ -488,27 +488,22 @@ internal void UIPass_OnExecute(SRRenderPass& self, SRGFXDevice& gfx_device, SRCm
 			UI_Button(Str8_Literal("Window"));
 			UI_Button(Str8_Literal("Help"));
 		}
-		UI_PopSemanticWidth();
-		UI_PopSemanticHeight();
 
-		UI_PushSemanticWidth({ UISizeType::PercentOfParent, 1.0f });
-		UI_PushSemanticHeight({ UISizeType::Pixels, 600 });
+		UI_SemanticWidth(UISize_PctParent(1.0f))
+		UI_SemanticHeight(UISize_Pixels(600))
 		UI_Row(Str8_Literal("Main Content")) {
-			UI_PushSemanticWidth({ UISizeType::PercentOfParent, 0.2f });
-			UI_PushSemanticHeight({ UISizeType::Pixels, 300 });
-			UI_Col(Str8_Literal("Left Layout")) {
-				UI_Button(Str8_Literal("Button in the left layout"));
-			}
-			UI_PopSemanticWidth();
+			UI_SemanticHeight(UISize_Pixels(300)) {
+				UI_SemanticWidth(UISize_PctParent(0.2f))
+				UI_Col(Str8_Literal("Left Layout")) {
+					UI_Button(Str8_Literal("Button in the left layout"));
+				}
 
-			UI_PushSemanticWidth({ UISizeType::PercentOfParent, 0.8f });
-			UI_Col(Str8_Literal("Right Layout")) {
-				UI_Button(Str8_Literal("Button in the right layout"));
+				UI_SemanticWidth(UISize_PctParent(0.8f))
+				UI_Col(Str8_Literal("Right Layout")) {
+					UI_Button(Str8_Literal("Button in the right layout"));
+				}
 			}
-			UI_PopSemanticHeight();
 		}
-		UI_PopSemanticWidth();
-		UI_PopSemanticHeight();
 	}
 	UI_EndFrame();
 	

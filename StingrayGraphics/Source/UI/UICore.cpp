@@ -342,6 +342,11 @@ void UI_PushSemanticSize(UIAxis axis, UISize size) {
 	}
 }
 
+void UI_PopParent() {
+	assert(g_ctx->stack_parents.size > 0);
+	SRVector_PopBack(&g_ctx->stack_parents);
+}
+
 void UI_PopSemanticWidth() {
 	assert(g_ctx->stack_semantic_widths.size > 0);
 	SRVector_PopBack(&g_ctx->stack_semantic_widths);
@@ -360,7 +365,7 @@ void UI_PopSemanticSize(UIAxis axis) {
 	}
 }
 
-void UI_PopParent() {
-	assert(g_ctx->stack_parents.size > 0);
-	SRVector_PopBack(&g_ctx->stack_parents);
-}
+UISize UISize_Pixels(f32 pixels) { return { UISizeType::Pixels, pixels }; }
+UISize UISize_TextContent()      { return { UISizeType::TextContent, 0.0f }; }
+UISize UISize_PctParent(f32 pct) { return { UISizeType::PercentOfParent, pct }; }
+UISize UISize_ChildSum()         { return { UISizeType::ChildSum, 0.0f }; }

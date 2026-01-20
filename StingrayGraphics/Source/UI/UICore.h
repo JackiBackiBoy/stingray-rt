@@ -84,6 +84,11 @@ void       UI_PopSemanticWidth();
 void       UI_PopSemanticHeight();
 void       UI_PopSemanticSize(UIAxis axis);
 
+UISize     UISize_Pixels(f32 pixels);
+UISize     UISize_TextContent();
+UISize     UISize_PctParent(f32 pct);
+UISize     UISize_ChildSum();
+
 #define DeferLoop(begin, end) for (int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
 #define UI_Row(str)              DeferLoop(UI_BeginRow(str), UI_EndRow())
 #define UI_Col(str)              DeferLoop(UI_BeginCol(str), UI_EndCol())
